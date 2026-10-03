@@ -35,6 +35,7 @@ const SYSTEM_NOTES = [
   // the board's auto-run: a note with the task's title, and with the person's answer to what blocked one
   [/^Next task from the project board \(auto-run is on\): (.*)/, 'task'],
   [/^Answer on the project board to what blocked your task "[^\n]*":\n(.*)/, 'answer'],
+  [/^The project check failed for your task "([^\n]*)" \(try/, 'check'],
 ]
 export const systemNote = (text) => SYSTEM_NOTES.find(([re]) => re.test(String(text || '')))?.[1] || ''
 // what the note shows besides its kind: the task, the answer

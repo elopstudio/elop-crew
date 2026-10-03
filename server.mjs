@@ -117,6 +117,18 @@ async function saveLook(body) {
 
 // a project's name on the page, picked there: config.json projects.<key>.name. The folder (its key) stays as it is,
 // and an empty name means the folder's own name again
+// the command the board's auto-run runs before a task counts as done (npm test…): set on the page only — an agent
+// writing the board cannot make the monitor run a command of its own
+async function saveProjectCheck(body) {
+  const key = String(body.project || '').toLowerCase()
+  if (!PROJECT_KEY.test(key)) return 400
+  const check = String(body.check || '').replace(/[\x00-\x1f]/g, ' ').trim().slice(0, 500)
+  return editConfig((config) => {
+    config.projects = config.projects || {}
+    const p = (config.projects[key] = config.projects[key] || {})
+    if (check) p.check = check; else delete p.check
+  })
+}
 async function saveProjectName(body) {
   const key = String(body.project || '').toLowerCase()
   if (!PROJECT_KEY.test(key)) return 400
@@ -568,7 +580,7 @@ async function buildState() {
     out.push({
       key: p.key, root: p.root, name: typeof cfg.name === 'string' ? clip(cfg.name, 40) : '', label: cfg.label || '', leader,
       sessions: p.sessions, messages: p.messages.slice(0, MESSAGE_FEED),
-      board: boards.get(p.key) || null,
+      board: boards.get(p.key) || null, check: typeof cfg.check === 'string' ? cfg.check : '',
       counts: {
         working: p.sessions.filter((s) => s.state === 'working').length,
         waiting: p.sessions.filter((s) => s.state === 'waiting').length,
@@ -1251,7 +1263,7 @@ function userShell() {
 }
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g
 const keepEnds = (t, n) => (t.length <= n ? t : t.slice(0, n / 4) + '\n… (' + (t.length - n) + ' characters left out) …\n' + t.slice(-(n * 3) / 4))
-function runIn(cwd, command) {
+function runIn(cwd, command, timeout = RUN_TIMEOUT_MS) {
   const sh = userShell(), started = Date.now()
   return new Promise((resolve) => {
     let child
@@ -1264,7 +1276,7 @@ function runIn(cwd, command) {
       timedOut = true
       if (process.platform === 'win32') { try { execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }) } catch {} }
       else { try { process.kill(-child.pid, 'SIGTERM') } catch {} }
-    }, RUN_TIMEOUT_MS)
+    }, timeout)
     let finished = false
     const done = (code, error) => {
       if (finished) return
@@ -1395,6 +1407,8 @@ const TASK_END = 'When the task is finished, end your last message with a line s
 const AUTO_PER_DAY = 40                     // hand-offs per agent per day at most, against a loop going on forever
 const autoCount = new Map()                 // session name → { day, n }
 const autoBusy = new Set()
+// the project's check: how long it may run, how often it may fail before the person is asked, how much of it the agent gets
+const CHECK_TIMEOUT_MS = 10 * 60 * 1000, CHECK_TRIES = 3, CHECK_TO_AGENT = 6000
 const lastLine = (text, re) => { const m = String(text || '').trimEnd().split('\n').slice(-3).join('\n').match(re); return m ? (m[1] || '').trim() || true : null }
 async function boardTurnEnded(sessionId) {
   if (!sessionId || autoBusy.has(sessionId)) return
@@ -1410,26 +1424,43 @@ async function boardTurnEnded(sessionId) {
     const mine = (t) => [s.short, s.name, s.nick, s.nickKo].filter(Boolean).includes(String(t.session || ''))
     const events = await transcriptEvents(sessionId)
     const last = [...events].reverse().find((e) => e.kind === 'block' && e.type === 'text')?.text || ''
-    let handed = null
+    const said = lastLine(last, /^\s*TASK BLOCKED:?\s*(.*)$/m) ? 'blocked' : lastLine(last, /^\s*(TASK DONE)\s*\.?\s*$/m) ? 'done' : ''
+    // the project's check (set on the page only) runs before a task counts as done: outside the board's lock, it may take minutes
+    const check = String(loadConfig().projects?.[p.key]?.check || '').trim()
+    const before = said === 'done' && check ? (await readBoard(p.key))?.tasks?.find((t) => t.status === 'running' && mine(t)) : null
+    const ran = before ? await runIn(p.root, check, CHECK_TIMEOUT_MS) : null
+    const passed = !ran || (ran.code === 0 && !ran.timedOut && !ran.error)
+    let handed = null, back = null
     await withBoard(p.key, async () => {
       const b = await readBoard(p.key)
       if (!b?.auto || !Array.isArray(b.tasks)) return
       const now = new Date().toISOString()
       let changed = false
       const cur = b.tasks.find((t) => t.status === 'running' && mine(t))
+      const ask = (why) => {
+        Object.assign(cur, { status: 'blocked', note: clip(why, 300) })
+        if (!Array.isArray(b.decisions)) b.decisions = []
+        const order = Math.max(0, ...b.decisions.map((d) => Number(d.order) || 0)) + 1
+        b.decisions.push({ title: clip(cur.title + (cur.note ? ' — ' + cur.note : ''), 400), status: 'open', order, task: cur.title, session: cur.session, at: now })
+        cloud.notify({ kind: 'question', agent: { name: s.name, managed: !!s.managed }, title: s.nickKo || s.nick || s.short, tool: 'board' })
+      }
       if (cur) {
-        const blocked = lastLine(last, /^\s*TASK BLOCKED:?\s*(.*)$/m)
-        if (blocked) {
-          Object.assign(cur, { status: 'blocked', note: clip(blocked === true ? '' : blocked, 300) })
-          if (!Array.isArray(b.decisions)) b.decisions = []
-          const order = Math.max(0, ...b.decisions.map((d) => Number(d.order) || 0)) + 1
-          b.decisions.push({ title: clip(cur.title + (cur.note ? ' — ' + cur.note : ''), 400), status: 'open', order, task: cur.title, session: cur.session, at: now })
+        if (said === 'blocked') {
+          const q = lastLine(last, /^\s*TASK BLOCKED:?\s*(.*)$/m)
+          ask(q === true ? '' : q)
           await writeBoard(p.key, b)
-          cloud.notify({ kind: 'question', agent: { name: s.name, managed: !!s.managed }, title: s.nickKo || s.nick || s.short, tool: 'board' })
           return
         }
-        if (!lastLine(last, /^\s*(TASK DONE)\s*\.?\s*$/m)) return
-        Object.assign(cur, { status: 'done', doneAt: now })
+        if (said !== 'done') return
+        if (ran && cur.title === before?.title && !passed) {
+          cur.checks = (Number(cur.checks) || 0) + 1
+          if (cur.checks >= CHECK_TRIES) ask('the check (' + check + ') still fails after ' + cur.checks + ' tries')
+          else back = { title: cur.title, tries: cur.checks }
+          await writeBoard(p.key, b)
+          return
+        }
+        Object.assign(cur, { status: 'done', doneAt: now, ...(ran ? { checked: now } : {}) })
+        delete cur.checks
         changed = true
       }
       const done = new Set(b.tasks.filter((t) => t.status === 'done').map((t) => String(t.title)))
@@ -1447,6 +1478,11 @@ async function boardTurnEnded(sessionId) {
       }
       if (changed) await writeBoard(p.key, b)
     })
+    if (back) {
+      const status = ran.error ? 'could not start: ' + ran.error : ran.timedOut ? 'stopped after ' + CHECK_TIMEOUT_MS / 60000 + ' minutes' : 'exit code ' + ran.code
+      await tellSession(p.key, '', 'The project check failed for your task "' + back.title + '" (try ' + back.tries + ' of ' + CHECK_TRIES + '): ' + check + ' → ' + status + '\n' +
+        'The end of what it printed:\n' + keepEnds((ran.stdout + (ran.stderr ? '\n' + ran.stderr : '')).trim(), CHECK_TO_AGENT) + '\n\n' + TASK_END, sessionId)
+    }
     if (handed) await tellSession(p.key, handed.session, 'Next task from the project board (auto-run is on): ' + handed.title +
       (handed.detail ? '\n' + clip(handed.detail, 2000) : '') + '\n\n' + TASK_END, sessionId)
   } catch (e) { console.error('board auto-run:', e?.message || e) } finally { autoBusy.delete(sessionId) }
@@ -1599,6 +1635,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/run') { const [code, o] = await runCommand(body); json(code, o); return }
       if (url.pathname === '/api/look') { json(await saveLook(body), {}); return }
       if (url.pathname === '/api/project-name') { json(await saveProjectName(body), {}); return }
+      if (url.pathname === '/api/project-check') { json(await saveProjectCheck(body), {}); return }
       if (url.pathname === '/api/order') { json(await saveOrder(body), {}); return }
       if (url.pathname === '/api/processes/kill') { json(await processes.kill(Number(body.pid), await processRoots()), {}); return }
       if (url.pathname === '/api/board') { const code = await editBoard(body); json(code, {}); return }

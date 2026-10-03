@@ -86,6 +86,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   **Auto-run** (the switch on the board) makes it the team's queue: an agent that finishes a turn is handed its next
   queued task, and ends it with `TASK DONE`, or with `TASK BLOCKED: <question>`, which puts the question under the
   decisions; answering it there sends the answer back and the task goes on. The leader is told how to write tasks for it.
+  **Check before done** (under the switch) is a command such as `npm test`, run in the project folder when an agent says
+  `TASK DONE`: if it fails, the agent gets the end of its output and tries again; after 3 failures you are asked. It is set
+  on the page only (kept in `config.json`), so an agent writing the board cannot make the monitor run anything.
 - **Team chat.** Who messaged whom, as one-line summaries.
 - **Subagents.** A card shows `🤖 2` while that many of its subagents (the Agent tool) are running; the agent's dialog has a
   **Subagents** tab listing the recent ones — kind, purpose, last action, tool calls — and opens any of them as its own
