@@ -89,6 +89,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   **Check before done** (under the switch) is a command such as `npm test`, run in the project folder when an agent says
   `TASK DONE`: if it fails, the agent gets the end of its output and tries again; after 3 failures you are asked. It is set
   on the page only (kept in `config.json`), so an agent writing the board cannot make the monitor run anything.
+  A monitor agent whose conversation has grown past 200k tokens (or half its model's context) starts its next task in a
+  new conversation, under the same name, with the tasks it finished and its last message handed over — every step
+  re-reads the whole conversation, so this keeps long runs cheap; no turn is spent writing the hand-over.
 - **Team chat.** Who messaged whom, as one-line summaries.
 - **Subagents.** A card shows `🤖 2` while that many of its subagents (the Agent tool) are running; the agent's dialog has a
   **Subagents** tab listing the recent ones — kind, purpose, last action, tool calls — and opens any of them as its own

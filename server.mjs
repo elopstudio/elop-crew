@@ -1409,6 +1409,9 @@ const autoCount = new Map()                 // session name → { day, n }
 const autoBusy = new Set()
 // the project's check: how long it may run, how often it may fail before the person is asked, how much of it the agent gets
 const CHECK_TIMEOUT_MS = 10 * 60 * 1000, CHECK_TRIES = 3, CHECK_TO_AGENT = 6000
+// a monitor agent whose conversation has grown past this (tokens, or a share of its model's window) starts its next
+// task in a new one: every step re-reads the whole conversation, and the board and git hold what matters
+const FRESH_TOKENS = 200000, FRESH_SHARE = 0.5
 const lastLine = (text, re) => { const m = String(text || '').trimEnd().split('\n').slice(-3).join('\n').match(re); return m ? (m[1] || '').trim() || true : null }
 async function boardTurnEnded(sessionId) {
   if (!sessionId || autoBusy.has(sessionId)) return
@@ -1483,8 +1486,26 @@ async function boardTurnEnded(sessionId) {
       await tellSession(p.key, '', 'The project check failed for your task "' + back.title + '" (try ' + back.tries + ' of ' + CHECK_TRIES + '): ' + check + ' → ' + status + '\n' +
         'The end of what it printed:\n' + keepEnds((ran.stdout + (ran.stderr ? '\n' + ran.stderr : '')).trim(), CHECK_TO_AGENT) + '\n\n' + TASK_END, sessionId)
     }
-    if (handed) await tellSession(p.key, handed.session, 'Next task from the project board (auto-run is on): ' + handed.title +
-      (handed.detail ? '\n' + clip(handed.detail, 2000) : '') + '\n\n' + TASK_END, sessionId)
+    if (handed) {
+      const text = 'Next task from the project board (auto-run is on): ' + handed.title + (handed.detail ? '\n' + clip(handed.detail, 2000) : '') + '\n\n' + TASK_END
+      const long = s.managed && s.context && (s.context >= FRESH_TOKENS || (s.ctxWindow && s.context >= s.ctxWindow * FRESH_SHARE))
+      if (long) {
+        // a hand-over written by the monitor from what it has, so no turn is spent on one: the tasks it finished, its last words
+        const b = await readBoard(p.key)
+        const finished = (b?.tasks || []).filter((t) => t.status === 'done' && mine(t)).sort((x, y) => (Date.parse(y.doneAt) || 0) - (Date.parse(x.doneAt) || 0)).slice(0, 8)
+        const handover = '\n\nThis is a new conversation: your last one had grown long (' + Math.round(s.context / 1000) + 'k tokens), so the monitor started you afresh. ' +
+          'You are the same member of the team, in the same folder; git and the board hold the work. What came before:' +
+          (finished.length ? '\n- Tasks you finished: ' + finished.map((t) => '"' + clip(t.title, 120) + '"').join(', ') : '') +
+          (last ? '\n- Your last message:\n' + clip(last, 1500) : '')
+        const r = await agents.freshSession(s.agentId, text + handover)
+        if (r) {
+          // the same automatic name in the new conversation
+          if (given[r.old]) { given[r.now] = { ...given[r.old], at: Date.now() }; keepGiven(Date.now()) }
+          return
+        }
+      }
+      await tellSession(p.key, handed.session, text, sessionId)
+    }
   } catch (e) { console.error('board auto-run:', e?.message || e) } finally { autoBusy.delete(sessionId) }
 }
 // the page's state has no full session ids (they stay here): a page name to its session and back

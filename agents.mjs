@@ -536,14 +536,14 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     }
   }, 15000).unref?.()
 
-  function stop(a) {
+  function stop(a, quiet) {
     if (!a.proc) return
     a.stopping = true
     const pid = a.proc.pid
     // the whole tree: claude may be running a command of its own
     if (process.platform === 'win32') { try { execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' }) } catch {} }
     else { try { a.proc.kill('SIGTERM') } catch {} }
-    emit(a, { kind: 'note', text: 'stopped' })
+    if (!quiet) emit(a, { kind: 'note', text: 'stopped' })
   }
 
   /* ── API ── */
@@ -715,6 +715,25 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
 
   function shutdown() { shuttingDown = true; for (const a of agents.values()) stop(a) }
 
+  // the same agent in a new conversation (the board's auto-run, when the old one has grown long): its claude is stopped
+  // and the text starts the new one. Not while it works. Resolves with the old and new session ids, or null.
+  async function freshSession(id, text) {
+    const a = agents.get(String(id))
+    if (!a || a.kind === 'assistant' || a.state === 'working') return null
+    const old = a.sessionId || a.newSessionId
+    if (a.proc) {
+      a.respawn = false
+      stop(a, true)
+      for (let i = 0; i < 100 && a.proc; i++) await new Promise((r) => setTimeout(r, 100))
+      if (a.proc) return null
+    }
+    a.sessionId = ''; a.newSessionId = crypto.randomUUID(); a.midTurn = false; a.ctxWindow = 0
+    delete a.forkFrom
+    save()
+    emit(a, { kind: 'note', sys: 'fresh', text: '' })
+    return send(a, text, []) ? { old, now: a.newSessionId } : null
+  }
+
   // for a command run from the page: where the agent works, and handing it the result as a message
   const cwdOf = (id) => agents.get(String(id))?.cwd || null
   const sendText = (id, text) => { const a = agents.get(String(id)); return !!a && send(a, text, []) }
@@ -751,5 +770,5 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // a line in the assistant's chat that is not a message: an alert, or something it did on its own
   const noteTo = (id, ev) => { const a = agents.get(id); if (a) emit(a, ev) }
 
-  return { handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, sendText, fork, adopt, ensureAssistant, assistantState, noteTo, loaded }
+  return { handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, noteTo, loaded }
 }
