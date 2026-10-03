@@ -32,11 +32,16 @@ const SYSTEM_NOTES = [
   [/^Claude Code was logged out while you were working/, 'login'],
   [/^Your Claude usage limit was reached while you were working/, 'limit'],
   [/^It looked like you were stuck, so you were stopped/, 'nudge'],
+  // the board's auto-run: a note with the task's title, and with the person's answer to what blocked one
+  [/^Next task from the project board \(auto-run is on\): (.*)/, 'task'],
+  [/^Answer on the project board to what blocked your task "[^\n]*":\n(.*)/, 'answer'],
 ]
 export const systemNote = (text) => SYSTEM_NOTES.find(([re]) => re.test(String(text || '')))?.[1] || ''
+// what the note shows besides its kind: the task, the answer
+export const systemNoteText = (text) => { for (const [re] of SYSTEM_NOTES) { const m = String(text || '').match(re); if (m) return (m[1] || '').trim().slice(0, 300) } return '' }
 const assistantLookOf = (v) => (v && v.acc === 'crown' && Number.isInteger(v.c) && v.c >= 0 && v.c < 8 ? { c: v.c, acc: 'crown' } : avatarOf(v))
 
-export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf }) {
+export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd }) {
   // what the agent is for, one line written by the user (shown under its name)
   const descOf = (v) => clip(String(v || '').replace(/[\x00-\x1f<>]/g, ' ').replace(/\s+/g, ' ').trim(), 80)
   // its name: one for both languages (a string) or one per language ({ en, ko }); the server reads both shapes
@@ -324,6 +329,8 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       if (failed) { loggedOut(a); return }
       if (limited) limitReached(a, why)
       if (a.restartAfterTurn) { a.restartAfterTurn = false; a.respawn = true; stop(a) }
+      // a turn that went well: the project's board may say what comes next (its auto-run, in server.mjs)
+      else if (!o.is_error && a.kind !== 'assistant') onTurnEnd?.(a.sessionId || a.newSessionId)
     }
   }
 
@@ -466,7 +473,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     // the files' names for the chips, and their place in the uploads folder ("<dir>/<stored name>") for the preview
     // the monitor's own words to it: a note (the assistant's chat has its own way of showing them)
     const sys = a.kind === 'assistant' ? '' : systemNote(text)
-    if (sys) emit(a, { kind: 'note', sys, text: '' })
+    if (sys) emit(a, { kind: 'note', sys, text: mask(systemNoteText(text)) })
     else emit(a, { kind: 'user', text: mask(clip2(text, 4000)), files: files.map((p) => p.split('/').pop().replace(/^[0-9a-z]+-/, '')), refs: files.map((p) => p.split('/').slice(-2).join('/')) })
     setState(a, 'working')
     return true

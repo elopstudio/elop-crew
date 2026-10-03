@@ -68,8 +68,13 @@ async function main() {
     if (reply.superseded) return 0   // a newer turn's hook waits instead
     const messages = Array.isArray(reply.messages) ? reply.messages : []
     if (!messages.length) continue   // nothing yet: wait again
-    const lines = messages.map((m) => '- ' + String(m.text))
-    process.stderr.write('Message(s) the user typed on the agent monitor page for this session:\n' + lines.join('\n') + '\n')
+    // what the project's board hands on (auto-run) is the monitor's, not the person's: said so, one at a time
+    const board = messages.filter((m) => m.from === 'board')
+    const typed = messages.filter((m) => m.from !== 'board')
+    const parts = []
+    if (typed.length) parts.push('Message(s) the user typed on the agent monitor page for this session:\n' + typed.map((m) => '- ' + String(m.text)).join('\n'))
+    for (const m of board) parts.push("The agent monitor's project board, for this session:\n" + String(m.text))
+    process.stderr.write(parts.join('\n\n') + '\n')
     return 2
   }
   return 0

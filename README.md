@@ -83,6 +83,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   going, or a name picked for another agent leaves it alone. Only a name picked for another agent that is the very same
   moves it to a new one. Pin a name with `names` in `config.json`.
 - **Board** (optional). The project's tasks in progress, queued (numbered), done, and decisions waiting on a human.
+  **Auto-run** (the switch on the board) makes it the team's queue: an agent that finishes a turn is handed its next
+  queued task, and ends it with `TASK DONE`, or with `TASK BLOCKED: <question>`, which puts the question under the
+  decisions; answering it there sends the answer back and the task goes on. The leader is told how to write tasks for it.
 - **Team chat.** Who messaged whom, as one-line summaries.
 - **Subagents.** A card shows `🤖 2` while that many of its subagents (the Agent tool) are running; the agent's dialog has a
   **Subagents** tab listing the recent ones — kind, purpose, last action, tool calls — and opens any of them as its own
@@ -510,6 +513,9 @@ The scenes, captions and timing are in `reel.html`; the demo projects and agents
 See `boards/example.json`.
 
 - `status` is one of `running | queued | blocked | done`; `order` sets the queue position.
+- `"auto": true` turns auto-run on. A task's `session` is the agent it is for (none: any agent but the leader takes it),
+  `detail` is what the agent is told besides the title, and `needs` lists titles of tasks that must be done first.
+  An agent is handed at most 40 tasks a day.
 - `decisions` holds questions for a human, `{ "title": "…", "status": "open" }` (answered from the page:
   `answered` with an `answer`), and records of decisions already made, `{ "text": "…", "by": "-7f", "at": "<ISO time>" }`.
   Records are listed after the questions, newest first, as decided — who and when, nothing to answer — and the

@@ -17,7 +17,7 @@ import os from 'node:os'
 import crypto from 'node:crypto'
 import { spawn, execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { createAgents, systemNote } from './agents.mjs'
+import { createAgents, systemNote, systemNoteText } from './agents.mjs'
 import { createAccount } from './account.mjs'
 import { createCloud } from './cloud.mjs'
 import { createAssistant } from './assistant.mjs'
@@ -692,14 +692,21 @@ async function teamContext(sessionId) {
   const nameOf = (s) => (s.managed ? msgName.get(agentSession.get(s.agentId)) : s.name) || ''
   const others = p.sessions.filter((s) => s !== me)
   const who = (s) => [s.nickKo, s.nick].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' / ')
-  const sig = JSON.stringify(others.map((s) => [nameOf(s), who(s), s.role]))
+  const auto = !!p.board?.auto
+  const sig = JSON.stringify([auto, others.map((s) => [nameOf(s), who(s), s.role])])
   if (toldTeam.get(sessionId) === sig) return ''
   toldTeam.set(sessionId, sig)
   const line = (s) => '- ' + (nameOf(s) || '(not running — cannot be messaged until it is started again)') + ' — ' + (who(s) || s.name) + ' · ' + (s.managed ? 'monitor agent' : 'VS Code session') + ' · ' + s.state +
     (s.role ? ' · role: ' + s.role : '') + (s.activity ? ' · last: ' + clip(describeActivity(s.activity), 80) : '')
   const text = 'Agent monitor: you are the leader of the project "' + p.key + '"' + (who(me) ? ', shown to the user as ' + who(me) : '') + '. ' +
     (others.length ? 'The other sessions working on it now (message them with SendMessage using the first name; the user knows them by the names after the dash):\n' + others.map(line).join('\n')
-      : 'No other session is working on it right now.')
+      : 'No other session is working on it right now.') +
+    // with auto-run on, the board is how work reaches the team: how to write it so it does
+    (auto ? '\n\nAuto-run is on for this project\'s board (' + slash(path.join(BOARDS_DIR, p.key + '.json')) + '): an agent that finishes a turn is handed its next ' +
+      'task with status "queued" — its own ("session": its name as listed above, in "order"), else one for nobody (not to you, the leader). A task may have ' +
+      '"detail" (what to do and how to check it) and "needs" (titles of tasks that must be done first). Agents end a task with TASK DONE (marked done) or ' +
+      'TASK BLOCKED: <question> (it goes to the board\'s decisions for the person). So plan by writing small, checkable tasks there, one owner per file area, ' +
+      'rather than messaging the work out; keep the file valid JSON and change only what you mean to.' : '')
   return text
 }
 const describeActivity = (a) => [a.key, a.arg].filter(Boolean).join(' ')
@@ -886,8 +893,12 @@ function withAttached(text) {
 }
 function userEntry(raw, at) {
   let text = String(raw ?? '')
+  // the board's auto-run, delivered by hooks/inbox.mjs: a note like the monitor's other words
+  const fromBoard = text.match(/The agent monitor's project board, for this session:\n([\s\S]*?)(?:<\/system-reminder>|$)/)
+  const boardSys = fromBoard && systemNote(fromBoard[1].trim())
+  if (boardSys && !text.includes('Message(s) the user typed on the agent monitor page')) return { role: 'note', sys: boardSys, text: mask(systemNoteText(fromBoard[1].trim())), at }
   // a message sent from this page, delivered by hooks/inbox.mjs
-  const fromPage = text.match(/Message\(s\) the user typed on the agent monitor page[^\n]*\n([\s\S]*?)(?:<\/system-reminder>|$)/)
+  const fromPage = text.match(/Message\(s\) the user typed on the agent monitor page[^\n]*\n([\s\S]*?)(?:\n\nThe agent monitor's project board|<\/system-reminder>|$)/)
   if (fromPage) {
     // the paths of attached files become their names; the view shows them as chips
     const { body, files, refs } = withAttached(fromPage[1])
@@ -909,7 +920,7 @@ function userEntry(raw, at) {
   if (!text) return null
   // the monitor's own words to an agent (carry on after a restart…), reminders taken off: a note of what it was
   const sys = systemNote(text)
-  if (sys) return { role: 'note', sys, text: '', at }
+  if (sys) return { role: 'note', sys, text: mask(systemNoteText(text)), at }
   // "[Request interrupted by user]" and similar stay, as notes
   if (/^\[[^\]]{3,80}\]$/.test(text)) return { role: 'note', text, at }
   // a monitor agent's message keeps its attachments in the transcript as that same list
@@ -1023,6 +1034,8 @@ function waitForMessage(sessionId) {
     waiters.set(sessionId, reply)
     deliver(sessionId)
     notifyPages()
+    // a VS Code session's turn is over (a monitor agent says so itself, see onTurnEnd): the board may have its next task
+    if (!agents?.byAgentSession(sessionId)) boardTurnEnded(sessionId)
   })
 }
 /* Files attached on the page: kept in .runtime/uploads only until the agent has had time to read them —
@@ -1210,9 +1223,9 @@ async function sendMessage(body) {
   queueText(target.sessionId, text)
   return 200
 }
-function queueText(sessionId, text) {
+function queueText(sessionId, text, from) {
   const q = inbox.get(sessionId) || []
-  q.push({ text, at: Date.now() })
+  q.push({ text, at: Date.now(), ...(from ? { from } : {}) })
   inbox.set(sessionId, q.slice(-10))
   deliver(sessionId)
   notifyPages()
@@ -1291,25 +1304,56 @@ async function runCommand(body) {
 // The leader writes the same file, so every edit re-reads it, checks that the item the page meant is still
 // there (by position and title), changes only that, and replaces the file in one step.
 const BOARD_KEY = /^[a-z0-9][a-z0-9._-]{0,80}$/
-async function editBoard(body) {
+// the page's edits and the auto-run below change a board one at a time (the leader writing it is the only other hand)
+const boardLocks = new Map()
+function withBoard(key, fn) {
+  const run = (boardLocks.get(key) || Promise.resolve()).then(fn, fn)
+  boardLocks.set(key, run.catch(() => {}))
+  return run
+}
+async function writeBoard(key, b) {
+  const file = path.join(BOARDS_DIR, key + '.json')
+  b.updatedAt = new Date().toISOString()
+  fs.mkdirSync(BOARDS_DIR, { recursive: true })
+  const tmp = file + '.' + process.pid + '.tmp'
+  await fsp.writeFile(tmp, JSON.stringify(b, null, 2) + '\n')
+  await fsp.rename(tmp, file)
+  notifyPages()
+}
+const editBoard = (body) => withBoard(String(body.project || '').toLowerCase(), () => editBoardNow(body))
+async function editBoardNow(body) {
   const key = String(body.project || '').toLowerCase()
   if (!BOARD_KEY.test(key)) return 400
   const file = path.join(BOARDS_DIR, key + '.json')
   let b
   try { b = JSON.parse(await fsp.readFile(file, 'utf8')) } catch (e) {
-    if (e.code !== 'ENOENT' || body.op !== 'add') return e.code === 'ENOENT' ? 404 : 409
+    if (e.code !== 'ENOENT' || (body.op !== 'add' && body.op !== 'auto')) return e.code === 'ENOENT' ? 404 : 409
     b = { tasks: [], decisions: [] }
   }
   if (!Array.isArray(b.tasks)) b.tasks = []
   if (!Array.isArray(b.decisions)) b.decisions = []
   const now = new Date().toISOString()
   const same = (item, title) => item && String(item.title) === String(title)
+  let after = null
   if (body.op === 'answer') {
     const d = b.decisions[Number(body.index)]
     const answer = clip(body.answer, 1000)
     if (!same(d, body.title)) return 409
     if (!answer) return 400
     Object.assign(d, { status: 'answered', answer, answeredAt: now, answeredBy: 'monitor' })
+    // a question an agent stopped on (TASK BLOCKED): the answer goes to it, and the task is under way again
+    const t = d.task && b.tasks.find((x) => same(x, d.task) && x.status === 'blocked')
+    if (t && t.session) {
+      Object.assign(t, { status: 'running', startedAt: now }); delete t.note
+      after = () => tellSession(key, t.session, 'Answer on the project board to what blocked your task "' + t.title + '":\n' + answer + '\n\n' + TASK_END)
+    }
+  } else if (body.op === 'auto') {
+    // auto-run: an agent that has finished a turn is handed its next queued task (see boardTurnEnded)
+    b.auto = !!body.on
+  } else if (body.op === 'requeue') {
+    const t = b.tasks[Number(body.index)]
+    if (!same(t, body.title)) return 409
+    Object.assign(t, { status: 'queued' }); delete t.note
   } else if (body.op === 'reorder') {
     // body.order: task positions in their new queue order, e.g. [4, 2, 7]
     const list = Array.isArray(body.order) ? body.order.map(Number) : []
@@ -1324,13 +1368,108 @@ async function editBoard(body) {
     if (body.session) task.session = clip(body.session, 80)
     b.tasks.push(task)
   } else return 400
-  b.updatedAt = now
-  fs.mkdirSync(BOARDS_DIR, { recursive: true })
-  const tmp = file + '.' + process.pid + '.tmp'
-  await fsp.writeFile(tmp, JSON.stringify(b, null, 2) + '\n')
-  await fsp.rename(tmp, file)
-  notifyPages()
+  await writeBoard(key, b)
+  // auto-run turned on, or a task added with it on: the agents already waiting need not wait for a turn to end
+  if (!after && b.auto && (body.op === 'auto' || body.op === 'add')) after = () => boardKick(key)
+  if (after) after().catch(() => {})
   return 200
+}
+async function boardKick(key) {
+  const p = (await cachedState()).projects.find((x) => x.key === key)
+  for (const s of p?.sessions || []) {
+    if (s.state === 'working') continue
+    // a VS Code session hears only while its inbox hook listens; a monitor agent, even resting, starts its claude for a message
+    const sid = await sessionIdOf(s.name)
+    if (sid && (s.managed || waiters.has(sid))) boardTurnEnded(sid)
+  }
+}
+
+/* ── Auto-run: the board as the team's queue ──── */
+
+// With auto-run on for a project, an agent of it that has finished a turn is looked at: if it had a task under way
+// and its last message ends with TASK DONE, the task is done; with TASK BLOCKED: <why>, the task is blocked and the
+// question goes to the board's decisions (answering it there sends the answer back and the task goes on). Without
+// either it is talking with the person, and nothing happens. An agent with nothing under way gets its next queued
+// task (its own first, by order; one for nobody unless it leads), once the tasks it `needs` are done.
+const TASK_END = 'When the task is finished, end your last message with a line saying only TASK DONE. If you cannot go on without a decision from the person, end it with a line TASK BLOCKED: <the question>.'
+const AUTO_PER_DAY = 40                     // hand-offs per agent per day at most, against a loop going on forever
+const autoCount = new Map()                 // session name → { day, n }
+const autoBusy = new Set()
+const lastLine = (text, re) => { const m = String(text || '').trimEnd().split('\n').slice(-3).join('\n').match(re); return m ? (m[1] || '').trim() || true : null }
+async function boardTurnEnded(sessionId) {
+  if (!sessionId || autoBusy.has(sessionId)) return
+  autoBusy.add(sessionId)
+  try {
+    // the transcript a moment after the turn ends has its last words
+    await new Promise((r) => setTimeout(r, 1500))
+    const data = await cachedState()
+    const name = await sessionNameOf(sessionId)
+    const p = name && data.projects.find((x) => x.board?.auto && x.sessions.some((s) => s.name === name))
+    if (!p) return
+    const s = p.sessions.find((x) => x.name === name)
+    const mine = (t) => [s.short, s.name, s.nick, s.nickKo].filter(Boolean).includes(String(t.session || ''))
+    const events = await transcriptEvents(sessionId)
+    const last = [...events].reverse().find((e) => e.kind === 'block' && e.type === 'text')?.text || ''
+    let handed = null
+    await withBoard(p.key, async () => {
+      const b = await readBoard(p.key)
+      if (!b?.auto || !Array.isArray(b.tasks)) return
+      const now = new Date().toISOString()
+      let changed = false
+      const cur = b.tasks.find((t) => t.status === 'running' && mine(t))
+      if (cur) {
+        const blocked = lastLine(last, /^\s*TASK BLOCKED:?\s*(.*)$/m)
+        if (blocked) {
+          Object.assign(cur, { status: 'blocked', note: clip(blocked === true ? '' : blocked, 300) })
+          if (!Array.isArray(b.decisions)) b.decisions = []
+          const order = Math.max(0, ...b.decisions.map((d) => Number(d.order) || 0)) + 1
+          b.decisions.push({ title: clip(cur.title + (cur.note ? ' — ' + cur.note : ''), 400), status: 'open', order, task: cur.title, session: cur.session, at: now })
+          await writeBoard(p.key, b)
+          cloud.notify({ kind: 'question', agent: { name: s.name, managed: !!s.managed }, title: s.nickKo || s.nick || s.short, tool: 'board' })
+          return
+        }
+        if (!lastLine(last, /^\s*(TASK DONE)\s*\.?\s*$/m)) return
+        Object.assign(cur, { status: 'done', doneAt: now })
+        changed = true
+      }
+      const done = new Set(b.tasks.filter((t) => t.status === 'done').map((t) => String(t.title)))
+      const ready = (t) => t.status === 'queued' && (Array.isArray(t.needs) ? t.needs : []).every((n) => done.has(String(n)))
+      const byOrder = (x, y) => (Number(x.order) || 999) - (Number(y.order) || 999)
+      const day = new Date().toDateString(), c = autoCount.get(s.name)
+      const n = c && c.day === day ? c.n : 0
+      const next = n >= AUTO_PER_DAY ? null
+        : b.tasks.filter((t) => ready(t) && mine(t)).sort(byOrder)[0] || (s.isLeader ? null : b.tasks.filter((t) => ready(t) && !t.session).sort(byOrder)[0])
+      if (next) {
+        Object.assign(next, { status: 'running', startedAt: now, session: next.session || s.short || s.name })
+        autoCount.set(s.name, { day, n: n + 1 })
+        handed = next
+        changed = true
+      }
+      if (changed) await writeBoard(p.key, b)
+    })
+    if (handed) await tellSession(p.key, handed.session, 'Next task from the project board (auto-run is on): ' + handed.title +
+      (handed.detail ? '\n' + clip(handed.detail, 2000) : '') + '\n\n' + TASK_END, sessionId)
+  } catch (e) { console.error('board auto-run:', e?.message || e) } finally { autoBusy.delete(sessionId) }
+}
+// the page's state has no full session ids (they stay here): a page name to its session and back
+async function sessionIdOf(name) {
+  const m = agents.sessions(Date.now()).find((x) => x.name === name)
+  return m ? m.sessionId : (await readRegistry()).find((r) => r.name === name)?.sessionId || ''
+}
+async function sessionNameOf(sessionId) {
+  return agents.byAgentSession(sessionId)?.name || (await readRegistry()).find((r) => r.sessionId === sessionId)?.name || ''
+}
+// a message from the monitor to one of a project's agents, by the name the board gives it
+async function tellSession(key, who, text, sessionId) {
+  const p = (await cachedState()).projects.find((x) => x.key === key)
+  const name = sessionId ? await sessionNameOf(sessionId) : ''
+  const s = p?.sessions.find((x) => (name ? x.name === name : [x.short, x.name, x.nick, x.nickKo].includes(who)))
+  if (!s) return false
+  if (s.managed) return agents.sendText(s.agentId, text)
+  const sid = sessionId || await sessionIdOf(s.name)
+  if (!sid) return false
+  queueText(sid, text, 'board')
+  return true
 }
 
 const slash = (p) => p.replace(/\\/g, '/')
@@ -1380,6 +1519,7 @@ const agents = createAgents({
   configPath: loadConfig().claudePath || '',
   // an agent brought back after a restart shows its conversation from the transcript
   historyOf: transcriptEvents,
+  onTurnEnd: (sessionId) => boardTurnEnded(sessionId),
 })
 // the monitor's assistant behind the floating chat button (assistant.mjs)
 const assistant = createAssistant({
