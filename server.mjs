@@ -18,6 +18,7 @@ import crypto from 'node:crypto'
 import { spawn, execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { createAgents, systemNote, systemNoteText } from './agents.mjs'
+import { createBrowsers } from './browsers.mjs'
 import { createAccount } from './account.mjs'
 import { createCloud } from './cloud.mjs'
 import { createAssistant } from './assistant.mjs'
@@ -733,10 +734,23 @@ function langContext(sessionId) {
   toldLang.set(sessionId, pageLang)
   return 'Agent monitor: the user has the monitor set to ' + LANGS[pageLang] + '. Write to the user in ' + LANGS[pageLang] + ' unless they ask for another language.'
 }
-// what a prompt gets added to it: the language, and for a leader its team
+// The shared browser (the browser panel's): every session is told once while it runs, so it looks at pages there,
+// where the person can watch, rather than in a browser of its own
+const toldBrowser = new Map()   // sessionId → the port last told
+function browserContext(sessionId) {
+  const port = browsers.sharedPort()
+  if (!port || toldBrowser.get(sessionId) === port) return ''
+  toldBrowser.set(sessionId, port)
+  const at = 'http://127.0.0.1:' + port
+  return 'Agent monitor: a shared browser runs at ' + at + ' (headless Chrome, DevTools protocol), and the user watches it live in the monitor\'s browser panel. ' +
+    'When you look at pages (checking a UI, screenshots, testing in a browser), connect to it instead of launching a browser of your own — Playwright: ' +
+    'chromium.connectOverCDP(\'' + at + '\') then browser.newContext() and newPage(); Puppeteer: puppeteer.connect({ browserURL: \'' + at + '\' }). ' +
+    'Close the pages and contexts you opened when you are done, but never the browser itself; it is shared with the other agents.'
+}
+// what a prompt gets added to it: the language, the shared browser, and for a leader its team
 async function promptContext(sessionId) {
   if (!sessionId) return {}
-  const text = [langContext(sessionId), await teamContext(sessionId)].filter(Boolean).join('\n\n')
+  const text = [langContext(sessionId), browserContext(sessionId), await teamContext(sessionId)].filter(Boolean).join('\n\n')
   return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : {}
 }
 
@@ -1697,6 +1711,8 @@ async function processRoots() {
   for (const m of agents ? agents.sessions(Date.now()) : []) if (m.pid && known.has(m.name)) roots.push({ pid: m.pid, info: known.get(m.name) })
   return roots
 }
+// the browsers the agents drive, for the browser panel (browsers.mjs)
+const browsers = createBrowsers({ processes, roots: processRoots, mask, clip, dataDir: DATA })
 const account = createAccount({ claudeExecutable: agents.claudeExecutable, dataDir: DATA })
 
 /* ── HTTP ─────────────────────────────────────── */
@@ -1746,6 +1762,11 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/run') { const [code, o] = await runCommand(body); json(code, o); return }
       if (url.pathname === '/api/look') { json(await saveLook(body), {}); return }
       if (url.pathname === '/api/project-name') { json(await saveProjectName(body), {}); return }
+      if (url.pathname === '/api/browsers/shared') {
+        if (body.on) { const r = await browsers.startShared(); json(r ? 200 : 500, r || {}) } else { browsers.stopShared(); toldBrowser.clear(); json(200, {}) }
+        notifyPages()
+        return
+      }
       if (url.pathname === '/api/project-check') { json(await saveProjectCheck(body), {}); return }
       if (url.pathname === '/api/order') { json(await saveOrder(body), {}); return }
       if (url.pathname === '/api/processes/kill') { json(await processes.kill(Number(body.pid), await processRoots()), {}); return }
@@ -1780,6 +1801,18 @@ const server = http.createServer(async (req, res) => {
       // whose account this PC is linked to is private too
       if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
       json(200, await cloud.info(url.searchParams.get('fresh') === '1'))
+      return
+    }
+    if (url.pathname === '/api/browsers') {
+      // page titles and addresses are private like the conversations: the token is needed, and they come masked
+      if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
+      json(200, await browsers.list())
+      return
+    }
+    // a page's live picture: not under /api/, so the phone app's relay never carries it (a picture cannot be masked)
+    if (url.pathname === '/browser/stream') {
+      if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
+      await browsers.stream(req, res, url.searchParams.get('port'), url.searchParams.get('id') || '')
       return
     }
     if (url.pathname === '/api/processes') {

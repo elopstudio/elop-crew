@@ -65,6 +65,14 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   is pointed at. Emptied, the folder's name is back.
 - **Org chart.** The leader (crowned robot) sits on top; the other agents hang below it.
   Each card shows the session's current action in a speech bubble, how long it has been in its state, and its uptime.
+- **Browsers.** **Browsers** in the header (or **🌐 N** on an agent's card) opens a panel over the page, which can be
+  moved by its title and resized from its corner: the browsers the agents drive to look at what they build (headless
+  Chrome, Edge, Playwright's Chromium), grouped by agent, with the pages open in each, and a live picture of the page
+  picked. A browser started with a DevTools port is watched as it is; one Playwright started over a pipe (its default)
+  cannot be reached from outside, so the panel offers a **Shared browser**: a headless Chrome or Edge of the monitor's
+  own, and while it runs every agent is told once to open its pages there (Playwright's `connectOverCDP`, Puppeteer's
+  `connect`) instead of in a browser of its own. Only browsers the agents started and the shared one are contacted, on
+  127.0.0.1 only; page titles and addresses come masked, and the picture is never stored or relayed to the phone.
 - **Processes.** **Processes** in the header, with a count, opens what the agents have running: each agent
   itself (the claude process) and every shell, dev server, MCP server and background task it started, grouped by agent
   and heaviest first (CPU or memory), with how long each has been running. An agent's totals and its share of the chart

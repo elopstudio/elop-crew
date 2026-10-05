@@ -15,6 +15,9 @@ const CORES = Math.max(1, os.cpus().length)
 // the monitor's own helpers that Claude Code runs for every session: bundled apart, not counted as the agent's work
 const HOOK = /[\\/]hooks[\\/](inbox|bridge|permission-mcp)\.mjs/i
 const CONSOLE = /^(conhost|OpenConsole)\.exe$/i
+// a browser an agent started (Chrome, Edge, Chromium, Playwright's builds): its main process, not its renderers and helpers
+const BROWSER = /^(chrome|msedge|chromium|chromium-browser|google-chrome|headless_shell|chrome-headless-shell|brave)(\.exe)?$/i
+const argOf = (cmd, name) => { const m = String(cmd).match(new RegExp('--' + name + '=(?:"([^"]*)"|(\\S+))')); return m ? (m[1] ?? m[2]) : null }
 
 // memory is the private working set, what Task Manager shows: the plain working set counts the shared system DLLs
 // again in every process, so a small node process read 50 MB instead of 10 and a session's total came out far too big
@@ -104,6 +107,24 @@ export function createProcesses({ mask, clip }) {
     walk(pid, 0, new Set([pid]))
     return out
   }
+  // the browsers among what a session started: how the monitor could reach each (a DevTools port, a pipe only, neither)
+  function browsersIn(s, pid) {
+    const out = []
+    const walk = (id, seen) => {
+      for (const c of s.byParent.get(id) || []) {
+        if (seen.has(c.pid)) continue
+        seen.add(c.pid)
+        if (BROWSER.test(c.name) && !/--type=/.test(c.cmd)) {
+          const port = argOf(c.cmd, 'remote-debugging-port')
+          out.push({ pid: c.pid, name: c.name, start: c.start, mem: c.mem, port: port == null ? null : Number(port) || 0, pipe: /--remote-debugging-pipe/.test(c.cmd), headless: /--headless/.test(c.cmd), dataDir: argOf(c.cmd, 'user-data-dir') || '' })
+          continue   // what a browser starts is the browser's own
+        }
+        walk(c.pid, seen)
+      }
+    }
+    walk(pid, new Set([pid]))
+    return out
+  }
   // what a session costs: the agent itself (the claude process) and what it started, the monitor's helpers aside;
   // n counts only what it started
   const totals = (list, self) => {
@@ -115,7 +136,14 @@ export function createProcesses({ mask, clip }) {
     watch(pid, name)
     const s = current(20000)
     if (!s || !pid || !s.byPid.has(pid)) return null
-    return totals(descendants(s, pid), s.byPid.get(pid))
+    return { ...totals(descendants(s, pid), s.byPid.get(pid)), browsers: browsersIn(s, pid).length }
+  }
+  // for the browser panel: each session's browsers, read fresh (never sent to the page as they are: ports and folders stay here)
+  async function browsers(roots) {
+    for (const r of roots) watch(r.pid, r.info?.name)
+    const s = await fresh(3000)
+    if (!s) return []
+    return roots.filter((r) => r.pid && s.byPid.has(r.pid)).map((r) => ({ info: r.info, list: browsersIn(s, r.pid) })).filter((x) => x.list.length)
   }
   // for the processes dialog: every session — the agent itself, then what it started
   async function list(roots) {
@@ -144,5 +172,5 @@ export function createProcesses({ mask, clip }) {
     refresh()
     return 200
   }
-  return { summary, list, kill }
+  return { summary, list, kill, browsers }
 }
