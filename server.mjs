@@ -709,13 +709,13 @@ async function teamContext(sessionId) {
   if (toldTeam.get(sessionId) === sig) return ''
   toldTeam.set(sessionId, sig)
   const line = (s) => '- ' + (nameOf(s) || '(not running — cannot be messaged until it is started again)') + ' — ' + (who(s) || s.name) + ' · ' + (s.managed ? 'monitor agent' : 'VS Code session') + ' · ' + s.state +
-    (s.role ? ' · role: ' + s.role : '') + (s.activity ? ' · last: ' + clip(describeActivity(s.activity), 80) : '')
+    (s.role ? ' · role: ' + s.role : '') + (s.activity ? ' · last: ' + clip(describeActivity(s.activity), 80) : '') + (auto ? ' · on the board: "' + s.name + '"' : '')
   const text = 'Agent monitor: you are the leader of the project "' + p.key + '"' + (who(me) ? ', shown to the user as ' + who(me) : '') + '. ' +
     (others.length ? 'The other sessions working on it now (message them with SendMessage using the first name; the user knows them by the names after the dash):\n' + others.map(line).join('\n')
       : 'No other session is working on it right now.') +
     // with auto-run on, the board is how work reaches the team: how to write it so it does
     (auto ? '\n\nAuto-run is on for this project\'s board (' + slash(path.join(BOARDS_DIR, p.key + '.json')) + '): an agent that finishes a turn is handed its next ' +
-      'task with status "queued" — its own ("session": its name as listed above, in "order"), else one for nobody (not to you, the leader). A task may have ' +
+      'task with status "queued" — its own ("session": its name on the board, listed above; in "order"), else one for nobody (not to you, the leader). A task may have ' +
       '"detail" (what to do and how to check it) and "needs" (titles of tasks that must be done first). Agents end a task with TASK DONE (marked done) or ' +
       'TASK BLOCKED: <question> (it goes to the board\'s decisions for the person). So plan by writing small, checkable tasks there, one owner per file area, ' +
       'rather than messaging the work out; keep the file valid JSON and change only what you mean to.' : '')
@@ -1037,17 +1037,20 @@ function deliver(sessionId) {
   inbox.delete(sessionId)
   w({ messages: q })
 }
-function waitForMessage(sessionId) {
+function waitForMessage(sessionId, turnEnded, res) {
   return new Promise((resolve) => {
     const old = waiters.get(sessionId)
     if (old) old({ superseded: true })
     const timer = setTimeout(() => { if (waiters.get(sessionId) === reply) waiters.delete(sessionId); resolve({}) }, INBOX_WAIT_MS)
     const reply = (r) => { clearTimeout(timer); resolve(r) }
     waiters.set(sessionId, reply)
+    // the hook gone (its session closed, a restart): nobody listens any more, so nothing is handed to it as if heard
+    res?.on('close', () => { if (!res.writableEnded && waiters.get(sessionId) === reply) { waiters.delete(sessionId); clearTimeout(timer); notifyPages() } })
     deliver(sessionId)
     notifyPages()
-    // a VS Code session's turn is over (a monitor agent says so itself, see onTurnEnd): the board may have its next task
-    if (!agents?.byAgentSession(sessionId)) boardTurnEnded(sessionId)
+    // a VS Code session's turn is over (a monitor agent says so itself, see onTurnEnd): the board may have its next task.
+    // Only the hook's first wait after the turn: its later ones come every 25 minutes, whatever the session is doing
+    if (turnEnded && !agents?.byAgentSession(sessionId)) boardTurnEnded(sessionId)
   })
 }
 /* Files attached on the page: kept in .runtime/uploads only until the agent has had time to read them —
@@ -1269,8 +1272,13 @@ function runIn(cwd, command, timeout = RUN_TIMEOUT_MS) {
     let child
     try { child = spawn(sh.exe, [...sh.args, (sh.prefix || '') + command], { cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: process.env, detached: process.platform !== 'win32' }) }
     catch (e) { resolve({ code: null, error: String(e.message || e), stdout: '', stderr: '', ms: 0, shell: sh.name }); return }
-    const out = { stdout: [], stderr: [] }, size = { stdout: 0, stderr: 0 }
-    for (const k of ['stdout', 'stderr']) child[k].on('data', (c) => { if (size[k] < RUN_KEEP) { out[k].push(c); size[k] += c.length } })
+    // the first RUN_KEEP bytes, and past them the last RUN_KEEP / 4 (a long run's summary is at its end)
+    const out = { stdout: [], stderr: [] }, size = { stdout: 0, stderr: 0 }, tail = { stdout: [], stderr: [] }, tailSize = { stdout: 0, stderr: 0 }, cut = { stdout: 0, stderr: 0 }
+    for (const k of ['stdout', 'stderr']) child[k].on('data', (c) => {
+      if (size[k] < RUN_KEEP) { out[k].push(c); size[k] += c.length; return }
+      tail[k].push(c); tailSize[k] += c.length
+      while (tailSize[k] - tail[k][0].length > RUN_KEEP / 4) { tailSize[k] -= tail[k][0].length; cut[k] += tail[k].shift().length }
+    })
     let timedOut = false
     const timer = setTimeout(() => {
       timedOut = true
@@ -1282,7 +1290,7 @@ function runIn(cwd, command, timeout = RUN_TIMEOUT_MS) {
       if (finished) return
       finished = true
       clearTimeout(timer)
-      const text = (k) => Buffer.concat(out[k]).toString('utf8').replace(ANSI, '').replace(/\r\n?/g, '\n')
+      const text = (k) => (Buffer.concat(out[k]).toString('utf8') + (cut[k] ? '\n… (' + cut[k] + ' bytes left out) …\n' : '') + Buffer.concat(tail[k]).toString('utf8')).replace(ANSI, '').replace(/\r\n?/g, '\n')
       resolve({ code, error, timedOut, stdout: text('stdout'), stderr: text('stderr'), ms: Date.now() - started, shell: sh.name })
     }
     child.on('error', (e) => done(null, String(e.message || e)))
@@ -1353,11 +1361,27 @@ async function editBoardNow(body) {
     if (!same(d, body.title)) return 409
     if (!answer) return 400
     Object.assign(d, { status: 'answered', answer, answeredAt: now, answeredBy: 'monitor' })
-    // a question an agent stopped on (TASK BLOCKED): the answer goes to it, and the task is under way again
-    const t = d.task && b.tasks.find((x) => same(x, d.task) && x.status === 'blocked')
+    // a question an agent stopped on (TASK BLOCKED): the answer goes to it, and the task is under way again — unless
+    // it has another task under way by now, then the task waits in the queue with the answer in it
+    const t = d.task && b.tasks.find((x) => isTask(x) && same(x, d.task) && x.status === 'blocked' && (!d.session || x.session === d.session))
     if (t && t.session) {
-      Object.assign(t, { status: 'running', startedAt: now }); delete t.note
-      after = () => tellSession(key, t.session, 'Answer on the project board to what blocked your task "' + t.title + '":\n' + answer + '\n\n' + TASK_END)
+      delete t.note; delete t.checks
+      const busy = b.tasks.some((x) => isTask(x) && x !== t && x.status === 'running' && x.session === t.session)
+      if (busy) { Object.assign(t, { status: 'queued' }); withAnswer(t, answer) }
+      else {
+        Object.assign(t, { status: 'running', startedAt: now })
+        after = async () => {
+          if (await tellSession(key, t.session, 'Answer on the project board to what blocked your task "' + t.title + '":\n' + answer + '\n\n' + TASK_END)) return
+          // not delivered (the agent is gone, or not listening): back in the queue, the answer with it
+          await withBoard(key, async () => {
+            const b2 = cleanBoard(await readBoard(key))
+            const t2 = b2?.tasks.find((x) => same(x, t.title) && x.status === 'running' && x.session === t.session)
+            if (!t2) return
+            Object.assign(t2, { status: 'queued' }); delete t2.startedAt; withAnswer(t2, answer)
+            await writeBoard(key, b2)
+          })
+        }
+      }
     }
   } else if (body.op === 'auto') {
     // auto-run: an agent that has finished a turn is handed its next queued task (see boardTurnEnded)
@@ -1365,7 +1389,9 @@ async function editBoardNow(body) {
   } else if (body.op === 'requeue') {
     const t = b.tasks[Number(body.index)]
     if (!same(t, body.title)) return 409
-    Object.assign(t, { status: 'queued' }); delete t.note
+    Object.assign(t, { status: 'queued' }); delete t.note; delete t.checks
+    // its open question goes with it: an answer to it later would find no blocked task to send it to
+    for (const d of b.decisions) if (isTask(d) && d.status === 'open' && same({ title: d.task }, t.title) && (!d.session || d.session === t.session)) d.status = 'closed'
   } else if (body.op === 'reorder') {
     // body.order: task positions in their new queue order, e.g. [4, 2, 7]
     const list = Array.isArray(body.order) ? body.order.map(Number) : []
@@ -1375,7 +1401,7 @@ async function editBoardNow(body) {
   } else if (body.op === 'add') {
     const title = clip(body.title, 300)
     if (!title) return 400
-    const maxOrder = Math.max(0, ...b.tasks.map((x) => Number(x.order) || 0))
+    const maxOrder = Math.max(0, ...b.tasks.map((x) => Number(x?.order) || 0))
     const task = { title, status: 'queued', order: maxOrder + 1, addedBy: 'monitor', addedAt: now }
     if (body.session) task.session = clip(body.session, 80)
     b.tasks.push(task)
@@ -1389,7 +1415,7 @@ async function editBoardNow(body) {
 async function boardKick(key) {
   const p = (await cachedState()).projects.find((x) => x.key === key)
   for (const s of p?.sessions || []) {
-    if (s.state === 'working') continue
+    if (s.state === 'working' || s.limitHit || s.loginLost) continue
     // a VS Code session hears only while its inbox hook listens; a monitor agent, even resting, starts its claude for a message
     const sid = await sessionIdOf(s.name)
     if (sid && (s.managed || waiters.has(sid))) boardTurnEnded(sid)
@@ -1401,20 +1427,53 @@ async function boardKick(key) {
 // With auto-run on for a project, an agent of it that has finished a turn is looked at: if it had a task under way
 // and its last message ends with TASK DONE, the task is done; with TASK BLOCKED: <why>, the task is blocked and the
 // question goes to the board's decisions (answering it there sends the answer back and the task goes on). Without
-// either it is talking with the person, and nothing happens. An agent with nothing under way gets its next queued
-// task (its own first, by order; one for nobody unless it leads), once the tasks it `needs` are done.
+// either it is talking with the person, and nothing happens. An agent with nothing under way or blocked gets its next
+// queued task (its own first, by order; one for nobody unless it leads), once the tasks it `needs` are done.
 const TASK_END = 'When the task is finished, end your last message with a line saying only TASK DONE. If you cannot go on without a decision from the person, end it with a line TASK BLOCKED: <the question>.'
 const AUTO_PER_DAY = 40                     // hand-offs per agent per day at most, against a loop going on forever
 const autoCount = new Map()                 // session name → { day, n }
-const autoBusy = new Set()
+const autoBusy = new Set(), autoAgain = new Set()
 // the project's check: how long it may run, how often it may fail before the person is asked, how much of it the agent gets
 const CHECK_TIMEOUT_MS = 10 * 60 * 1000, CHECK_TRIES = 3, CHECK_TO_AGENT = 6000
+const checkLocks = new Map()                // project → the check running there: one at a time, they share the folder
 // a monitor agent whose conversation has grown past this (tokens, or a share of its model's window) starts its next
 // task in a new one: every step re-reads the whole conversation, and the board and git hold what matters
 const FRESH_TOKENS = 200000, FRESH_SHARE = 0.5
-const lastLine = (text, re) => { const m = String(text || '').trimEnd().split('\n').slice(-3).join('\n').match(re); return m ? (m[1] || '').trim() || true : null }
+const isTask = (t) => !!t && typeof t === 'object' && !Array.isArray(t)
+// what a person or an agent left in the file that is not a task or a decision is left out (and dropped when it is written)
+const cleanBoard = (b) => {
+  if (!isTask(b)) return null
+  b.tasks = (Array.isArray(b.tasks) ? b.tasks : []).filter(isTask)
+  b.decisions = (Array.isArray(b.decisions) ? b.decisions : []).filter(isTask)
+  return b
+}
+const withAnswer = (t, answer) => { t.detail = clip((t.detail ? t.detail + ' — ' : '') + 'The person answered what blocked it: ' + answer, 2500) }
+// the marker among the last lines, also when written **bold** or in `code`
+const lastLine = (text, re) => { const m = String(text || '').replace(/[*`]/g, '').trimEnd().split('\n').slice(-3).join('\n').match(re); return m ? (m[1] || '').trim() || true : null }
+const BLOCKED_RE = /^\s*TASK BLOCKED:?\s*(.*)$/m, DONE_RE = /^\s*(TASK DONE)\s*\.?\s*$/m
+// the session's last words in full (the conversation view clips long ones, and the marker is at the end), and when
+async function lastWords(sessionId) {
+  const file = await findTranscript(sessionId)
+  if (!file) return { text: '', at: 0 }
+  const { lines } = await tailLines(file)
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let o
+    try { o = JSON.parse(lines[i]) } catch { continue }
+    if (o.type !== 'assistant' || o.isSidechain || o.isMeta || !Array.isArray(o.message?.content)) continue
+    const texts = o.message.content.filter((c) => c?.type === 'text' && c.text?.trim())
+    if (texts.length) return { text: String(texts[texts.length - 1].text), at: o.timestamp ? Date.parse(o.timestamp) : 0 }
+  }
+  return { text: '', at: 0 }
+}
+function checkIn(key, cwd, command) {
+  const run = (checkLocks.get(key) || Promise.resolve()).then(() => runIn(cwd, command, CHECK_TIMEOUT_MS))
+  checkLocks.set(key, run.catch(() => {}))
+  return run
+}
 async function boardTurnEnded(sessionId) {
-  if (!sessionId || autoBusy.has(sessionId)) return
+  if (!sessionId) return
+  // one at a time per agent; a turn that ends meanwhile is looked at once this one is through
+  if (autoBusy.has(sessionId)) { autoAgain.add(sessionId); return }
   autoBusy.add(sessionId)
   try {
     // the transcript a moment after the turn ends has its last words
@@ -1424,89 +1483,118 @@ async function boardTurnEnded(sessionId) {
     const p = name && data.projects.find((x) => x.board?.auto && x.sessions.some((s) => s.name === name))
     if (!p) return
     const s = p.sessions.find((x) => x.name === name)
-    const mine = (t) => [s.short, s.name, s.nick, s.nickKo].filter(Boolean).includes(String(t.session || ''))
-    const events = await transcriptEvents(sessionId)
-    const last = [...events].reverse().find((e) => e.kind === 'block' && e.type === 'text')?.text || ''
-    const said = lastLine(last, /^\s*TASK BLOCKED:?\s*(.*)$/m) ? 'blocked' : lastLine(last, /^\s*(TASK DONE)\s*\.?\s*$/m) ? 'done' : ''
+    // the leader may write any of its names; a monitor agent's claude also has the name SendMessage knows it by
+    const reg = (await readRegistry()).find((r) => r.sessionId === sessionId)?.name || ''
+    const names = [s.short, s.name, s.nick, s.nickKo, reg].filter(Boolean)
+    const mine = (t) => names.includes(String(t.session || ''))
+    const { text: last, at: lastAt } = await lastWords(sessionId)
+    const marker = lastLine(last, BLOCKED_RE) ? 'blocked' : lastLine(last, DONE_RE) ? 'done' : ''
+    // only words written since the task was handed on count: the TASK DONE that ended the one before is still the last
+    // message when the hook asks again (after a restart…) before the agent has said anything new
+    const saidFor = (t) => (t && marker && (!t.startedAt || lastAt > Date.parse(t.startedAt)) ? marker : '')
+    // the one under way: the latest handed, if ever there are two
+    const current = (b) => b.tasks.filter((t) => t.status === 'running' && mine(t)).sort((x, y) => (Date.parse(y.startedAt) || 0) - (Date.parse(x.startedAt) || 0))[0] || null
     // the project's check (set on the page only) runs before a task counts as done: outside the board's lock, it may take minutes
     const check = String(loadConfig().projects?.[p.key]?.check || '').trim()
-    const before = said === 'done' && check ? (await readBoard(p.key))?.tasks?.find((t) => t.status === 'running' && mine(t)) : null
-    const ran = before ? await runIn(p.root, check, CHECK_TIMEOUT_MS) : null
-    const passed = !ran || (ran.code === 0 && !ran.timedOut && !ran.error)
+    const first = check ? cleanBoard(await readBoard(p.key)) : null
+    const before = first && saidFor(current(first)) === 'done' ? current(first) : null
+    const ran = before ? await checkIn(p.key, p.root, check) : null
+    const passed = !!ran && ran.code === 0 && !ran.timedOut && !ran.error
     let handed = null, back = null
     await withBoard(p.key, async () => {
-      const b = await readBoard(p.key)
-      if (!b?.auto || !Array.isArray(b.tasks)) return
+      const b = cleanBoard(await readBoard(p.key))
+      if (!b?.auto) return
       const now = new Date().toISOString()
       let changed = false
-      const cur = b.tasks.find((t) => t.status === 'running' && mine(t))
+      const cur = current(b)
       const ask = (why) => {
-        Object.assign(cur, { status: 'blocked', note: clip(why, 300) })
-        if (!Array.isArray(b.decisions)) b.decisions = []
+        Object.assign(cur, { status: 'blocked', note: mask(clip(why, 300)) })
         const order = Math.max(0, ...b.decisions.map((d) => Number(d.order) || 0)) + 1
         b.decisions.push({ title: clip(cur.title + (cur.note ? ' — ' + cur.note : ''), 400), status: 'open', order, task: cur.title, session: cur.session, at: now })
         cloud.notify({ kind: 'question', agent: { name: s.name, managed: !!s.managed }, title: s.nickKo || s.nick || s.short, tool: 'board' })
       }
+      const said = saidFor(cur)
       if (cur) {
         if (said === 'blocked') {
-          const q = lastLine(last, /^\s*TASK BLOCKED:?\s*(.*)$/m)
+          const q = lastLine(last, BLOCKED_RE)
           ask(q === true ? '' : q)
           await writeBoard(p.key, b)
           return
         }
         if (said !== 'done') return
-        if (ran && cur.title === before?.title && !passed) {
-          cur.checks = (Number(cur.checks) || 0) + 1
-          if (cur.checks >= CHECK_TRIES) ask('the check (' + check + ') still fails after ' + cur.checks + ' tries')
-          else back = { title: cur.title, tries: cur.checks }
-          await writeBoard(p.key, b)
-          return
+        if (check) {
+          // checked was another task (it changed meanwhile): the next turn end looks again
+          if (!ran || cur.title !== before?.title) return
+          if (!passed) {
+            cur.checks = (Number(cur.checks) || 0) + 1
+            if (cur.checks >= CHECK_TRIES) ask('the check (' + check + ') still fails after ' + cur.checks + ' tries')
+            else back = { title: cur.title, tries: cur.checks }
+            await writeBoard(p.key, b)
+            return
+          }
         }
         Object.assign(cur, { status: 'done', doneAt: now, ...(ran ? { checked: now } : {}) })
         delete cur.checks
         changed = true
       }
+      // nothing new while its question waits for the person, or while it cannot work (usage limit, logged out)
+      const held = b.tasks.some((t) => t.status === 'blocked' && mine(t)) || s.limitHit || s.loginLost
       const done = new Set(b.tasks.filter((t) => t.status === 'done').map((t) => String(t.title)))
       const ready = (t) => t.status === 'queued' && (Array.isArray(t.needs) ? t.needs : []).every((n) => done.has(String(n)))
       const byOrder = (x, y) => (Number(x.order) || 999) - (Number(y.order) || 999)
       const day = new Date().toDateString(), c = autoCount.get(s.name)
       const n = c && c.day === day ? c.n : 0
-      const next = n >= AUTO_PER_DAY ? null
+      const next = held || n >= AUTO_PER_DAY ? null
         : b.tasks.filter((t) => ready(t) && mine(t)).sort(byOrder)[0] || (s.isLeader ? null : b.tasks.filter((t) => ready(t) && !t.session).sort(byOrder)[0])
       if (next) {
-        Object.assign(next, { status: 'running', startedAt: now, session: next.session || s.short || s.name })
+        handed = { task: next, free: !next.session }
+        Object.assign(next, { status: 'running', startedAt: now, session: next.session || s.name })
         autoCount.set(s.name, { day, n: n + 1 })
-        handed = next
         changed = true
       }
       if (changed) await writeBoard(p.key, b)
     })
+    // what could not be delivered goes back in the queue, so it does not hold the agent's queue up as "under way"
+    const undo = async (title) => withBoard(p.key, async () => {
+      const b = cleanBoard(await readBoard(p.key))
+      const t = b?.tasks.find((x) => String(x.title) === title && x.status === 'running' && mine(x))
+      if (!t) return
+      t.status = 'queued'; delete t.startedAt
+      if (handed?.free && handed.task.title === title) delete t.session
+      await writeBoard(p.key, b)
+    })
     if (back) {
       const status = ran.error ? 'could not start: ' + ran.error : ran.timedOut ? 'stopped after ' + CHECK_TIMEOUT_MS / 60000 + ' minutes' : 'exit code ' + ran.code
-      await tellSession(p.key, '', 'The project check failed for your task "' + back.title + '" (try ' + back.tries + ' of ' + CHECK_TRIES + '): ' + check + ' → ' + status + '\n' +
+      const ok = await tellSession(p.key, '', 'The project check failed for your task "' + back.title + '" (try ' + back.tries + ' of ' + CHECK_TRIES + '): ' + check + ' → ' + status + '\n' +
         'The end of what it printed:\n' + keepEnds((ran.stdout + (ran.stderr ? '\n' + ran.stderr : '')).trim(), CHECK_TO_AGENT) + '\n\n' + TASK_END, sessionId)
+      if (!ok) await undo(back.title)
     }
     if (handed) {
-      const text = 'Next task from the project board (auto-run is on): ' + handed.title + (handed.detail ? '\n' + clip(handed.detail, 2000) : '') + '\n\n' + TASK_END
+      const t = handed.task
+      const text = 'Next task from the project board (auto-run is on): ' + t.title + (t.detail ? '\n' + clip(t.detail, 2500) : '') + '\n\n' + TASK_END
       const long = s.managed && s.context && (s.context >= FRESH_TOKENS || (s.ctxWindow && s.context >= s.ctxWindow * FRESH_SHARE))
       if (long) {
         // a hand-over written by the monitor from what it has, so no turn is spent on one: the tasks it finished, its last words
-        const b = await readBoard(p.key)
-        const finished = (b?.tasks || []).filter((t) => t.status === 'done' && mine(t)).sort((x, y) => (Date.parse(y.doneAt) || 0) - (Date.parse(x.doneAt) || 0)).slice(0, 8)
+        const b = cleanBoard(await readBoard(p.key))
+        const finished = (b?.tasks || []).filter((x) => x.status === 'done' && mine(x)).sort((x, y) => (Date.parse(y.doneAt) || 0) - (Date.parse(x.doneAt) || 0)).slice(0, 8)
         const handover = '\n\nThis is a new conversation: your last one had grown long (' + Math.round(s.context / 1000) + 'k tokens), so the monitor started you afresh. ' +
           'You are the same member of the team, in the same folder; git and the board hold the work. What came before:' +
-          (finished.length ? '\n- Tasks you finished: ' + finished.map((t) => '"' + clip(t.title, 120) + '"').join(', ') : '') +
-          (last ? '\n- Your last message:\n' + clip(last, 1500) : '')
+          (finished.length ? '\n- Tasks you finished: ' + finished.map((x) => '"' + clip(x.title, 120) + '"').join(', ') : '') +
+          (last ? '\n- Your last message:\n' + keepEnds(last, 1500) : '')
         const r = await agents.freshSession(s.agentId, text + handover)
         if (r) {
           // the same automatic name in the new conversation
           if (given[r.old]) { given[r.now] = { ...given[r.old], at: Date.now() }; keepGiven(Date.now()) }
           return
         }
+        if (r === false) { await undo(t.title); return }   // its old claude would not stop
       }
-      await tellSession(p.key, handed.session, text, sessionId)
+      if (!(await tellSession(p.key, t.session, text, sessionId))) await undo(t.title)
     }
-  } catch (e) { console.error('board auto-run:', e?.message || e) } finally { autoBusy.delete(sessionId) }
+  } catch (e) { console.error('board auto-run:', e?.message || e) } finally {
+    autoBusy.delete(sessionId)
+    if (autoAgain.delete(sessionId)) boardTurnEnded(sessionId)
+  }
 }
 // the page's state has no full session ids (they stay here): a page name to its session and back
 async function sessionIdOf(name) {
@@ -1516,7 +1604,9 @@ async function sessionIdOf(name) {
 async function sessionNameOf(sessionId) {
   return agents.byAgentSession(sessionId)?.name || (await readRegistry()).find((r) => r.sessionId === sessionId)?.name || ''
 }
-// a message from the monitor to one of a project's agents, by the name the board gives it
+// a message from the monitor to one of a project's agents, by the name the board gives it; true once it has it:
+// a monitor agent at once, a VS Code session only while its inbox hook listens (a message left waiting is lost on a
+// restart, and the task would look under way for good)
 async function tellSession(key, who, text, sessionId) {
   const p = (await cachedState()).projects.find((x) => x.key === key)
   const name = sessionId ? await sessionNameOf(sessionId) : ''
@@ -1524,7 +1614,7 @@ async function tellSession(key, who, text, sessionId) {
   if (!s) return false
   if (s.managed) return agents.sendText(s.agentId, text)
   const sid = sessionId || await sessionIdOf(s.name)
-  if (!sid) return false
+  if (!sid || !waiters.has(sid)) return false
   queueText(sid, text, 'board')
   return true
 }
@@ -1651,7 +1741,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/agents/resume') { const [code, o] = await resumeSession(body); json(code, o); return }
       if (url.pathname.startsWith('/api/agents/')) { const [code, o] = await agents.handle(url, body); json(code, o); return }
       if (url.pathname === '/hook') { const r = await hookEvent(body, res); if (!res.writableEnded && !res.destroyed) json(200, r); return }
-      if (url.pathname === '/hook/wait') { json(200, await waitForMessage(String(body.session_id || ''))); return }
+      if (url.pathname === '/hook/wait') { json(200, await waitForMessage(String(body.session_id || ''), !!body.first, res)); return }
       if (url.pathname === '/api/message') { json(await sendMessage(body), {}); return }
       if (url.pathname === '/api/run') { const [code, o] = await runCommand(body); json(code, o); return }
       if (url.pathname === '/api/look') { json(await saveLook(body), {}); return }

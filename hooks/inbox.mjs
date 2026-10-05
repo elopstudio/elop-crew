@@ -57,11 +57,14 @@ async function main() {
   // A restart of the monitor drops the connection, and its wait runs out after 25 minutes; either way the session
   // is still idle, so keep listening: reread the port and token (they change on every start) and ask again.
   const deadline = Date.now() + WAIT_MS
+  // the first wait is the turn's end (the monitor's board may hand the session its next task then); the later ones are not
+  let first = true
   while (Date.now() < deadline) {
     if (!parentAlive()) return 0
     let conf
     try { conf = JSON.parse(fs.readFileSync(linkFile(), 'utf8')) } catch { conf = null }
-    const raw = conf ? await post(conf.port, conf.token, JSON.stringify({ session_id: input.session_id })) : null
+    const raw = conf ? await post(conf.port, conf.token, JSON.stringify({ session_id: input.session_id, ...(first ? { first: true } : {}) })) : null
+    if (raw !== null) first = false
     if (raw === null) { await new Promise((r) => setTimeout(r, 3000)); continue }   // the monitor is away: try again
     let reply
     try { reply = JSON.parse(raw) } catch { reply = {} }

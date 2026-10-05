@@ -330,8 +330,9 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       if (failed) { loggedOut(a); return }
       if (limited) limitReached(a, why)
       if (a.restartAfterTurn) { a.restartAfterTurn = false; a.respawn = true; stop(a) }
-      // a turn that went well: the project's board may say what comes next (its auto-run, in server.mjs)
-      else if (!o.is_error && a.kind !== 'assistant') onTurnEnd?.(a.sessionId || a.newSessionId)
+      // a turn that went well: the project's board may say what comes next (its auto-run, in server.mjs; it looks a moment
+      // later, by when a restart above has its new claude)
+      if (!o.is_error && a.kind !== 'assistant') onTurnEnd?.(a.sessionId || a.newSessionId)
     }
   }
 
@@ -716,7 +717,8 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   function shutdown() { shuttingDown = true; for (const a of agents.values()) stop(a) }
 
   // the same agent in a new conversation (the board's auto-run, when the old one has grown long): its claude is stopped
-  // and the text starts the new one. Not while it works. Resolves with the old and new session ids, or null.
+  // and the text starts the new one. Not while it works. Resolves with the old and new session ids; null when it was not
+  // the time (nothing was done); false when its old claude would not stop or the new one would not start.
   async function freshSession(id, text) {
     const a = agents.get(String(id))
     if (!a || a.kind === 'assistant' || a.state === 'working') return null
@@ -725,13 +727,13 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       a.respawn = false
       stop(a, true)
       for (let i = 0; i < 100 && a.proc; i++) await new Promise((r) => setTimeout(r, 100))
-      if (a.proc) return null
+      if (a.proc) return false
     }
     a.sessionId = ''; a.newSessionId = crypto.randomUUID(); a.midTurn = false; a.ctxWindow = 0
     delete a.forkFrom
     save()
     emit(a, { kind: 'note', sys: 'fresh', text: '' })
-    return send(a, text, []) ? { old, now: a.newSessionId } : null
+    return send(a, text, []) ? { old, now: a.newSessionId } : false
   }
 
   // for a command run from the page: where the agent works, and handing it the result as a message
