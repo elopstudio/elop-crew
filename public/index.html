@@ -1597,6 +1597,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       sel.append(g);
     }
     sel.append(new Option(t('modelOther'), '__other'));
+    sel.title = t('modelLabel'); sel.setAttribute('aria-label', t('modelLabel'));
     const other = document.createElement('input');
     other.placeholder = t('modelOtherPh');
     other.setAttribute('aria-label', t('modelOtherPh'));
@@ -1910,7 +1911,6 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const mode = modeSelect(s.mode);
     const model = modelSelect(s.model);
     mode.title = t('dMode'); mode.setAttribute('aria-label', t('dMode'));
-    model.title = t('modelLabel');
     const effort = effortSelect(s.effort);
     const apply = () => agentCall('/api/agents/settings', { id: s.agentId, mode: mode.value, model: model.value, effort: effort.value });
     mode.addEventListener('change', apply);
@@ -2157,7 +2157,6 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const go = roundButton('up', t('startAgent'), 'csend');
     go.type = 'submit';
     mode.title = t('dMode'); mode.setAttribute('aria-label', t('dMode'));
-    model.title = t('modelLabel');
     const first = composer(ta, el('div', 'chips'), [mode, model, effort], go);
     enterSends(ta, form);
     const row = (label, node) => { const l = el('label', 'row'); l.append(el('span', null, label), node); return l; };
