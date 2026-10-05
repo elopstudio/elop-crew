@@ -490,7 +490,8 @@ function showSettings() {
 }
 ipcMain.handle('monitor-settings', async (_e, action, key, value) => {
   const cur = readSettings()
-  if (action === 'set' && key === 'openAtLogin') app.setLoginItemSettings({ openAtLogin: !!value, ...LOGIN })
+  // the test app has the installed app's Windows id, so its autostart entry and the hooks would be the installed app's
+  if (action === 'set' && key === 'openAtLogin' && !TRY) app.setLoginItemSettings({ openAtLogin: !!value, ...LOGIN })
   if (action === 'set' && key === 'closeToTray') writeSettings({ ...cur, closeToTray: !!value })
   if (action === 'set' && key === 'hotkey' && HOTKEYS.includes(value)) { writeSettings({ ...cur, hotkey: value }); registerHotkey() }
   if (action === 'checkUpdates') checkUpdates()
@@ -498,7 +499,7 @@ ipcMain.handle('monitor-settings', async (_e, action, key, value) => {
   if (action === 'openData') shell.openPath(dataDir())
   if (action === 'openBrowser') shell.openExternal(URL)
   if (action === 'about') showAbout()
-  if (action === 'installHooks') {
+  if (action === 'installHooks' && !TRY) {
     try { installHooks() } catch (e) { dialog.showErrorBox('ELOP Crew', t('hooksFailed') + '\n\n' + (e && e.message || e)) }
   }
   if (action === 'pickData') {
@@ -513,7 +514,7 @@ ipcMain.handle('monitor-settings', async (_e, action, key, value) => {
   return {
     openAtLogin: app.getLoginItemSettings(LOGIN).openAtLogin, closeToTray: s2.closeToTray !== false,
     dataDir: dataDir(), ownServer, hooks: hookState(), node: !!findNode(), version: app.getVersion(), url: URL,
-    hotkey: hotkey(), hotkeys: HOTKEYS, hotkeyOk, update: { ...update }, platform: process.platform, lang,
+    hotkey: hotkey(), hotkeys: HOTKEYS, hotkeyOk, update: { ...update }, platform: process.platform, lang, try: TRY,
   }
 })
 function quit() {

@@ -18,6 +18,8 @@ section{background:var(--surface);border:1px solid var(--line);border-radius:12p
 h2{margin:0 0 10px;font-size:12.5px;color:var(--muted)}
 .row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:6px 0}
 .row + .row{border-top:1px solid var(--line)}
+.row[hidden]{display:none}
+.row[hidden] + .row{border-top:0}
 .row .t{display:grid}
 .row .t small{color:var(--faint);font-size:12px}
 .path{font:12px ui-monospace,Consolas,monospace;color:var(--muted);overflow-wrap:anywhere}
@@ -55,11 +57,11 @@ select{font:13px inherit;font-family:inherit;color:var(--text);background:var(--
 <main>
   <section>
     <h2 data-t="start"></h2>
-    <label class="row"><span class="t"><span data-t="login"></span><small data-t="loginHow"></small></span>
+    <label class="row" id="loginRow"><span class="t"><span data-t="login"></span><small data-t="loginHow"></small></span>
       <span class="sw"><input type="checkbox" id="openAtLogin"><span></span></span></label>
     <label class="row"><span class="t"><span data-t="tray"></span><small data-t="trayHow"></small></span>
       <span class="sw"><input type="checkbox" id="closeToTray"><span></span></span></label>
-    <label class="row"><span class="t"><span data-t="hotkey"></span><small id="hotkeyHow"></small></span>
+    <label class="row" id="hotkeyRow"><span class="t"><span data-t="hotkey"></span><small id="hotkeyHow"></small></span>
       <select id="hotkey"></select></label>
   </section>
   <section>
@@ -97,6 +99,7 @@ const TEXT = {
     hooks: 'Claude Code hook — 승인·질문 답하기, 모드 표시, 메시지 보내기', installHooks: '설치/갱신',
     hooksOk: '설치됨', hooksUnreadable: '설정 파일을 읽을 수 없음', hooksOutdated: '갱신 필요 — 새 기능(쉬는 세션 깨우기, 리더 팀원 안내)이 빠져 있습니다', hooksMissing: '설치 안 됨',
     node: 'hook은 이 PC의 Node.js로 실행됩니다', noNode: 'Node.js가 없어서 hook은 이 앱으로 실행됩니다',
+    tryHooks: '테스트 앱입니다 — hook과 자동 시작, 단축키는 설치된 앱의 설정에서 바꿉니다',
     updates: '업데이트 — GitHub Releases', check: '지금 확인', install: '설치하고 다시 시작', get: '받으러 가기',
     updHow: MAC ? '켤 때와 6시간마다 확인하고, 새 버전이 나오면 알려 줍니다' : '켤 때와 6시간마다 확인하고, 받아 두었다가 다시 시작할 때 설치합니다',
     dev: '개발 중인 앱은 업데이트하지 않습니다', idle: '확인 전', checking: '확인하는 중…', latest: '최신 버전입니다', none: '아직 올라온 릴리스가 없습니다',
@@ -141,7 +144,9 @@ async function load() {
   $('pickData').disabled = !s.ownServer
   $('hookState').textContent = t(s.hooks === 'ok' ? 'hooksOk' : s.hooks === 'unreadable' ? 'hooksUnreadable' : s.hooks === 'outdated' ? 'hooksOutdated' : 'hooksMissing')
   $('hookState').className = 'state ' + (s.hooks === 'ok' ? 'ok' : 'warn')
-  $('hookHow').textContent = t(s.node ? 'node' : 'noNode')
+  $('hookHow').textContent = t(s.try ? 'tryHooks' : s.node ? 'node' : 'noNode')
+  // the test app (npm run try) shares the installed app's Windows id and hooks: these would change the installed app's
+  $('loginRow').hidden = $('hotkeyRow').hidden = $('installHooks').hidden = !!s.try
   $('version').textContent = s.version
   $('url').textContent = s.url
   const keyName = (k) => k === 'off' ? t('off') : MAC ? k.replace('Control+', '⌃').replace('Alt+', '⌥') : k.replace('Control', 'Ctrl')

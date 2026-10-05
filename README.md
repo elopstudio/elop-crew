@@ -488,7 +488,8 @@ npm run dist:mac     # on a Mac: dist/ELOP-Crew-<version>-{arm64,x64}.{dmg,zip}
 `npm run try` opens a **test app** next to the installed one: its own port (4799), profile and data folder, marked
 **TEST** in the header and the tray. It starts from a copy of the installed app's names, looks, tab order, boards and last
 usage numbers, but not its agent list, and it sends no notifications, takes no global shortcut, installs no hooks and
-does not ask Anthropic for usage. Approvals and page messages keep going to the installed app, whose hooks are untouched.
+does not ask Anthropic for usage. Its settings window leaves out start at login, the shortcut and the hook install, which
+would change the installed app's. Approvals and page messages keep going to the installed app, whose hooks are untouched.
 
 The Windows installer is built on Windows and the Mac app on a Mac.
 
