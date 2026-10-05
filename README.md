@@ -55,7 +55,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
 - **How full the context is.** Beside the send button, as in VS Code, a ring and a percentage show how much of its model's context the conversation fills (1M tokens, or 200k for Haiku; for a monitor agent, what claude itself reports), with the tokens on hover. It turns amber from 300k and red past 80%, and follows the conversation as it grows. A click opens a small card with the numbers and, for a monitor agent, **Run /compact** to shorten the conversation (a VS Code session is told to type /compact there).
 - **The monitor's own messages are notes, not bubbles.** What the monitor tells an agent by itself — carry on after a restart, after logging in again or once the usage limit has reset, or the assistant's nudge — shows in the conversation as a faint one-line note ("↻ The monitor restarted and told it to carry on"), not as a message from you.
 - **Counts in the header.** Clicking working, waiting or resting shows only the agents in that state, on every tab
-  (projects with none of them are left out); clicking it again, the ✕ by the project's name or sessions shows them all.
+  (projects with none of them are left out); clicking it again, the ✕ chip by the counts above the agents, or sessions, shows them all.
   Pointing at (or focusing) a count — projects, sessions, working, waiting, resting —
   lists what it counts: the projects, or the agents with their project, each with its robot's face. A click on an agent opens its dialog, and a click on a
   project opens its tab. The list stays while the pointer goes down to it (and a moment after it slips off), and is not
