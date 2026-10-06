@@ -5,7 +5,7 @@
 <title>Terminal</title>
 <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
 <style>
-/* The terminal panel: its own view under the page, as VS Code's panel is, with a tab per shell. */
+/* The terminal panel: its own view under the page, as VS Code's panel is, with tabs of shells, a tab split in panes. */
 :root{--bg:#ffffff;--bar:#f2f3f7;--line:#e0e3ea;--muted:#5b6372;--text:#171a21;--hover:#e6e8ee;--accent:#3a63d8;--bad:#b0341f}
 @media (prefers-color-scheme: dark){:root{--bg:#0f1116;--bar:#171b22;--line:#2a303b;--muted:#a3abb8;--text:#e8eaef;--hover:#232830;--accent:#86a6f5;--bad:#f0907d}}
 html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
@@ -13,8 +13,7 @@ body{display:flex;flex-direction:column;font:600 12px system-ui,"Segoe UI","Noto
 /* the top edge: drag it to make the panel taller or shorter */
 #grip{position:absolute;left:0;right:0;top:0;height:5px;cursor:ns-resize;z-index:2}
 #grip:hover,#grip.on{background:var(--accent)}
-#bar{display:flex;align-items:center;gap:4px;height:32px;flex:none;padding:0 6px;background:var(--bar);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none}
-#bar{align-items:stretch}
+#bar{display:flex;align-items:stretch;gap:4px;height:32px;flex:none;padding:0 6px;background:var(--bar);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none}
 #bar>button.ic,#bar>#msg{align-self:center}
 #tabs{display:flex;align-items:stretch;min-width:0;overflow-x:auto;scrollbar-width:none;margin-left:-6px}
 .tab{position:relative;display:inline-flex;align-items:center;flex:none;color:var(--muted);border-right:1px solid var(--line)}
@@ -24,6 +23,8 @@ body{display:flex;flex-direction:column;font:600 12px system-ui,"Segoe UI","Noto
 .tab input{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--accent);border-radius:4px;padding:2px 6px;margin:0 4px 0 6px;width:150px;outline:none}
 .tab .go{appearance:none;border:0;background:none;color:inherit;font:inherit;padding:5px 4px 5px 10px;cursor:pointer;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .tab .go small{font-weight:500;opacity:.75}
+.tab .go .n{display:inline-flex;align-items:center;gap:2px;margin-left:6px;font-weight:700;font-size:10.5px;opacity:.7}
+.tab .go .n svg{width:11px;height:11px}
 .tab .x{appearance:none;border:0;background:none;color:inherit;font:15px/1 system-ui,sans-serif;padding:3px 8px 4px 4px;cursor:pointer;opacity:.6}
 .tab .x:hover{opacity:1;color:var(--text)}
 /* pinned: on the left, a pin instead of the close button */
@@ -36,12 +37,27 @@ body{display:flex;flex-direction:column;font:600 12px system-ui,"Segoe UI","Noto
 .tab.drop-after{box-shadow:inset -2px 0 0 var(--accent)}
 button.ic{appearance:none;border:0;background:none;color:var(--muted);width:26px;height:24px;border-radius:7px;display:grid;place-items:center;cursor:pointer;flex:none;font:700 15px/1 system-ui,sans-serif}
 button.ic:hover{background:var(--hover);color:var(--text)}
+button.ic:disabled{opacity:.35;cursor:default;background:none}
 button.ic svg{width:14px;height:14px}
 #msg{color:var(--bad);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grow{flex:1}
 #views{flex:1;min-height:0;position:relative}
-.view{position:absolute;inset:4px 0 0 10px}
-.view[hidden]{display:none}
+/* a tab: its panes side by side (row) or stacked (column), a line between them to drag */
+.group{position:absolute;inset:0;display:flex}
+.group.column{flex-direction:column}
+.group[hidden]{display:none}
+.pane{position:relative;min-width:0;min-height:0;flex:1 1 0}
+.pane .xt{position:absolute;inset:4px 0 0 10px}
+.split{flex:none;position:relative;background:var(--line);z-index:1}
+.row>.split{width:1px;cursor:col-resize}
+.column>.split{height:1px;cursor:row-resize}
+.split::before{content:"";position:absolute;inset:-3px}
+.split:hover,.split.on{background:var(--accent)}
+/* split: the pane typed in is marked, and each has its own close button */
+.group.multi .pane:not(.on) .xt{opacity:.72}
+.pane .px{position:absolute;top:4px;right:8px;z-index:2;appearance:none;border:0;background:var(--bar);color:var(--muted);border-radius:6px;width:22px;height:20px;font:15px/1 system-ui,sans-serif;cursor:pointer;display:none}
+.group.multi .pane:hover .px{display:block}
+.pane .px:hover{color:var(--text);background:var(--hover)}
 .xterm-viewport{scrollbar-width:thin}
 </style>
 </head>
@@ -51,6 +67,7 @@ button.ic svg{width:14px;height:14px}
   <div id="tabs" role="tablist"></div>
   <button class="ic" id="new" data-tip="newTerm"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
   <button class="ic" id="pick" data-tip="pick" aria-haspopup="menu"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <button class="ic" id="split" data-tip="split"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.8v10.4" stroke="currentColor" stroke-width="1.5"/></svg></button>
   <span id="msg"></span>
   <span class="grow"></span>
   <button class="ic" id="hide" data-tip="hide"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4.5l4 4 4-4M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -62,23 +79,27 @@ button.ic svg{width:14px;height:14px}
 const qs = new URLSearchParams(location.search), MAC = qs.get('platform') === 'darwin'
 const TEXT = {
   ko: {
-    newTerm: '새 터미널 (Ctrl+Shift+`)', pick: '셸 고르기', hide: '패널 숨기기 (Ctrl+`)', close: '닫기', tabs: '터미널',
-    cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ', restored: '앱이 다시 시작되어 여기부터 새 셸입니다', rename: '더블클릭하거나 F2 를 눌러 이름 바꾸기 · 끌어서 옮기기 · 오른쪽 클릭: 고정·복제·닫기', pinned: '고정됨', renamePh: '비우면 원래 이름',
+    newTerm: '새 터미널 (Ctrl+Shift+`)', pick: '셸 고르기', split: '오른쪽으로 분할 (Ctrl+Shift+5)', hide: '패널 숨기기 (Ctrl+`)', close: '닫기', tabs: '터미널',
+    closePane: '이 창 닫기', panes: (n) => n + '개로 분할됨',
+    cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ', restored: '앱이 다시 시작되어 여기부터 새 셸입니다', rename: '더블클릭하거나 F2 를 눌러 이름 바꾸기 · 끌어서 옮기기 · 오른쪽 클릭: 고정·분할·복제·닫기', pinned: '고정됨', renamePh: '비우면 원래 이름',
   },
   en: {
-    newTerm: 'New terminal (Ctrl+Shift+`)', pick: 'Pick a shell', hide: 'Hide the panel (Ctrl+`)', close: 'Close', tabs: 'Terminals',
-    cmd: 'Command Prompt', failed: 'Could not start the shell: ', restored: 'The app restarted — a new shell from here', rename: 'Double-click or press F2 to rename · drag to move · right-click: pin, duplicate, close', pinned: 'Pinned', renamePh: 'Empty for the usual name',
+    newTerm: 'New terminal (Ctrl+Shift+`)', pick: 'Pick a shell', split: 'Split right (Ctrl+Shift+5)', hide: 'Hide the panel (Ctrl+`)', close: 'Close', tabs: 'Terminals',
+    closePane: 'Close this pane', panes: (n) => 'Split in ' + n,
+    cmd: 'Command Prompt', failed: 'Could not start the shell: ', restored: 'The app restarted — a new shell from here', rename: 'Double-click or press F2 to rename · drag to move · right-click: pin, split, duplicate, close', pinned: 'Pinned', renamePh: 'Empty for the usual name',
   },
 }
 let lang = TEXT[qs.get('lang')] ? qs.get('lang') : 'en'
-const t = (k) => TEXT[lang][k]
+const t = (k, ...a) => { const v = TEXT[lang][k]; return typeof v === 'function' ? v(...a) : v }
 const $ = (id) => document.getElementById(id)
 const api = window.monitorTerm
+const MAX_PANES = 4
 function words() {
   document.documentElement.lang = lang
   for (const b of document.querySelectorAll('[data-tip]')) { b.title = t(b.dataset.tip).replace(/Ctrl\+/g, MAC ? '⌃' : 'Ctrl+'); b.setAttribute('aria-label', t(b.dataset.tip).replace(/ \(.*\)$/, '')) }
   $('tabs').setAttribute('aria-label', t('tabs'))
-  for (const x of terms.values()) label(x)
+  for (const g of groups.values()) label(g)
+  for (const x of terms.values()) x.view.querySelector('.px').title = t('closePane')
 }
 
 /* ── the look, light or dark as the app is ── */
@@ -90,139 +111,169 @@ const THEMES = {
 const theme = () => THEMES[dark.matches ? 'dark' : 'light']
 dark.addEventListener('change', () => { for (const x of terms.values()) x.term.options.theme = theme() })
 
-/* ── the shells, one tab each ── */
-const terms = new Map()   // id → { id, term, fit, view, tab, name, title, pinned, cwd } (title: a name given to it; kept by the app)
-let active = null
+/* ── tabs of shells: each tab a group of one to four panes ── */
+const terms = new Map()    // shell id → pane { id, term, fit, view, g, shell, name, title, cwd } (title: a name given to it)
+const groups = new Map()   // tab id → { gid, tab, box, panes, dir: 'row' | 'column', sizes, pinned, focus }
+let active = null, nextG = 1
 const base = (p) => String(p || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p
-function label(x) {
-  const go = x.tab.querySelector('.go')
+const PIN = '<svg class="pin" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1.5h4M7 1.5v4.2L4.5 8.5h7L9 5.7V1.5M8 8.5v6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+const SPLIT = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2.8v10.4" stroke="currentColor" stroke-width="1.6"/></svg>'
+// the tab says the pane typed in: its name, or its shell and the folder it is in now
+function label(g) {
+  const x = g.focus || g.panes[0], go = g.tab.querySelector('.go')
+  if (!x) return
   if (x.title) go.replaceChildren(x.title)
   else go.replaceChildren(document.createTextNode((x.shell === 'cmd' ? t('cmd') : x.name) + ' '), Object.assign(document.createElement('small'), { textContent: base(x.cwd) }))
-  if (x.pinned) go.insertAdjacentHTML('afterbegin', PIN)
-  x.tab.classList.toggle('pinned', !!x.pinned)
-  go.title = (x.pinned ? t('pinned') + ' · ' : '') + x.cwd + '\n' + t('rename')
-  x.tab.querySelector('.x').title = t('close')
-  x.tab.querySelector('.x').setAttribute('aria-label', t('close'))
+  if (g.pinned) go.insertAdjacentHTML('afterbegin', PIN)
+  if (g.panes.length > 1) { const n = document.createElement('span'); n.className = 'n'; n.innerHTML = SPLIT; n.append(String(g.panes.length)); n.title = t('panes', g.panes.length); go.append(n) }
+  g.tab.classList.toggle('pinned', !!g.pinned)
+  go.title = (g.pinned ? t('pinned') + ' · ' : '') + x.cwd + '\n' + t('rename')
+  g.tab.querySelector('.x').title = t('close')
+  g.tab.querySelector('.x').setAttribute('aria-label', t('close'))
 }
-const PIN = '<svg class="pin" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1.5h4M7 1.5v4.2L4.5 8.5h7L9 5.7V1.5M8 8.5v6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-const tabsInOrder = () => [...$('tabs').children].map((n) => terms.get(Number(n.dataset.id))).filter(Boolean)
-// pinned ones first, the rest after, each as they stand; the order told to the app
-function settle() {
+const tabsInOrder = () => [...$('tabs').children].map((n) => groups.get(Number(n.dataset.gid))).filter(Boolean)
+// the tabs as they stand, told to the app (for the panel drawn again and the next start): pinned ones first
+function sync() {
   const all = tabsInOrder()
-  $('tabs').append(...all.filter((x) => x.pinned).map((x) => x.tab), ...all.filter((x) => !x.pinned).map((x) => x.tab))
-  api.order(tabsInOrder().map((x) => x.id))
-}
-function move(x, step) {
-  const all = tabsInOrder(), i = all.indexOf(x), to = all[i + step]
-  if (!to || !!to.pinned !== !!x.pinned) return
-  if (step < 0) to.tab.before(x.tab); else to.tab.after(x.tab)
-  settle()
-  x.tab.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-}
-function setPin(x, on) { x.pinned = on; api.pin(x.id, on); label(x); settle() }
-// close many at once: the pinned ones stay
-function closeMany(list) { for (const x of list) if (!x.pinned) api.close(x.id) }
-function clearOut(x) { x.term.clear(); api.clear(x.id) }
-async function dup(x) {
-  const n = await openNew({ shell: x.shell, cwd: x.cwd })
-  if (n) { (x.pinned ? tabsInOrder().filter((y) => y.pinned).pop().tab : x.tab).after(n.tab); settle() }
-}
-// a tab's menu (right-click), and what is picked in it
-function tabMenu(x, e) {
-  e.preventDefault()
-  const all = tabsInOrder(), i = all.indexOf(x), same = (y) => y && !!y.pinned === !!x.pinned
-  api.tabMenu(x.id, {
-    pinned: !!x.pinned, left: same(all[i - 1]), right: same(all[i + 1]),
-    others: all.some((y) => y !== x && !y.pinned), toRight: all.slice(i + 1).some((y) => !y.pinned),
-  }, e.clientX, e.clientY)
-}
-api.onCommand((cmd, id) => {
-  const x = terms.get(id)
-  if (!x) return
-  if (cmd === 'rename') { select(id); rename(x) }
-  if (cmd === 'pin' || cmd === 'unpin') setPin(x, cmd === 'pin')
-  if (cmd === 'dup') dup(x)
-  if (cmd === 'left') move(x, -1)
-  if (cmd === 'right') move(x, 1)
-  if (cmd === 'clear') clearOut(x)
-  if (cmd === 'close') api.close(id)
-  if (cmd === 'closeOthers') closeMany(tabsInOrder().filter((y) => y !== x))
-  if (cmd === 'closeRight') { const all = tabsInOrder(); closeMany(all.slice(all.indexOf(x) + 1)) }
-})
-
-// dragging a tab to another place; pinned ones stay among the pinned, the rest after them
-let dragged = null
-function drags(x) {
-  const tab = x.tab
-  tab.draggable = true
-  const clear = () => { for (const n of $('tabs').children) n.classList.remove('drop-before', 'drop-after') }
-  tab.addEventListener('dragstart', (e) => { dragged = x; tab.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', '') })
-  tab.addEventListener('dragend', () => { dragged = null; tab.classList.remove('dragging'); clear() })
-  tab.addEventListener('dragover', (e) => {
-    if (!dragged || dragged === x || !!dragged.pinned !== !!x.pinned) return
-    e.preventDefault()
-    const r = tab.getBoundingClientRect(), after = e.clientX > r.left + r.width / 2
-    clear(); tab.classList.add(after ? 'drop-after' : 'drop-before')
-  })
-  tab.addEventListener('dragleave', () => tab.classList.remove('drop-before', 'drop-after'))
-  tab.addEventListener('drop', (e) => {
-    if (!dragged || dragged === x || !!dragged.pinned !== !!x.pinned) return
-    e.preventDefault()
-    if (tab.classList.contains('drop-after')) tab.after(dragged.tab); else tab.before(dragged.tab)
-    clear(); settle(); select(dragged.id)
-  })
+  $('tabs').append(...all.filter((g) => g.pinned).map((g) => g.tab), ...all.filter((g) => !g.pinned).map((g) => g.tab))
+  api.layout(tabsInOrder().map((g) => ({ ids: g.panes.map((x) => x.id), dir: g.dir, sizes: g.sizes, pinned: !!g.pinned })))
 }
 
-function add(info, buf) {
+function newGroup(o = {}) {
+  const gid = nextG++
+  const box = document.createElement('div')
+  $('views').append(box)
+  const tab = document.createElement('span')
+  tab.className = 'tab'
+  tab.setAttribute('role', 'tab')
+  tab.dataset.gid = gid
+  tab.innerHTML = '<button class="go" type="button"></button><button class="x" type="button">×</button>'
+  $('tabs').append(tab)
+  const g = { gid, tab, box, panes: [], dir: o.dir === 'column' ? 'column' : 'row', sizes: [], pinned: !!o.pinned, focus: null }
+  groups.set(gid, g)
+  const go = tab.querySelector('.go')
+  go.addEventListener('click', () => select(gid))
+  go.addEventListener('dblclick', () => rename(g))
+  go.addEventListener('keydown', (e) => { if (e.key === 'F2') { e.preventDefault(); rename(g) } else if (groupKeys(g, e)) e.preventDefault() })
+  tab.querySelector('.x').addEventListener('click', () => closeGroup(g))
+  tab.addEventListener('auxclick', (e) => { if (e.button === 1 && !g.pinned) closeGroup(g) })
+  tab.addEventListener('contextmenu', (e) => tabMenu(g, e))
+  drags(g)
+  return g
+}
+// a shell in a pane of the tab, after the pane at index `after` (else at the end)
+function addPane(g, info, buf, after) {
   const view = document.createElement('div')
-  view.className = 'view'
-  $('views').append(view)
+  view.className = 'pane'
+  view.innerHTML = '<div class="xt"></div><button class="px" type="button">×</button>'
   const term = new Terminal({
     fontFamily: MAC ? 'Menlo, "SF Mono", monospace' : '"Cascadia Mono", Consolas, "D2Coding", monospace',
     fontSize: 13, lineHeight: 1.15, cursorBlink: true, scrollback: 5000, theme: theme(), allowProposedApi: false,
   })
   const fit = new FitAddon.FitAddon()
   term.loadAddon(fit)
-  term.open(view)
-  const tab = document.createElement('span')
-  tab.className = 'tab'
-  tab.setAttribute('role', 'tab')
-  tab.dataset.id = info.id
-  tab.innerHTML = '<button class="go" type="button"></button><button class="x" type="button">×</button>'
-  $('tabs').append(tab)
-  const x = { ...info, term, fit, view, tab }
+  const x = { ...info, term, fit, view, g }
   terms.set(info.id, x)
-  label(x)
-  drags(x)
-  tab.addEventListener('contextmenu', (e) => tabMenu(x, e))
-  tab.querySelector('.go').addEventListener('click', () => select(info.id))
-  tab.querySelector('.go').addEventListener('dblclick', () => rename(x))
-  tab.querySelector('.go').addEventListener('keydown', (e) => { if (e.key === 'F2') { e.preventDefault(); rename(x) } else if (tabKeys(x, e)) e.preventDefault() })
-  tab.querySelector('.x').addEventListener('click', () => api.close(info.id))
-  tab.addEventListener('auxclick', (e) => { if (e.button === 1 && !x.pinned) api.close(info.id) })
+  const at = after == null ? g.panes.length : after + 1
+  g.panes.splice(at, 0, x)
+  // a split pane takes half of the one it came from
+  if (after != null && g.sizes[after]) { const half = g.sizes[after] / 2; g.sizes[after] = half; g.sizes.splice(at, 0, half) } else g.sizes.splice(at, 0, 1)
+  g.focus = x
+  arrange(g)
+  term.open(view.querySelector('.xt'))
   term.onData((d) => api.write(info.id, d))
   term.onResize(({ cols, rows }) => api.resize(info.id, cols, rows))
+  view.addEventListener('focusin', () => focusPane(x, false))
+  view.addEventListener('mousedown', () => { if (g.focus !== x) setTimeout(() => focusPane(x), 0) })
+  view.querySelector('.px').addEventListener('click', () => api.close(x.id))
+  view.querySelector('.px').title = t('closePane')
+  new ResizeObserver(() => fitNow(x)).observe(view)
   keys(x)
   if (buf) term.write(buf)
   // what it printed before the panel knew it (a restarted shell's question where the cursor is, among it)
   if (early.has(info.id)) { term.write(early.get(info.id)); early.delete(info.id) }
-  select(info.id)
   return x
 }
-function select(id) {
-  active = id
-  for (const x of terms.values()) {
-    const on = x.id === id
-    x.view.hidden = !on
-    x.tab.setAttribute('aria-selected', String(on))
-  }
-  const x = terms.get(id)
-  if (x) { fitNow(x); x.term.focus(); x.tab.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }
+// the panes in their order, a line between each two, each as wide (or tall) as its share
+function arrange(g) {
+  g.box.className = 'group ' + g.dir + (g.panes.length > 1 ? ' multi' : '')
+  const kids = []
+  g.panes.forEach((x, i) => {
+    if (i) kids.push(splitter(g, i - 1))
+    x.view.style.flex = (g.sizes[i] || 1) + ' 1 0'
+    kids.push(x.view)
+  })
+  g.box.replaceChildren(...kids)
+  for (const x of g.panes) x.view.classList.toggle('on', x === g.focus)
+  label(g)
 }
-// the tab's name, typed in its place: Enter or leaving the box keeps it, Esc does not; empty is the usual name again
-function rename(x) {
-  const go = x.tab.querySelector('.go')
-  if (go.hidden) return
+// the line between pane i and i + 1, dragged: their two shares change, the others stay
+function splitter(g, i) {
+  const line = document.createElement('div')
+  line.className = 'split'
+  line.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    line.setPointerCapture(e.pointerId); line.classList.add('on')
+    const move = (ev) => {
+      const a = g.panes[i]?.view.getBoundingClientRect(), b = g.panes[i + 1]?.view.getBoundingClientRect()
+      if (!a || !b) return
+      const row = g.dir === 'row', start = row ? a.left : a.top, end = row ? b.right : b.bottom
+      const f = Math.min(0.9, Math.max(0.1, ((row ? ev.clientX : ev.clientY) - start) / (end - start)))
+      const total = (g.sizes[i] || 1) + (g.sizes[i + 1] || 1)
+      g.sizes[i] = total * f; g.sizes[i + 1] = total - g.sizes[i]
+      g.panes[i].view.style.flex = g.sizes[i] + ' 1 0'; g.panes[i + 1].view.style.flex = g.sizes[i + 1] + ' 1 0'
+    }
+    const up = () => { line.classList.remove('on'); line.removeEventListener('pointermove', move); line.removeEventListener('pointerup', up); sync() }
+    line.addEventListener('pointermove', move)
+    line.addEventListener('pointerup', up)
+  })
+  return line
+}
+function focusPane(x, give = true) {
+  const g = x.g
+  if (g.focus !== x) { g.focus = x; for (const y of g.panes) y.view.classList.toggle('on', y === x); label(g) }
+  if (give) x.term.focus()
+}
+function select(gid) {
+  active = gid
+  for (const g of groups.values()) {
+    const on = g.gid === gid
+    g.box.hidden = !on
+    g.tab.setAttribute('aria-selected', String(on))
+  }
+  const g = groups.get(gid)
+  if (!g) return
+  for (const x of g.panes) fitNow(x)
+  if (g.focus) g.focus.term.focus()
+  g.tab.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+}
+// a pane whose shell ended: its share goes to the one beside it; the last one gone, the tab goes
+function removePane(x) {
+  const g = x.g, i = g.panes.indexOf(x)
+  x.term.dispose(); x.view.remove(); terms.delete(x.id)
+  if (i < 0) return
+  const share = g.sizes[i] || 1
+  g.panes.splice(i, 1); g.sizes.splice(i, 1)
+  if (g.panes.length) {
+    const j = Math.max(0, i - 1)
+    g.sizes[j] = (g.sizes[j] || 1) + share
+    if (g.focus === x) g.focus = g.panes[j]
+    arrange(g)
+    if (active === g.gid) { for (const y of g.panes) fitNow(y); g.focus.term.focus() }
+  } else {
+    g.box.remove(); g.tab.remove(); groups.delete(g.gid)
+    // the last tab gone, the panel goes too, as VS Code's does
+    if (!groups.size) { active = null; api.hide() }
+    else if (active === g.gid) select(tabsInOrder().pop().gid)
+  }
+  sync()
+}
+// the tab's name: the name of the pane typed in, typed in its place: Enter or leaving the box keeps it, Esc does not;
+// empty is the usual name again
+function rename(g) {
+  const x = g.focus || g.panes[0], go = g.tab.querySelector('.go')
+  if (!x || go.hidden) return
   const box = document.createElement('input')
   box.value = x.title || ''
   box.placeholder = t('renamePh')
@@ -235,33 +286,148 @@ function rename(x) {
   const end = (keep) => {
     if (done) return
     done = true
-    if (keep) { x.title = box.value.trim(); api.rename(x.id, x.title); label(x) }
+    if (keep) { x.title = box.value.trim(); api.rename(x.id, x.title); label(g) }
     box.remove(); go.hidden = false
-    if (active === x.id) x.term.focus()
+    if (active === g.gid) x.term.focus()
   }
   box.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') end(true); if (e.key === 'Escape') end(false) })
   box.addEventListener('blur', () => end(true))
 }
-function fitNow(x) { if (x && !x.view.hidden && x.view.clientWidth > 20 && x.view.clientHeight > 10) { try { x.fit.fit() } catch {} } }
-new ResizeObserver(() => fitNow(terms.get(active))).observe($('views'))
+function fitNow(x) {
+  if (!x || x.g.box.hidden) return
+  const v = x.view.querySelector('.xt')
+  if (v.clientWidth > 20 && v.clientHeight > 10) { try { x.fit.fit() } catch {} }
+}
 
-// copy with a selection, else Ctrl+C goes to the shell; paste from the app's clipboard; right-click does either
-async function paste(x) { const s = await api.paste(); if (s) x.term.paste(s) }
-function copy(x) { const s = x.term.getSelection(); if (!s) return false; api.copy(s); x.term.clearSelection(); return true }
-// Ctrl+PageUp / PageDown: the tab before or after; with Shift, the tab itself moves. Cmd+K clears it on a Mac (on
-// Windows Ctrl+K is the shells' own: bash's kill to the end of the line)
-function tabKeys(x, e) {
+/* ── what a tab can do ── */
+function move(g, step) {
+  const all = tabsInOrder(), i = all.indexOf(g), to = all[i + step]
+  if (!to || !!to.pinned !== !!g.pinned) return
+  if (step < 0) to.tab.before(g.tab); else to.tab.after(g.tab)
+  sync()
+  g.tab.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+}
+function setPin(g, on) { g.pinned = on; label(g); sync() }
+function closeGroup(g) { for (const x of g.panes) api.close(x.id) }
+// close many at once: the pinned ones stay
+function closeMany(list) { for (const g of list) if (!g.pinned) closeGroup(g) }
+function clearOut(x) { x.term.clear(); api.clear(x.id) }
+// the size a shell gets before its pane fits it: the panel's own, from the font's cell, shared by the panes
+function size(across = 1, down = 1) {
+  const v = $('views'), cw = 7.8, ch = 15
+  return { cols: Math.max(20, Math.floor((v.clientWidth / across - 24) / cw)), rows: Math.max(4, Math.floor((v.clientHeight / down - 6) / ch)) }
+}
+function failed(e) { $('msg').textContent = t('failed') + String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') }
+// a new tab with a shell; o: the shell and the folder (else the default shell, in the project picked on the page)
+async function openNew(o) {
+  $('msg').textContent = ''
+  try {
+    const info = await api.open({ ...o, ...size() })
+    if (terms.has(info.id)) return terms.get(info.id)
+    const g = newGroup()
+    const x = addPane(g, info)
+    select(g.gid); sync()
+    return x
+  } catch (e) { failed(e) }
+}
+// the pane typed in, split: a new shell beside it (right) or under it (down), same shell, in the folder it is in now
+async function split(g, dir = 'row') {
+  if (!g || g.panes.length >= MAX_PANES || (g.panes.length > 1 && g.dir !== dir)) return
+  const src = g.focus || g.panes[g.panes.length - 1]
+  $('msg').textContent = ''
+  try {
+    const n = g.panes.length + 1
+    const info = await api.open({ shell: src.shell, cwd: src.cwd, ...(dir === 'row' ? size(n, 1) : size(1, n)) })
+    if (terms.has(info.id)) return
+    g.dir = dir
+    const x = addPane(g, info, '', g.panes.indexOf(src))
+    select(g.gid); focusPane(x); sync()
+  } catch (e) { failed(e) }
+}
+async function dup(g) {
+  const src = g.focus || g.panes[0]
+  const x = await openNew({ shell: src.shell, cwd: src.cwd })
+  if (x) { (g.pinned ? tabsInOrder().filter((y) => y.pinned).pop().tab : g.tab).after(x.g.tab); sync() }
+}
+const canSplit = (g, dir) => g.panes.length < MAX_PANES && (g.panes.length === 1 || g.dir === dir)
+// a tab's menu (right-click), and what is picked in it
+function tabMenu(g, e) {
+  e.preventDefault()
+  const all = tabsInOrder(), i = all.indexOf(g), same = (y) => y && !!y.pinned === !!g.pinned
+  api.tabMenu(g.gid, {
+    pinned: !!g.pinned, left: same(all[i - 1]), right: same(all[i + 1]), splitRight: canSplit(g, 'row'), splitDown: canSplit(g, 'column'),
+    others: all.some((y) => y !== g && !y.pinned), toRight: all.slice(i + 1).some((y) => !y.pinned),
+  }, e.clientX, e.clientY)
+}
+api.onCommand((cmd, gid) => {
+  const g = groups.get(gid)
+  if (!g) return
+  const x = g.focus || g.panes[0]
+  if (cmd === 'rename') { select(gid); rename(g) }
+  if (cmd === 'pin' || cmd === 'unpin') setPin(g, cmd === 'pin')
+  if (cmd === 'dup') dup(g)
+  if (cmd === 'splitRight') split(g, 'row')
+  if (cmd === 'splitDown') split(g, 'column')
+  if (cmd === 'left') move(g, -1)
+  if (cmd === 'right') move(g, 1)
+  if (cmd === 'clear' && x) clearOut(x)
+  if (cmd === 'close') closeGroup(g)
+  if (cmd === 'closeOthers') closeMany(tabsInOrder().filter((y) => y !== g))
+  if (cmd === 'closeRight') { const all = tabsInOrder(); closeMany(all.slice(all.indexOf(g) + 1)) }
+})
+
+// dragging a tab to another place; pinned ones stay among the pinned, the rest after them
+let dragged = null
+function drags(g) {
+  const tab = g.tab
+  tab.draggable = true
+  const clear = () => { for (const n of $('tabs').children) n.classList.remove('drop-before', 'drop-after') }
+  tab.addEventListener('dragstart', (e) => { dragged = g; tab.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', '') })
+  tab.addEventListener('dragend', () => { dragged = null; tab.classList.remove('dragging'); clear() })
+  tab.addEventListener('dragover', (e) => {
+    if (!dragged || dragged === g || !!dragged.pinned !== !!g.pinned) return
+    e.preventDefault()
+    const r = tab.getBoundingClientRect(), after = e.clientX > r.left + r.width / 2
+    clear(); tab.classList.add(after ? 'drop-after' : 'drop-before')
+  })
+  tab.addEventListener('dragleave', () => tab.classList.remove('drop-before', 'drop-after'))
+  tab.addEventListener('drop', (e) => {
+    if (!dragged || dragged === g || !!dragged.pinned !== !!g.pinned) return
+    e.preventDefault()
+    if (tab.classList.contains('drop-after')) tab.after(dragged.tab); else tab.before(dragged.tab)
+    clear(); sync(); select(dragged.gid)
+  })
+}
+
+/* ── keys ── */
+// Ctrl+PageUp / PageDown: the tab before or after; with Shift, the tab itself moves; Ctrl+Shift+5 splits the pane
+// typed in; Alt+arrows go to the pane beside it
+function groupKeys(g, e) {
+  if (e.ctrlKey && e.shiftKey && !e.altKey && e.code === 'Digit5') { split(g, 'row'); return true }
   if (!e.ctrlKey || e.altKey || (e.key !== 'PageUp' && e.key !== 'PageDown')) return false
   const step = e.key === 'PageUp' ? -1 : 1
-  if (e.shiftKey) { move(x, step); return true }
-  const all = tabsInOrder(), to = all[(all.indexOf(x) + step + all.length) % all.length]
-  if (to) select(to.id)
+  if (e.shiftKey) { move(g, step); return true }
+  const all = tabsInOrder(), to = all[(all.indexOf(g) + step + all.length) % all.length]
+  if (to) select(to.gid)
   return true
 }
+function paneKeys(x, e) {
+  const g = x.g
+  if (!e.altKey || e.ctrlKey || e.shiftKey || e.metaKey || g.panes.length < 2) return false
+  const back = g.dir === 'row' ? 'ArrowLeft' : 'ArrowUp', fwd = g.dir === 'row' ? 'ArrowRight' : 'ArrowDown'
+  if (e.key !== back && e.key !== fwd) return false
+  const to = g.panes[g.panes.indexOf(x) + (e.key === back ? -1 : 1)]
+  if (to) focusPane(to)
+  return true
+}
+// copy with a selection, else Ctrl+C goes to the shell; paste from the app's clipboard; right-click does either.
+// Cmd+K clears it on a Mac (on Windows Ctrl+K is the shells' own: bash's kill to the end of the line)
+async function paste(x) { const s = await api.paste(); if (s) x.term.paste(s) }
+function copy(x) { const s = x.term.getSelection(); if (!s) return false; api.copy(s); x.term.clearSelection(); return true }
 function keys(x) {
   x.term.attachCustomKeyEventHandler((e) => {
     if (e.type !== 'keydown') return true
-    if (tabKeys(x, e)) { e.preventDefault(); return false }
+    if (groupKeys(x.g, e) || paneKeys(x, e)) { e.preventDefault(); return false }
     if (MAC && e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); clearOut(x); return false }
     const mod = MAC ? e.metaKey : e.ctrlKey, k = e.key.toLowerCase()
     if (mod && k === 'c' && (e.shiftKey || MAC || x.term.hasSelection())) { e.preventDefault(); copy(x); return false }
@@ -271,37 +437,24 @@ function keys(x) {
   x.view.addEventListener('contextmenu', (e) => { e.preventDefault(); if (!copy(x)) paste(x) })
 }
 
-// the size a shell gets before the panel fits it: the panel's own, from the font's cell
-function size() {
-  const v = $('views'), cw = 7.8, ch = 15
-  return { cols: Math.max(20, Math.floor((v.clientWidth - 24) / cw)), rows: Math.max(4, Math.floor((v.clientHeight - 6) / ch)) }
-}
-async function openNew(o) {
-  $('msg').textContent = ''
-  // as big as the one shown, so the first prompt is drawn at the right width
-  const now = terms.get(active)?.term
-  try { const info = await api.open({ ...o, cols: now?.cols, rows: now?.rows }); return terms.get(info.id) || add(info) }
-  catch (e) { $('msg').textContent = t('failed') + String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') }
-}
-const early = new Map()   // id → output from a shell whose tab is not drawn yet
+/* ── from the app ── */
+const early = new Map()   // id → output from a shell whose pane is not drawn yet
 api.onData((id, d) => { const x = terms.get(id); if (x) x.term.write(d); else early.set(id, (early.get(id) || '') + d) })
-api.onExit((id) => {
-  const x = terms.get(id)
-  if (!x) return
-  x.term.dispose(); x.view.remove(); x.tab.remove()
-  terms.delete(id)
-  // the last one gone, the panel goes too, as VS Code's does
-  if (!terms.size) { active = null; api.hide() }
-  else if (active === id) select(tabsInOrder().pop().id)
+api.onExit((id) => { const x = terms.get(id); if (x) removePane(x) })
+// the folder a shell has gone to: on its tab
+api.onCwd((id, dir) => { const x = terms.get(id); if (x) { x.cwd = dir; label(x.g) } })
+// started from the app's shell menu: a tab of its own
+api.onOpened((info) => {
+  if (terms.has(info.id)) { select(terms.get(info.id).g.gid); return }
+  const g = newGroup(); addPane(g, info); select(g.gid); sync()
 })
-// started from the app's shell menu
-api.onOpened((info) => { if (!terms.has(info.id)) add(info); else select(info.id) })
-api.onShown(() => ready.then(() => { if (!terms.size) openNew(); else select(active) }))
+api.onShown(() => ready.then(() => { if (!groups.size) openNew(); else select(active) }))
 api.onLang((l) => { if (TEXT[l]) { lang = l; words() } })
-window.addEventListener('focus', () => terms.get(active)?.term.focus())
+window.addEventListener('focus', () => groups.get(active)?.focus?.term.focus())
 
 $('new').addEventListener('click', () => openNew())
 $('pick').addEventListener('click', () => { const r = $('pick').getBoundingClientRect(); api.menu(Math.round(r.left), Math.round(r.bottom)) })
+$('split').addEventListener('click', () => split(groups.get(active), 'row'))
 $('hide').addEventListener('click', () => api.hide())
 
 // the top edge, dragged: the app sets the panel's height from where the pointer is
@@ -313,16 +466,32 @@ grip.addEventListener('pointerup', done)
 grip.addEventListener('pointercancel', done)
 
 words()
-// the shells still running from before this view was drawn (the window closed to the tray and opened again)
-// and the tabs of the app's last run, their old output drawn and a new shell started under it, in the same folder
-const ready = api.list().then(async ({ running, saved }) => {
-  for (const info of running) add(info, info.buf)
-  for (const s of saved) {
-    try {
-      const info = await api.open({ shell: s.shell, cwd: s.cwd, title: s.title, pinned: !!s.pinned, inherit: true, ...size() })
-      add(info, (typeof s.buf === 'string' ? s.buf : '') + '\x1b[0m\r\n\x1b[2m── ' + t('restored') + ' ──\x1b[0m\r\n')
-    } catch {}
+// the shells still running from before this view was drawn (the window closed to the tray and opened again), in
+// their tabs and panes; and the tabs of the app's last run, each pane's old output drawn and a new shell started
+// under it, in the folder it was last in
+const ready = api.list().then(async ({ running, layout, saved }) => {
+  const byId = new Map(running.map((i) => [i.id, i]))
+  for (const l of layout || []) {
+    const infos = l.ids.map((id) => byId.get(id)).filter(Boolean)
+    if (!infos.length) continue
+    const g = newGroup(l)
+    for (const info of infos) addPane(g, info, info.buf)
+    if (l.sizes?.length === g.panes.length) { g.sizes = l.sizes; arrange(g) }
+    g.focus = g.panes[0]; arrange(g)
   }
+  for (const s of saved || []) {
+    const g = newGroup(s), n = s.panes.length
+    for (const p of s.panes) {
+      try {
+        const info = await api.open({ shell: p.shell, cwd: p.cwd, title: p.title, inherit: true, ...(g.dir === 'row' ? size(n, 1) : size(1, n)) })
+        addPane(g, info, (typeof p.buf === 'string' ? p.buf : '') + '\x1b[0m\r\n\x1b[2m── ' + t('restored') + ' ──\x1b[0m\r\n')
+      } catch {}
+    }
+    if (!g.panes.length) { g.box.remove(); g.tab.remove(); groups.delete(g.gid); continue }
+    if (s.sizes?.length === g.panes.length) g.sizes = s.sizes.map(Number)
+    g.focus = g.panes[0]; arrange(g)
+  }
+  if (groups.size) { select(tabsInOrder().pop().gid); sync() }
 }, () => {})
 </script>
 </body>

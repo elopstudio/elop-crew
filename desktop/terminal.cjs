@@ -1,12 +1,13 @@
 // The terminal panel's shells: the ones installed on this PC, each run in a pseudo-terminal (node-pty) in the app's
 // main process. The panel (terminal.html) draws them; a shell outlives the panel being hidden and the view reloading,
 // with the end of its output kept to show again. A shell cannot outlive the app, so the tabs are kept in a file
-// (shell, folder, name, the end of the output) and started again, fresh, the next time the app opens the panel.
+// (their split panes, each one's shell, folder, name and the end of its output) and started again, fresh, in the
+// folder each was last in, the next time the app opens the panel.
 // Desktop app only — the page in a browser never reaches a shell.
 const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
-const { execFileSync } = require('node:child_process')
+const { execFileSync, execFile } = require('node:child_process')
 
 const WIN = process.platform === 'win32'
 // The environment the app was started with, taken before the server sets its PORT and MONITOR_HOME: a dev server
@@ -24,22 +25,34 @@ function which(name) {
   return null
 }
 
+/* ── the folder a shell is in: each says it at every prompt, as in Windows Terminal and VS Code ── */
+// PowerShell: the prompt it has (the profile's, oh-my-posh…) wrapped to first write OSC 9;9 with the folder; sent
+// encoded, so no quoting can break it
+const PS_HOOK = Buffer.from(
+  "$global:__crewPrompt = $function:prompt; function global:prompt { $l = $executionContext.SessionState.Path.CurrentLocation; " +
+  "if ($l.Provider.Name -eq 'FileSystem') { [Console]::Write([char]27 + ']9;9;\"' + $l.ProviderPath + '\"' + [char]7) }; & $global:__crewPrompt }",
+  'utf16le').toString('base64')
+// Command Prompt: the same in its PROMPT ($e is Esc, $P the folder); Git Bash: OSC 7 with its /c/... folder
+const CMD_PROMPT = '$e]9;9;$P$e\\' + (process.env.PROMPT || '$P$G')
+const BASH_HOOK = 'printf "\\033]7;file://localhost%s\\007" "$PWD"'
+
 // the shells found here, the first one the default; looked for once
 let found = null
 function shells() {
   if (found) return found
   const list = []
-  const add = (id, name, file, args = []) => { if (exists(file) && !list.some((s) => s.file.toLowerCase() === file.toLowerCase())) list.push({ id, name, file, args }) }
+  const add = (id, name, file, args = [], env = {}) => { if (exists(file) && !list.some((s) => s.file.toLowerCase() === file.toLowerCase())) list.push({ id, name, file, args, env }) }
   if (WIN) {
     const sys = process.env.SystemRoot || 'C:\\Windows'
     const progs = [process.env.ProgramFiles, process.env.ProgramW6432, process.env['ProgramFiles(x86)'], process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs')].filter(Boolean)
-    add('pwsh', 'PowerShell 7', which('pwsh.exe') || progs.map((p) => path.join(p, 'PowerShell', '7', 'pwsh.exe')).find(exists), ['-NoLogo'])
-    add('powershell', 'Windows PowerShell', path.join(sys, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoLogo'])
-    add('cmd', 'Command Prompt', process.env.ComSpec || path.join(sys, 'System32', 'cmd.exe'))
+    const ps = ['-NoLogo', '-NoExit', '-EncodedCommand', PS_HOOK]
+    add('pwsh', 'PowerShell 7', which('pwsh.exe') || progs.map((p) => path.join(p, 'PowerShell', '7', 'pwsh.exe')).find(exists), ps)
+    add('powershell', 'Windows PowerShell', path.join(sys, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ps)
+    add('cmd', 'Command Prompt', process.env.ComSpec || path.join(sys, 'System32', 'cmd.exe'), [], { PROMPT: CMD_PROMPT })
     // Git for Windows' bash, not System32\bash.exe (that one is WSL's)
     const git = which('git.exe')
     const bash = [...progs.map((p) => path.join(p, 'Git', 'bin', 'bash.exe')), git && path.join(path.dirname(path.dirname(git)), 'bin', 'bash.exe')].find(exists)
-    add('gitbash', 'Git Bash', bash, ['--login', '-i'])
+    add('gitbash', 'Git Bash', bash, ['--login', '-i'], { PROMPT_COMMAND: BASH_HOOK + (process.env.PROMPT_COMMAND ? '; ' + process.env.PROMPT_COMMAND : '') })
     // wsl.exe is there even with no Linux installed: offered only when it lists one
     const wsl = path.join(sys, 'System32', 'wsl.exe')
     if (exists(wsl)) {
@@ -58,7 +71,31 @@ function shells() {
   return (found = list)
 }
 
-const terms = new Map()   // id → { p, id, shell, name, cwd, buf }
+// the folder in what a shell printed: OSC 9;9 "C:\..." or OSC 7 file://host/path (Git Bash's /c/... made C:\...)
+const SAYS_DIR = /\x1b\]9;9;"?([^"\x07\x1b]+)"?(?:\x07|\x1b\\)|\x1b\]7;file:\/\/[^/\x07\x1b]*(\/[^\x07\x1b]*)(?:\x07|\x1b\\)/g
+function dirIn(d) {
+  let found = null
+  for (const m of d.matchAll(SAYS_DIR)) {
+    if (m[1]) found = m[1]
+    else { let p = m[2]; try { p = decodeURIComponent(p) } catch {} found = WIN ? (/^\/([a-z])(\/|$)/i.test(p) ? p.replace(/^\/([a-z])/i, (_, l) => l.toUpperCase() + ':').replace(/\//g, '\\') : null) : p }
+  }
+  return found
+}
+// on a Mac or Linux the shell's own folder can be asked of the system (zsh says nothing by itself)
+function probeDirs() {
+  if (WIN) return Promise.resolve()
+  return Promise.all([...terms.values()].map((t) => new Promise((done) => {
+    const pid = t.p.pid
+    if (process.platform === 'linux') { try { t.dir = fs.readlinkSync('/proc/' + pid + '/cwd') } catch {} done(); return }
+    execFile('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { timeout: 2000 }, (err, out) => {
+      const line = !err && String(out).split('\n').find((l) => l.startsWith('n/'))
+      if (line) t.dir = line.slice(1)
+      done()
+    })
+  })))
+}
+
+const terms = new Map()   // id → { p, id, shell, name, title, cwd (started in), dir (in now), buf }
 const KEEP = 200 * 1024   // the end of each one's output, for a panel drawn again
 let nextId = 1
 let send = () => {}       // set by the app: (event, ...args) to the panel
@@ -67,6 +104,23 @@ const pending = new Map()
 function flush() {
   for (const [id, d] of pending) send('data', id, d)
   pending.clear()
+}
+
+/* ── the tabs as the panel shows them: each a group of split panes ── */
+let layout = []           // [{ ids, dir: 'row' | 'column', sizes, pinned }]
+function setLayout(groups) {
+  if (!Array.isArray(groups)) return
+  layout = groups.filter((g) => g && Array.isArray(g.ids)).map((g) => ({
+    ids: g.ids.filter((id) => terms.has(id)), dir: g.dir === 'column' ? 'column' : 'row',
+    sizes: Array.isArray(g.sizes) ? g.sizes.map(Number).filter((n) => n > 0) : [], pinned: !!g.pinned,
+  })).filter((g) => g.ids.length)
+  save()
+}
+// the layout with every shell in it (one the panel has not placed yet, on a tab of its own)
+function groupsNow() {
+  const placed = new Set(layout.flatMap((g) => g.ids))
+  return [...layout.map((g) => ({ ...g, ids: g.ids.filter((id) => terms.has(id)) })).filter((g) => g.ids.length),
+    ...[...terms.keys()].filter((id) => !placed.has(id)).map((id) => ({ ids: [id], dir: 'row', sizes: [], pinned: false }))]
 }
 
 /* ── kept across restarts ── */
@@ -78,25 +132,30 @@ let saveTimer = null
 function save() {
   clearTimeout(saveTimer); saveTimer = null
   if (!keepFile) return
-  const tabs = [...terms.values()].map(({ shell, title, pinned, cwd, buf }) => ({ shell, title, pinned, cwd, buf: buf.slice(-SAVED) }))
-  try { fs.mkdirSync(path.dirname(keepFile), { recursive: true }); fs.writeFileSync(keepFile, JSON.stringify(tabs)) } catch {}
+  const tabs = groupsNow().map((g) => ({
+    dir: g.dir, sizes: g.sizes, pinned: g.pinned,
+    panes: g.ids.map((id) => terms.get(id)).map(({ shell, title, cwd, dir, buf }) => ({ shell, title, cwd: dir || cwd, buf: buf.slice(-SAVED) })),
+  }))
+  try { fs.mkdirSync(path.dirname(keepFile), { recursive: true }); fs.writeFileSync(keepFile, JSON.stringify({ v: 2, tabs })) } catch {}
 }
 // output only says the file is due: written every few seconds, so an app killed (an update installing) loses little
-const saveSoon = () => { if (!saveTimer) saveTimer = setTimeout(save, 4000) }
+const saveSoon = () => { if (!saveTimer) saveTimer = setTimeout(() => probeDirs().then(save), 4000) }
 // The tabs of the last run, handed out once (the first time the panel asks, with nothing running): the panel draws
-// each one's old output and starts its shell again under it (open with inherit). Nothing to hand out after a shell
-// has been started.
+// each pane's old output and starts its shell again under it (open with inherit). Nothing to hand out after a shell
+// has been started. A file from before the split panes held one shell per tab.
 function saved() {
   if (restored) return []
   restored = true
-  let tabs = []
-  try { tabs = JSON.parse(fs.readFileSync(keepFile, 'utf8')) } catch {}
-  return Array.isArray(tabs) ? tabs.slice(0, 12).filter((x) => x && typeof x === 'object') : []
+  let kept = null
+  try { kept = JSON.parse(fs.readFileSync(keepFile, 'utf8')) } catch {}
+  const tabs = Array.isArray(kept) ? kept.map((x) => ({ pinned: !!x?.pinned, dir: 'row', panes: [x] })) : Array.isArray(kept?.tabs) ? kept.tabs : []
+  return tabs.filter((g) => g && Array.isArray(g.panes) && g.panes.length).slice(0, 12)
+    .map((g) => ({ ...g, panes: g.panes.filter((p) => p && typeof p === 'object').slice(0, 4) }))
 }
 
 // inherit: the shell starts where the panel's cursor is, under the old output drawn there, instead of on a cleared
 // screen (Windows' console asks the panel where its cursor is; elsewhere a shell never clears it)
-function open({ shell, cwd, cols, rows, title, pinned, inherit } = {}) {
+function open({ shell, cwd, cols, rows, title, inherit } = {}) {
   const all = shells()
   const sh = all.find((s) => s.id === shell) || all[0]
   if (!sh) throw new Error('No shell found')
@@ -104,35 +163,26 @@ function open({ shell, cwd, cols, rows, title, pinned, inherit } = {}) {
   try { if (cwd && fs.statSync(cwd).isDirectory()) dir = cwd } catch {}
   const p = ptyModule().spawn(sh.file, sh.args, {
     name: 'xterm-256color', cols: Math.max(2, cols | 0 || 80), rows: Math.max(1, rows | 0 || 24), cwd: dir,
-    env: { ...ENV, TERM_PROGRAM: 'ELOP-Crew', COLORTERM: 'truecolor' },
+    env: { ...ENV, ...sh.env, TERM_PROGRAM: 'ELOP-Crew', COLORTERM: 'truecolor' },
     ...(WIN && inherit ? { conptyInheritCursor: true } : {}),
   })
   const id = nextId++
-  const t = { p, id, shell: sh.id, name: sh.name, title: String(title || '').trim().slice(0, 40), pinned: !!pinned, cwd: dir, buf: '' }
+  const t = { p, id, shell: sh.id, name: sh.name, title: String(title || '').trim().slice(0, 40), cwd: dir, dir: '', buf: '' }
   terms.set(id, t)
   p.onData((d) => {
     t.buf += d.replace(/\x1b\[6n/g, '')
     if (t.buf.length > KEEP) { const cut = t.buf.indexOf('\n', t.buf.length - KEEP); t.buf = t.buf.slice(cut < 0 ? t.buf.length - KEEP : cut + 1) }
     if (!pending.size) setTimeout(flush, 8)
     pending.set(id, (pending.get(id) || '') + d)
+    const now = d.includes('\x1b]') && dirIn(d)
+    if (now && now !== t.dir) { t.dir = now; send('cwd', id, now) }
     saveSoon()
   })
   p.onExit(({ exitCode }) => { flush(); terms.delete(id); send('exit', id, exitCode); if (!stopping) save() })
   restored = true   // a shell started before any was restored: the old ones are not brought back over it
-  save()
-  return { id, shell: t.shell, name: t.name, title: t.title, pinned: t.pinned, cwd: t.cwd }
+  return { id, shell: t.shell, name: t.name, title: t.title, cwd: t.cwd }
 }
-const list = () => [...terms.values()].map(({ id, shell, name, title, pinned, cwd, buf }) => ({ id, shell, name, title, pinned, cwd, buf }))
-function pin(id, on) { const t = terms.get(id); if (t) { t.pinned = !!on; save() } }
-// the tabs' order, as the panel shows it (dragged, moved): kept for the panel drawn again and the next start
-function order(ids) {
-  if (!Array.isArray(ids)) return
-  const all = [...terms.entries()]
-  terms.clear()
-  for (const id of ids) { const e = all.find(([k]) => k === id); if (e) terms.set(e[0], e[1]) }
-  for (const [k, t] of all) if (!terms.has(k)) terms.set(k, t)
-  save()
-}
+const list = () => [...terms.values()].map(({ id, shell, name, title, cwd, dir, buf }) => ({ id, shell, name, title, cwd: dir || cwd, buf }))
 // the panel's output cleared: not drawn again from what was kept either
 function clearBuf(id) { const t = terms.get(id); if (t) { t.buf = ''; save() } }
 function rename(id, title) { const t = terms.get(id); if (t) { t.title = String(title || '').trim().slice(0, 40); save() } }
@@ -143,6 +193,6 @@ function close(id) { const t = terms.get(id); if (t) { try { t.p.kill() } catch 
 function closeAll() { if (stopping) return; save(); stopping = true; for (const t of terms.values()) { try { t.p.kill() } catch {} } terms.clear() }
 
 module.exports = {
-  shells, open, list, write, resize, rename, pin, order, clearBuf, close, closeAll, saved, count: () => terms.size,
+  shells, open, list, write, resize, rename, clearBuf, close, closeAll, saved, setLayout, layout: groupsNow, count: () => terms.size,
   onSend: (fn) => { send = fn }, keepIn: (file) => { keepFile = file },
 }

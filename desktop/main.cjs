@@ -49,7 +49,8 @@ const TEXT = {
     tryName: 'ELOP Crew (테스트)', install: '설치', later: '나중에',
     termCmd: '명령 프롬프트', termIn: '프로젝트 폴더에서 열기', termFailed: '셸을 시작하지 못했습니다.',
     termRename: '이름 바꾸기', termPin: '고정', termUnpin: '고정 해제', termDup: '복제 — 같은 셸·폴더로 새 터미널', termClear: '출력 지우기',
-    termLeft: '왼쪽으로 옮기기', termRight: '오른쪽으로 옮기기', termClose: '닫기', termCloseOthers: '다른 탭 닫기 (고정 탭은 남김)', termCloseRight: '오른쪽 탭 닫기 (고정 탭은 남김)',
+    termSplitRight: '오른쪽으로 분할', termSplitDown: '아래로 분할',
+    termLeft: '왼쪽으로 옮기기', termRight: '오른쪽으로 옮기기', termClose: '탭 닫기', termCloseOthers: '다른 탭 닫기 (고정 탭은 남김)', termCloseRight: '오른쪽 탭 닫기 (고정 탭은 남김)',
     hooksAgain: 'Claude Code hook을 이 앱 기준으로 다시 설치할까요?', hooksUpdate: '모니터 hook을 새 버전으로 갱신할까요?', hooksAsk: 'Claude Code에 모니터 hook을 설치할까요?',
     hooksWhy: (file) => '승인·질문에 답하기, 권한 모드 표시, 에이전트에게 메시지 보내기, 리더에게 팀원 알려 주기에 필요합니다.\n' + file + ' 의 모니터 항목만 추가·교체하고, 다른 설정은 그대로 둡니다 (백업: settings.json.before-agent-monitor).\n',
     hooksNode: 'hook은 이 PC의 Node.js로 실행됩니다.', hooksNoNode: 'Node.js가 없어서 hook은 이 앱으로 실행됩니다.',
@@ -76,7 +77,8 @@ const TEXT = {
     tryName: 'ELOP Crew (test)', install: 'Install', later: 'Later',
     termCmd: 'Command Prompt', termIn: 'Open in a project folder', termFailed: 'Could not start the shell.',
     termRename: 'Rename', termPin: 'Pin', termUnpin: 'Unpin', termDup: 'Duplicate — a new terminal, same shell and folder', termClear: 'Clear the output',
-    termLeft: 'Move left', termRight: 'Move right', termClose: 'Close', termCloseOthers: 'Close the others (pinned stay)', termCloseRight: 'Close those to the right (pinned stay)',
+    termSplitRight: 'Split right', termSplitDown: 'Split down',
+    termLeft: 'Move left', termRight: 'Move right', termClose: 'Close the tab', termCloseOthers: 'Close the others (pinned stay)', termCloseRight: 'Close those to the right (pinned stay)',
     hooksAgain: 'Reinstall the Claude Code hooks for this app?', hooksUpdate: 'Update the monitor hooks to the new version?', hooksAsk: 'Install the monitor hooks in Claude Code?',
     hooksWhy: (file) => 'They let you answer approvals and questions, show permission modes, send messages to agents, and tell leaders who is on their team.\nOnly the monitor\'s entries in ' + file + ' are added or replaced; every other setting stays as it is (backup: settings.json.before-agent-monitor).\n',
     hooksNode: 'The hooks run on this PC\'s Node.js.', hooksNoNode: 'Node.js was not found, so the hooks run on this app.',
@@ -324,6 +326,9 @@ function tabMenu(id, s, x, y) {
     { label: t(s.pinned ? 'termUnpin' : 'termPin'), click: run(s.pinned ? 'unpin' : 'pin') },
     { label: t('termDup'), click: run('dup') },
     { type: 'separator' },
+    { label: t('termSplitRight'), accelerator: 'Ctrl+Shift+5', registerAccelerator: false, enabled: !!s.splitRight, click: run('splitRight') },
+    { label: t('termSplitDown'), enabled: !!s.splitDown, click: run('splitDown') },
+    { type: 'separator' },
     { label: t('termLeft'), accelerator: 'Ctrl+Shift+PageUp', registerAccelerator: false, enabled: !!s.left, click: run('left') },
     { label: t('termRight'), accelerator: 'Ctrl+Shift+PageDown', registerAccelerator: false, enabled: !!s.right, click: run('right') },
     { type: 'separator' },
@@ -339,16 +344,15 @@ const fromTerm = (e) => !!term && e.sender === term.webContents
 ipcMain.handle('monitor-term', async (e, action, ...a) => {
   if (!fromTerm(e)) return null
   // the shells running; with none, the tabs of the app's last run, to start again
-  if (action === 'list') return { running: terminals.list(), saved: terminals.count() ? [] : terminals.saved() }
+  if (action === 'list') return { running: terminals.list(), layout: terminals.layout(), saved: terminals.count() ? [] : terminals.saved() }
   if (action === 'open') {
     const o = a[0] || {}
-    return terminals.open({ cols: o.cols, rows: o.rows, title: o.title, pinned: !!o.pinned, inherit: !!o.inherit, shell: o.shell || readSettings().termShell, cwd: o.cwd || (await termFolders()).cur })
+    return terminals.open({ cols: o.cols, rows: o.rows, title: o.title, inherit: !!o.inherit, shell: o.shell || readSettings().termShell, cwd: o.cwd || (await termFolders()).cur })
   }
   if (action === 'resize') terminals.resize(a[0], a[1], a[2])
   if (action === 'close') terminals.close(a[0])
   if (action === 'rename') terminals.rename(a[0], a[1])
-  if (action === 'pin') terminals.pin(a[0], a[1])
-  if (action === 'order') terminals.order(a[0])
+  if (action === 'layout') terminals.setLayout(a[0])
   if (action === 'clear') terminals.clearBuf(a[0])
   if (action === 'tabMenu') tabMenu(a[0], a[1] || {}, a[2], a[3])
   if (action === 'hide') toggleTerminal(false)

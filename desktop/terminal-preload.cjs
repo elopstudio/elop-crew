@@ -11,9 +11,8 @@ contextBridge.exposeInMainWorld('monitorTerm', {
   close: (id) => call('close', id),
   // a name the person gave the tab, kept while the shell runs
   rename: (id, title) => call('rename', id, title),
-  // pinned (kept on the left, closed only from its menu), the tabs' order, a tab's output cleared
-  pin: (id, on) => call('pin', id, on),
-  order: (ids) => call('order', ids),
+  // the tabs as shown: their order, each one's split panes, sizes and pin; and a pane's output cleared
+  layout: (groups) => call('layout', groups),
   clear: (id) => call('clear', id),
   // a tab's own menu at x, y; what is picked comes back by onCommand
   tabMenu: (id, state, x, y) => call('tabMenu', id, state, x, y),
@@ -26,6 +25,8 @@ contextBridge.exposeInMainWorld('monitorTerm', {
   copy: (text) => call('copy', text),
   paste: () => call('paste'),
   onData: (fn) => ipcRenderer.on('monitor-term-data', (_e, id, d) => fn(id, d)),
+  // the folder a shell has gone to (it says so at each prompt)
+  onCwd: (fn) => ipcRenderer.on('monitor-term-cwd', (_e, id, dir) => fn(id, dir)),
   onExit: (fn) => ipcRenderer.on('monitor-term-exit', (_e, id, code) => fn(id, code)),
   // a shell started from the app (its menu, or Ctrl+Shift+`), the panel shown, the language switched
   onOpened: (fn) => ipcRenderer.on('monitor-term-opened', (_e, t) => fn(t)),
