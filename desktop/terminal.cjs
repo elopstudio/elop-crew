@@ -103,6 +103,23 @@ const terms = new Map()   // id → { p, id, hid, shell, name, title, cwd (start
 
 /* ── each pane's own command history (↑), kept across restarts: PowerShell and Git Bash; cmd keeps none ── */
 let histDir = null
+// A pane's history starts as the last of the history every shell of its kind shares (PowerShell's PSReadLine file,
+// ~/.bash_history), so ↑ in a new pane brings back recent commands as before; from then on it is the pane's own
+const SHARED_HISTORY = {
+  ps: path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Microsoft', 'Windows', 'PowerShell', 'PSReadLine', 'ConsoleHost_history.txt'),
+  bash: path.join(os.homedir(), '.bash_history'),
+}
+function seedHistory(file, shell) {
+  if (fs.existsSync(file)) return
+  try {
+    const all = fs.readFileSync(shell === 'gitbash' ? SHARED_HISTORY.bash : SHARED_HISTORY.ps, 'utf8').split(/\r?\n/)
+    // the last thousand lines, not starting in the middle of a command PowerShell wrote over several (each line but
+    // its last ends with a backtick)
+    let start = Math.max(0, all.length - 1000)
+    while (start > 0 && start < all.length && all[start - 1].endsWith('`')) start++
+    fs.writeFileSync(file, all.slice(start).join('\n').replace(/\n*$/, '\n'))
+  } catch {}
+}
 const histFile = (hid, shell) => histDir && /^[a-f0-9]{8,32}$/.test(hid) && (shell === 'gitbash' ? path.join(histDir, hid + '.bash') : /^(pwsh|powershell)$/.test(shell) ? path.join(histDir, hid + '.txt') : null)
 const KEEP = 200 * 1024   // the end of each one's output, for a panel drawn again
 let nextId = 1
@@ -172,7 +189,7 @@ function open({ shell, cwd, cols, rows, title, inherit, hid } = {}) {
   // a pane started again keeps its history; a new one starts its own
   if (typeof hid !== 'string' || !/^[a-f0-9]{8,32}$/.test(hid)) hid = crypto.randomBytes(8).toString('hex')
   const hist = histFile(hid, sh.id)
-  if (hist) { try { fs.mkdirSync(histDir, { recursive: true }) } catch {} }
+  if (hist) { try { fs.mkdirSync(histDir, { recursive: true }) } catch {} seedHistory(hist, sh.id) }
   const histEnv = !hist ? {} : sh.id === 'gitbash' ? { HISTFILE: hist.replace(/\\/g, '/') } : { CREW_HISTFILE: hist }
   const p = ptyModule().spawn(sh.file, sh.args, {
     name: 'xterm-256color', cols: Math.max(2, cols | 0 || 80), rows: Math.max(1, rows | 0 || 24), cwd: dir,
