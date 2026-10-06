@@ -36,10 +36,12 @@ const SYSTEM_NOTES = [
   [/^Next task from the project board \(auto-run is on\): (.*)/, 'task'],
   [/^Answer on the project board to what blocked your task "[^\n]*":\n(.*)/, 'answer'],
   [/^The project check failed for your task "([^\n]*)" \(try/, 'check'],
+  // what the monitor's assistant tells an agent: shown as the assistant's, with what it said, not as the person's words
+  [/^\[From the monitor's assistant\] ([\s\S]*)/, 'assist'],
 ]
 export const systemNote = (text) => SYSTEM_NOTES.find(([re]) => re.test(String(text || '')))?.[1] || ''
 // what the note shows besides its kind: the task, the answer
-export const systemNoteText = (text) => { for (const [re] of SYSTEM_NOTES) { const m = String(text || '').match(re); if (m) return (m[1] || '').trim().slice(0, 300) } return '' }
+export const systemNoteText = (text) => { for (const [re] of SYSTEM_NOTES) { const m = String(text || '').match(re); if (m) return (m[1] || '').replace(/\n\n\(Write to the user in [A-Za-z]+\.\)\s*$/, '').trim().slice(0, 1000) } return '' }
 const assistantLookOf = (v) => (v && v.acc === 'crown' && Number.isInteger(v.c) && v.c >= 0 && v.c < 8 ? { c: v.c, acc: 'crown' } : avatarOf(v))
 
 export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd, langRule, replyIn }) {

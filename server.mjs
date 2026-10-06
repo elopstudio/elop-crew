@@ -929,11 +929,11 @@ function withAttached(text) {
 function userEntry(raw, at) {
   let text = String(raw ?? '')
   // the board's auto-run, delivered by hooks/inbox.mjs: a note like the monitor's other words
-  const fromBoard = text.match(/The agent monitor's project board, for this session:\n([\s\S]*?)(?:<\/system-reminder>|$)/)
+  const fromBoard = text.match(/The agent monitor's (?:project board|assistant), for this session:\n([\s\S]*?)(?:<\/system-reminder>|$)/)
   const boardSys = fromBoard && systemNote(fromBoard[1].trim())
   if (boardSys && !text.includes('Message(s) the user typed on the agent monitor page')) return { role: 'note', sys: boardSys, text: mask(systemNoteText(fromBoard[1].trim())), at }
   // a message sent from this page, delivered by hooks/inbox.mjs
-  const fromPage = text.match(/Message\(s\) the user typed on the agent monitor page[^\n]*\n([\s\S]*?)(?:\n\nThe agent monitor's project board|<\/system-reminder>|$)/)
+  const fromPage = text.match(/Message\(s\) the user typed on the agent monitor page[^\n]*\n([\s\S]*?)(?:\n\nThe agent monitor's (?:project board|assistant)|<\/system-reminder>|$)/)
   if (fromPage) {
     // the paths of attached files become their names; the view shows them as chips
     const { body, files, refs } = withAttached(fromPage[1])
@@ -1259,6 +1259,13 @@ async function sendMessage(body) {
   const target = (await readRegistry()).find((x) => x.name === name)
   if (!target) return 404
   queueText(target.sessionId, text)
+  return 200
+}
+// the assistant's message to a VS Code session: through its hook like the page's, but said to be the assistant's
+async function sendFromAssistant(name, text) {
+  const target = (await readRegistry()).find((x) => x.name === name)
+  if (!target) return 404
+  queueText(target.sessionId, text + (replyIn() ? '\n\n' + replyIn() : ''), 'assistant')
   return 200
 }
 function queueText(sessionId, text, from) {
@@ -1697,7 +1704,7 @@ const agents = createAgents({
 // the monitor's assistant behind the floating chat button (assistant.mjs)
 const assistant = createAssistant({
   agents, dataDir: DATA, state: () => cachedState(), notifyPages,
-  decide: (id, answer) => decide(id, answer), sendTo: (session, text) => sendMessage({ session, text }),
+  decide: (id, answer) => decide(id, answer), sendTo: (session, text) => sendFromAssistant(session, text),
   requestSession: (id) => pending.get(id)?.sessionId,
   lang: () => LANGS[pageLang] || '',
   // what the person lets it do (config.json "assistant"): how far it may answer requests, what it is told about
