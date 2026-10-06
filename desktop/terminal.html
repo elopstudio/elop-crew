@@ -483,7 +483,7 @@ const ready = api.list().then(async ({ running, layout, saved }) => {
     const g = newGroup(s), n = s.panes.length
     for (const p of s.panes) {
       try {
-        const info = await api.open({ shell: p.shell, cwd: p.cwd, title: p.title, inherit: true, ...(g.dir === 'row' ? size(n, 1) : size(1, n)) })
+        const info = await api.open({ shell: p.shell, cwd: p.cwd, title: p.title, hid: p.hid, inherit: true, ...(g.dir === 'row' ? size(n, 1) : size(1, n)) })
         addPane(g, info, (typeof p.buf === 'string' ? p.buf : '') + '\x1b[0m\r\n\x1b[2m── ' + t('restored') + ' ──\x1b[0m\r\n')
       } catch {}
     }

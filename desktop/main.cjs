@@ -347,7 +347,7 @@ ipcMain.handle('monitor-term', async (e, action, ...a) => {
   if (action === 'list') return { running: terminals.list(), layout: terminals.layout(), saved: terminals.count() ? [] : terminals.saved() }
   if (action === 'open') {
     const o = a[0] || {}
-    return terminals.open({ cols: o.cols, rows: o.rows, title: o.title, inherit: !!o.inherit, shell: o.shell || readSettings().termShell, cwd: o.cwd || (await termFolders()).cur })
+    return terminals.open({ cols: o.cols, rows: o.rows, title: o.title, inherit: !!o.inherit, hid: o.hid, shell: o.shell || readSettings().termShell, cwd: o.cwd || (await termFolders()).cur })
   }
   if (action === 'resize') terminals.resize(a[0], a[1], a[2])
   if (action === 'close') terminals.close(a[0])

@@ -8,6 +8,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
 const { execFileSync, execFile } = require('node:child_process')
+const crypto = require('node:crypto')
 
 const WIN = process.platform === 'win32'
 // The environment the app was started with, taken before the server sets its PORT and MONITOR_HOME: a dev server
@@ -28,13 +29,16 @@ function which(name) {
 /* ── the folder a shell is in: each says it at every prompt, as in Windows Terminal and VS Code ── */
 // PowerShell: the prompt it has (the profile's, oh-my-posh…) wrapped to first write OSC 9;9 with the folder; sent
 // encoded, so no quoting can break it
+// and, before the first prompt reads it, the pane's own history file instead of the one every PowerShell shares
 const PS_HOOK = Buffer.from(
+  "if ($env:CREW_HISTFILE -and (Get-Module PSReadLine)) { Set-PSReadLineOption -HistorySavePath $env:CREW_HISTFILE }; " +
   "$global:__crewPrompt = $function:prompt; function global:prompt { $l = $executionContext.SessionState.Path.CurrentLocation; " +
   "if ($l.Provider.Name -eq 'FileSystem') { [Console]::Write([char]27 + ']9;9;\"' + $l.ProviderPath + '\"' + [char]7) }; & $global:__crewPrompt }",
   'utf16le').toString('base64')
 // Command Prompt: the same in its PROMPT ($e is Esc, $P the folder); Git Bash: OSC 7 with its /c/... folder
 const CMD_PROMPT = '$e]9;9;$P$e\\' + (process.env.PROMPT || '$P$G')
-const BASH_HOOK = 'printf "\\033]7;file://localhost%s\\007" "$PWD"'
+// (history -a: each command written down at once, so a shell ended with the app keeps what was typed in it)
+const BASH_HOOK = 'history -a; printf "\\033]7;file://localhost%s\\007" "$PWD"'
 
 // the shells found here, the first one the default; looked for once
 let found = null
@@ -95,7 +99,11 @@ function probeDirs() {
   })))
 }
 
-const terms = new Map()   // id → { p, id, shell, name, title, cwd (started in), dir (in now), buf }
+const terms = new Map()   // id → { p, id, hid, shell, name, title, cwd (started in), dir (in now), buf }
+
+/* ── each pane's own command history (↑), kept across restarts: PowerShell and Git Bash; cmd keeps none ── */
+let histDir = null
+const histFile = (hid, shell) => histDir && /^[a-f0-9]{8,32}$/.test(hid) && (shell === 'gitbash' ? path.join(histDir, hid + '.bash') : /^(pwsh|powershell)$/.test(shell) ? path.join(histDir, hid + '.txt') : null)
 const KEEP = 200 * 1024   // the end of each one's output, for a panel drawn again
 let nextId = 1
 let send = () => {}       // set by the app: (event, ...args) to the panel
@@ -134,7 +142,7 @@ function save() {
   if (!keepFile) return
   const tabs = groupsNow().map((g) => ({
     dir: g.dir, sizes: g.sizes, pinned: g.pinned,
-    panes: g.ids.map((id) => terms.get(id)).map(({ shell, title, cwd, dir, buf }) => ({ shell, title, cwd: dir || cwd, buf: buf.slice(-SAVED) })),
+    panes: g.ids.map((id) => terms.get(id)).map(({ hid, shell, title, cwd, dir, buf }) => ({ hid, shell, title, cwd: dir || cwd, buf: buf.slice(-SAVED) })),
   }))
   try { fs.mkdirSync(path.dirname(keepFile), { recursive: true }); fs.writeFileSync(keepFile, JSON.stringify({ v: 2, tabs })) } catch {}
 }
@@ -155,19 +163,24 @@ function saved() {
 
 // inherit: the shell starts where the panel's cursor is, under the old output drawn there, instead of on a cleared
 // screen (Windows' console asks the panel where its cursor is; elsewhere a shell never clears it)
-function open({ shell, cwd, cols, rows, title, inherit } = {}) {
+function open({ shell, cwd, cols, rows, title, inherit, hid } = {}) {
   const all = shells()
   const sh = all.find((s) => s.id === shell) || all[0]
   if (!sh) throw new Error('No shell found')
   let dir = os.homedir()
   try { if (cwd && fs.statSync(cwd).isDirectory()) dir = cwd } catch {}
+  // a pane started again keeps its history; a new one starts its own
+  if (typeof hid !== 'string' || !/^[a-f0-9]{8,32}$/.test(hid)) hid = crypto.randomBytes(8).toString('hex')
+  const hist = histFile(hid, sh.id)
+  if (hist) { try { fs.mkdirSync(histDir, { recursive: true }) } catch {} }
+  const histEnv = !hist ? {} : sh.id === 'gitbash' ? { HISTFILE: hist.replace(/\\/g, '/') } : { CREW_HISTFILE: hist }
   const p = ptyModule().spawn(sh.file, sh.args, {
     name: 'xterm-256color', cols: Math.max(2, cols | 0 || 80), rows: Math.max(1, rows | 0 || 24), cwd: dir,
-    env: { ...ENV, ...sh.env, TERM_PROGRAM: 'ELOP-Crew', COLORTERM: 'truecolor' },
+    env: { ...ENV, ...sh.env, ...histEnv, TERM_PROGRAM: 'ELOP-Crew', COLORTERM: 'truecolor' },
     ...(WIN && inherit ? { conptyInheritCursor: true } : {}),
   })
   const id = nextId++
-  const t = { p, id, shell: sh.id, name: sh.name, title: String(title || '').trim().slice(0, 40), cwd: dir, dir: '', buf: '' }
+  const t = { p, id, hid, shell: sh.id, name: sh.name, title: String(title || '').trim().slice(0, 40), cwd: dir, dir: '', buf: '' }
   terms.set(id, t)
   p.onData((d) => {
     t.buf += d.replace(/\x1b\[6n/g, '')
@@ -178,7 +191,12 @@ function open({ shell, cwd, cols, rows, title, inherit } = {}) {
     if (now && now !== t.dir) { t.dir = now; send('cwd', id, now) }
     saveSoon()
   })
-  p.onExit(({ exitCode }) => { flush(); terms.delete(id); send('exit', id, exitCode); if (!stopping) save() })
+  p.onExit(({ exitCode }) => {
+    flush(); terms.delete(id); send('exit', id, exitCode)
+    if (stopping) return
+    save()
+    if (hist) setTimeout(() => fs.rm(hist, { force: true }, () => {}), 1500)   // closed for good: its history goes too
+  })
   restored = true   // a shell started before any was restored: the old ones are not brought back over it
   return { id, shell: t.shell, name: t.name, title: t.title, cwd: t.cwd }
 }
@@ -194,5 +212,5 @@ function closeAll() { if (stopping) return; save(); stopping = true; for (const 
 
 module.exports = {
   shells, open, list, write, resize, rename, clearBuf, close, closeAll, saved, setLayout, layout: groupsNow, count: () => terms.size,
-  onSend: (fn) => { send = fn }, keepIn: (file) => { keepFile = file },
+  onSend: (fn) => { send = fn }, keepIn: (file) => { keepFile = file; histDir = path.join(path.dirname(file), 'terminal-history') },
 }

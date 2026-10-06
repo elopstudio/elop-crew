@@ -464,7 +464,8 @@ itself. So a new PC needs only **Claude Code**, installed and signed in.
   top edge for the height, **Ctrl + C** copies a selection (otherwise it goes to the shell), **Ctrl + V** or a right-click
   pastes. Hiding the panel keeps the shells running. A shell cannot outlive the app: when it starts again (an update, a
   restart), the panel comes back with the same tabs and panes — shell, name, and the folder each was last in (the shells
-  say it at every prompt) — and their earlier output, a new shell under it. Desktop app only — the page in a
+  say it at every prompt) — and their earlier output, a new shell under it. Each pane keeps its own command history
+  (**↑**), across restarts too, instead of the one every PowerShell shares (PowerShell and Git Bash; Command Prompt keeps none). Desktop app only — the page in a
   browser never reaches a shell.
 - **A shortcut from anywhere** (**Ctrl + Alt + J** by default) brings the window up with the keys on the page, so the number
   keys answer the first request at once; pressing it again hides the window. If another program has it, the app takes
