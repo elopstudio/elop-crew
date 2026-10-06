@@ -70,8 +70,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   Chrome, Edge, Playwright's Chromium), grouped by agent, with the pages open in each, and a live picture of the page
   picked. A browser started with a DevTools port is watched as it is; one Playwright started over a pipe (its default)
   cannot be reached from outside, so the panel offers a **Shared browser**: a headless Chrome or Edge of the monitor's
-  own, and while it runs every agent is told once to open its pages there (Playwright's `connectOverCDP`, Puppeteer's
-  `connect`) instead of in a browser of its own. Only browsers the agents started and the shared one are contacted, on
+  own, and while it runs every agent is told once, with its next message, to open its pages there (Playwright's
+  `connectOverCDP`, Puppeteer's `connect`) instead of in a browser of its own. When an agent has only such a browser, the
+  panel says there is no page to watch and points to the button. Only browsers the agents started and the shared one are contacted, on
   127.0.0.1 only; page titles and addresses come masked, and the picture is never stored or relayed to the phone.
 - **Processes.** **Processes** in the header, with a count, opens what the agents have running: each agent
   itself (the claude process) and every shell, dev server, MCP server and background task it started, grouped by agent
