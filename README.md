@@ -421,7 +421,8 @@ reason; it can never allow its own) and **terminal_open** (new tabs, each a shel
 it, asked the same way). Anything else it wants to do asks you like any agent.
 
 The monitor's agents have the same four terminal tools (`hooks/terminal-mcp.mjs`), so an agent asked to start your app
-opens it in a tab of the panel — several at once, say backend, frontend and worker — where you watch it and type into
+opens it in a tab of the panel — several at once, say backend, frontend and worker, as tabs or as panes of one tab
+side by side or one under another (up to four), or as a pane beside a terminal already open — where you watch it and type into
 it, instead of a separate window or a background job of its own. Opening a tab and typing into one ask you on the
 agent's card every time; reading never does. Neither the tabs nor the agents get the monitor's own `PORT` (a dev
 server such as Nuxt or Vite takes `PORT` over its own setting).

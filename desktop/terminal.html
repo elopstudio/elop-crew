@@ -628,6 +628,13 @@ api.onCwd((id, dir) => { const x = terms.get(id); if (x) { x.cwd = dir; label(x.
 // started from the app's shell menu: a tab of its own
 api.onOpened((info) => {
   if (terms.has(info.id)) { select(terms.get(info.id).g.gid); return }
+  // opened by an agent beside a terminal (a tab split into panes): in that one's tab, after it
+  const by = info.beside != null && terms.get(info.beside), bg = by && by.g
+  if (bg && !bg.agent && bg.panes.length < MAX_PANES && (bg.panes.length === 1 || bg.dir === info.dir)) {
+    bg.zoom = null; bg.dir = info.dir
+    addPane(bg, info, '', bg.panes.indexOf(by)); select(bg.gid); sync()
+    return
+  }
   const g = newGroup(); addPane(g, info); select(g.gid); sync()
 })
 api.onShown(() => ready.then(() => { if (!groups.size) openNew(); else select(active) }))

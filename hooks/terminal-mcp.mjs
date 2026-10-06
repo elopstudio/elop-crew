@@ -22,11 +22,21 @@ const TAB = {
     command: { type: 'string', description: 'One line typed into the new shell and run (e.g. "npm run dev"); none: just the shell' },
   },
 }
+// one tab: a shell, or panes in it (split), or a pane put beside a terminal already open
+const TAB_ITEM = {
+  type: 'object',
+  properties: {
+    ...TAB.properties,
+    panes: { type: 'array', items: TAB, description: 'This tab split into panes (2 to 4), each a shell with its own folder, name and command, instead of cwd/title/command' },
+    direction: { type: 'string', enum: ['right', 'down'], description: 'How the panes sit: side by side (right, the default) or one under another (down)' },
+    beside: { type: 'number', description: 'A terminal id already open: put this (its panes) in that terminal\'s tab, after it, instead of a new tab' },
+  },
+}
 const TOOLS = [
   {
     name: 'terminal_open',
-    description: 'Open new tabs in the ELOP Crew desktop app\'s terminal panel, each a shell in a folder with a command run in it, where the person sees it and can type into it. Use it for what runs long and the person wants to watch or use — a dev server, a worker, an app they asked you to start — instead of a separate window or your own background job. Several at once with tabs (e.g. backend, frontend, worker). The person is asked on the page first and it opens only if they allow it (it waits up to 10 minutes); give the reason. The answer gives each tab\'s terminal id and what it printed so far: read more later with terminal_output. A port set for the app: the tabs do not get the monitor\'s own PORT.',
-    inputSchema: { type: 'object', properties: { ...TAB.properties, tabs: { type: 'array', items: TAB, description: 'Several tabs at once (at most 6), instead of cwd/title/command' }, reason: { type: 'string' } }, required: ['reason'] },
+    description: 'Open new tabs in the ELOP Crew desktop app\'s terminal panel, each a shell in a folder with a command run in it, where the person sees it and can type into it. Use it for what runs long and the person wants to watch or use — a dev server, a worker, an app they asked you to start — instead of a separate window or your own background job. Several at once with tabs (e.g. backend, frontend, worker); one tab split into panes with panes (e.g. the three side by side), or a pane beside a terminal already open with beside. The person is asked on the page first and it opens only if they allow it (it waits up to 10 minutes); give the reason. The answer gives each pane\'s terminal id and what it printed so far: read more later with terminal_output. A port set for the app: the tabs do not get the monitor\'s own PORT.',
+    inputSchema: { type: 'object', properties: { ...TAB_ITEM.properties, tabs: { type: 'array', items: TAB_ITEM, description: 'Several tabs at once, instead of the fields above (8 terminals at most in all)' }, reason: { type: 'string' } }, required: ['reason'] },
   },
   {
     name: 'terminals',

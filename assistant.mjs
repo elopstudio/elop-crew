@@ -232,36 +232,55 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
     return 'No such tool.'
   }
 
-  // New tabs, each a shell in a folder with one command typed into it (a dev server, a worker): all of them shown to
-  // the person at once and opened only if they allow it; the answer has each one's id and what it printed so far
+  // New tabs, each a shell in a folder with one command typed into it (a dev server, a worker), or one tab split into
+  // panes (panes, beside one another or one under another), or a pane put beside a terminal already open: all of them
+  // shown to the person at once and opened only if they allow it; the answer has each one's id and what it printed so far
+  const MAX_OPEN = 8, PANES = 4
   async function openTerminals(T, args, caller) {
     if (!T.open) return 'This version of the app cannot open terminals.'
     const asked = Array.isArray(args.tabs) && args.tabs.length ? args.tabs : [args]
-    if (asked.length > 6) return 'At most 6 tabs at a time.'
-    const tabs = []
-    for (const o of asked) {
-      const command = String(o?.command || '').replace(/\r?\n$/, '')
-      if (command.length > 300) return 'A command is too long to show the person in full (300 characters at most).'
-      if (/[\x00-\x1f\x7f]/.test(command)) return 'One line of plain text per command: no line breaks, tabs or control keys.'
-      tabs.push({ cwd: String(o?.cwd || caller.cwd || ''), title: String(o?.title || '').trim().slice(0, 40), command })
+    const open = list => new Set(list.flatMap((g) => g.panes.map((p) => p.id)))
+    const ids = open(T.list())
+    const opens = []   // each pane to open: { cwd, title, command, tab, dir, after: index in opens | null, beside: terminal id | null }
+    for (const [k, tab] of asked.entries()) {
+      if (!tab || typeof tab !== 'object') return 'Each tab is an object: cwd, title, command, or panes.'
+      const dir = /^(down|column|vertical|below)$/i.test(String(tab.direction || '')) ? 'column' : 'row'
+      const panes = Array.isArray(tab.panes) && tab.panes.length ? tab.panes : [tab]
+      if (panes.length > PANES) return `A tab holds at most ${PANES} panes.`
+      const beside = tab.beside == null || tab.beside === '' ? null : Number(tab.beside)
+      if (beside != null && !ids.has(beside)) return `No terminal ${tab.beside} to split beside. Use the ids from terminals.`
+      for (const [j, p] of panes.entries()) {
+        const command = String(p?.command || '').replace(/\r?\n$/, '')
+        if (command.length > 300) return 'A command is too long to show the person in full (300 characters at most).'
+        if (/[\x00-\x1f\x7f]/.test(command)) return 'One line of plain text per command: no line breaks, tabs or control keys.'
+        opens.push({ cwd: String(p?.cwd || tab.cwd || caller.cwd || ''), title: String(p?.title || '').trim().slice(0, 40), command, tab: k, dir,
+          after: j ? opens.length - 1 : null, beside: j ? null : beside })
+      }
     }
-    const shown = tabs.map((o) => (o.title ? '[' + o.title + '] ' : '') + (o.cwd || '~') + (o.command ? '\n  > ' + o.command : '')).join('\n')
-    if (shown.length > 600) return 'Too much to show the person at once: open fewer tabs, or shorter commands.'
+    if (opens.length > MAX_OPEN) return `At most ${MAX_OPEN} terminals at a time.`
     const ko = lang?.() === 'Korean'
-    const what = (ko ? `새 터미널 탭 ${tabs.length}개` : `${tabs.length} new terminal tab${tabs.length > 1 ? 's' : ''}`) + (args.reason ? ' — ' + String(args.reason).slice(0, 120) : '')
+    const head = (o) => o.beside != null ? (ko ? `터미널 #${o.beside} 옆에` : `beside terminal #${o.beside}`) + (o.dir === 'column' ? (ko ? ' (아래로)' : ' (below)') : '')
+      : (ko ? '새 탭' : 'new tab') + (opens.filter((x) => x.tab === o.tab).length > 1 ? (o.dir === 'column' ? (ko ? ' (위아래 분할)' : ' (split down)') : (ko ? ' (좌우 분할)' : ' (split right)')) : '')
+    const shown = opens.map((o) => (o.after == null ? head(o) + '\n' : '') + '  ' + (o.title ? '[' + o.title + '] ' : '') + (o.cwd || '~') + (o.command ? '\n    > ' + o.command : '')).join('\n')
+    if (shown.length > 1200) return 'Too much to show the person at once: open fewer terminals, or shorter commands.'
+    const tabs = new Set(opens.filter((o) => o.beside == null).map((o) => o.tab)).size
+    const what = (ko ? `터미널 ${opens.length}개${tabs ? ` (새 탭 ${tabs}개)` : ''}` : `${opens.length} terminal${opens.length > 1 ? 's' : ''}${tabs ? ` (${tabs} new tab${tabs > 1 ? 's' : ''})` : ''}`) + (args.reason ? ' — ' + String(args.reason).slice(0, 120) : '')
     const ok = await askPerson(caller.sessionId, { tool: 'Terminal', what, code: shown })
     if (!ok) return 'The person did not allow it (denied, or no answer in 10 minutes). Nothing was opened.'
     const opened = []
-    for (const o of tabs) {
-      try { opened.push(await T.open(o)) } catch (e) { opened.push({ error: String(e?.message || e) }) }
+    for (const o of opens) {
+      const beside = o.after != null ? opened[o.after]?.id : o.beside
+      try { opened.push(await T.open({ cwd: o.cwd, title: o.title, command: o.command, ...(beside != null ? { beside, dir: o.dir } : {}) })) } catch (e) { opened.push({ error: String(e?.message || e) }) }
     }
     await new Promise((r) => setTimeout(r, 3000))
     const out = []
     for (const [i, r] of opened.entries()) {
-      const head = `Tab ${i + 1}${tabs[i].title ? ' "' + tabs[i].title + '"' : ''}`
-      if (r.error) { out.push(`${head}: could not open (${r.error}).`); continue }
+      const o = opens[i]
+      const name = `Tab ${o.tab + 1}${o.after != null || opens.some((x) => x.after === i) ? ' pane ' + (opens.slice(0, i + 1).filter((x) => x.tab === o.tab).length) : ''}${o.title ? ' "' + o.title + '"' : ''}`
+      if (r.error) { out.push(`${name}: could not open (${r.error}).`); continue }
+      const where = r.beside != null ? (r.placed ? ` · beside terminal ${r.beside}` : ` · in a tab of its own (terminal ${r.beside}'s tab could not take another pane that way)`) : ''
       const lines = await T.lines(r.id, 15)
-      out.push(`${head}: terminal ${r.id} · ${r.shell} · in ${r.folder}${tabs[i].command && !r.typed ? ' · the command was NOT typed (the shell did not start in time)' : ''}\n` + (lines ? mask(lines.join('\n')).slice(-3000) || '(nothing printed yet)' : '(closed)'))
+      out.push(`${name}: terminal ${r.id} · ${r.shell} · in ${r.folder}${where}${o.command && !r.typed ? ' · the command was NOT typed (the shell did not start in time)' : ''}\n` + (lines ? mask(lines.join('\n')).slice(-3000) || '(nothing printed yet)' : '(closed)'))
     }
     return out.join('\n\n') + '\n\nRead more later with terminal_output; stop one with terminal_type ctrl_c.'
   }

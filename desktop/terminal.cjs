@@ -141,6 +141,20 @@ function setLayout(groups) {
   })).filter((g) => g.ids.length)
   save()
 }
+// a new shell put beside another, in the same tab (dir: 'row' beside it, 'column' under it), for a panel that has not
+// drawn it yet to find it there; false when that tab cannot take it (four panes, or split the other way)
+function placeBeside(id, beside, dir) {
+  const all = groupsNow()
+  const g = all.find((x) => x.ids.includes(beside))
+  if (!g || !terms.has(id) || g.ids.includes(id) || g.ids.length >= 4 || (g.ids.length > 1 && g.dir !== dir)) return false
+  const i = g.ids.indexOf(beside)
+  g.ids.splice(i + 1, 0, id)
+  g.dir = dir
+  if (g.sizes.length === g.ids.length - 1 && g.sizes[i]) { const half = g.sizes[i] / 2; g.sizes[i] = half; g.sizes.splice(i + 1, 0, half) } else g.sizes = []
+  layout = all.filter((x) => x === g || !x.ids.includes(id))
+  save()
+  return true
+}
 // the layout with every shell in it (one the panel has not placed yet, on a tab of its own)
 function groupsNow() {
   const placed = new Set(layout.flatMap((g) => g.ids))
@@ -260,6 +274,6 @@ function close(id) { const t = terms.get(id); if (t) { t.closing = true; try { t
 function closeAll() { if (stopping) return; save(); stopping = true; for (const t of terms.values()) { try { t.p.kill() } catch {} } terms.clear() }
 
 module.exports = {
-  shells, open, list, write, resize, rename, clearBuf, close, closeAll, saved, setLayout, layout: groupsNow, info, tail, has: (id) => terms.has(id), count: () => terms.size,
+  shells, open, list, write, resize, rename, clearBuf, close, closeAll, saved, setLayout, placeBeside, layout: groupsNow, info, tail, has: (id) => terms.has(id), count: () => terms.size,
   onSend: (fn) => { send = fn }, keepIn: (file) => { keepFile = file; histDir = path.join(path.dirname(file), 'terminal-history') },
 }

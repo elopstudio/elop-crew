@@ -875,7 +875,7 @@ function askPerson(sessionId, detail, wait = 10 * 60 * 1000) {
     }
     const timer = setTimeout(() => done({}, 'timeout'), wait)
     pending.set(id, {
-      id, sessionId, tool: clip(detail.tool || '', 40), what: clip(detail.what || '', 160), code: clip(detail.code || '', 600),
+      id, sessionId, tool: clip(detail.tool || '', 40), what: clip(detail.what || '', 160), code: clip(detail.code || '', detail.tool === 'Terminal' ? 1200 : 600),
       input: null, suggestions: [], options: [], at: Date.now(), expiresAt: Date.now() + wait, managed: true, personOnly: true, done,
     })
     notifyPages()

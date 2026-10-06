@@ -373,9 +373,12 @@ globalThis.agentMonitorTerminals = {
   type(id, text) { if (!terminals.has(id)) return false; terminals.write(id, text); return true },
   // a new tab an agent or the assistant opens (the person allowed it on the page): shown in the panel, and its command
   // typed once the shell has printed its prompt
-  async open({ cwd, title, command }) {
+  // beside: a terminal to put it next to, in that one's tab (dir 'row' beside it, 'column' under it)
+  async open({ cwd, title, command, beside, dir }) {
     const info = terminals.open({ shell: readSettings().termShell, cwd, title })
-    const tell = () => { if (term && !term.webContents.isDestroyed()) term.webContents.send('monitor-term-opened', info) }
+    const d = dir === 'column' ? 'column' : 'row'
+    const placed = beside != null && terminals.placeBeside(info.id, Number(beside), d)
+    const tell = () => { if (term && !term.webContents.isDestroyed()) term.webContents.send('monitor-term-opened', placed ? { ...info, beside: Number(beside), dir: d } : info) }
     if (term && term.webContents.isLoading()) term.webContents.once('did-finish-load', tell)
     else tell()   // none yet: the panel shown below starts with the shells running
     if (!termOpen) toggleTerminal(true)
@@ -385,7 +388,7 @@ globalThis.agentMonitorTerminals = {
       await new Promise((r) => setTimeout(r, 500))
       if (terminals.has(info.id)) { terminals.write(info.id, command + '\r'); typed = true }
     }
-    return { id: info.id, shell: info.name, folder: info.cwd, typed }
+    return { id: info.id, shell: info.name, folder: info.cwd, typed, ...(beside != null ? { beside: Number(beside), placed } : {}) }
   },
 }
 // An agent that starts a shell command gets its read-only tab opened by itself, behind the one in view (a setting, on
