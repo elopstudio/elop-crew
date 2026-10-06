@@ -180,7 +180,9 @@ function saved() {
 
 // inherit: the shell starts where the panel's cursor is, under the old output drawn there, instead of on a cleared
 // screen (Windows' console asks the panel where its cursor is; elsewhere a shell never clears it)
-function open({ shell, cwd, cols, rows, title, inherit, hid } = {}) {
+// prior: a restarted pane's output from before, kept above a line with the time it came back (no words: printed once,
+// it would stay in the language of that moment), so it lasts through the next restart and a panel drawn again too
+function open({ shell, cwd, cols, rows, title, inherit, hid, prior } = {}) {
   const all = shells()
   const sh = all.find((s) => s.id === shell) || all[0]
   if (!sh) throw new Error('No shell found')
@@ -198,6 +200,10 @@ function open({ shell, cwd, cols, rows, title, inherit, hid } = {}) {
   })
   const id = nextId++
   const t = { p, id, hid, lastAt: Date.now(), shell: sh.id, name: sh.name, title: String(title || '').trim().slice(0, 40), cwd: dir, dir: '', buf: '' }
+  if (typeof prior === 'string' && prior) {
+    const now = new Date(), hm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0')
+    t.buf = prior.slice(-SAVED) + '\x1b[0m\r\n\x1b[2m── ↻ ' + hm + ' ──\x1b[0m\r\n'
+  }
   terms.set(id, t)
   p.onData((d) => {
     t.buf += d.replace(/\x1b\[6n/g, '')
@@ -216,7 +222,7 @@ function open({ shell, cwd, cols, rows, title, inherit, hid } = {}) {
     if (hist) setTimeout(() => fs.rm(hist, { force: true }, () => {}), 1500)   // closed for good: its history goes too
   })
   restored = true   // a shell started before any was restored: the old ones are not brought back over it
-  return { id, shell: t.shell, name: t.name, title: t.title, cwd: t.cwd }
+  return { id, shell: t.shell, name: t.name, title: t.title, cwd: t.cwd, buf: t.buf }
 }
 const list = () => [...terms.values()].map(({ id, shell, name, title, cwd, dir, buf }) => ({ id, shell, name, title, cwd: dir || cwd, buf }))
 // For the monitor's assistant: the tabs and their panes, each shell with its name, folder and when it last printed

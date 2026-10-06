@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('monitorTerm', {
   // the tabs as shown: their order, each one's split panes, sizes and pin; and a pane's output cleared
   layout: (groups) => call('layout', groups),
   clear: (id) => call('clear', id),
+  // the commands an agent ran in a shell and what they printed, for its read-only tab; one picked in the app's menu
+  runs: (name) => call('runs', name),
+  onAgent: (fn) => ipcRenderer.on('monitor-term-agent', (_e, a) => fn(a)),
   // a tab's own menu at x, y; what is picked comes back by onCommand
   tabMenu: (id, state, x, y) => call('tabMenu', id, state, x, y),
   onCommand: (fn) => ipcRenderer.on('monitor-term-cmd', (_e, cmd, id) => fn(cmd, id)),

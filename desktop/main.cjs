@@ -48,6 +48,7 @@ const TEXT = {
   ko: {
     tryName: 'ELOP Crew (테스트)', install: '설치', later: '나중에',
     termCmd: '명령 프롬프트', termIn: '프로젝트 폴더에서 열기', termFailed: '셸을 시작하지 못했습니다.',
+    termAgents: '에이전트 명령 기록 (읽기 전용)', termNoAgents: '에이전트 없음',
     termRename: '이름 바꾸기', termPin: '고정', termUnpin: '고정 해제', termDup: '복제 — 같은 셸·폴더로 새 터미널', termClear: '출력 지우기',
     termSplitRight: '오른쪽으로 분할', termSplitDown: '아래로 분할',
     termLeft: '왼쪽으로 옮기기', termRight: '오른쪽으로 옮기기', termClose: '탭 닫기', termCloseOthers: '다른 탭 닫기 (고정 탭은 남김)', termCloseRight: '오른쪽 탭 닫기 (고정 탭은 남김)',
@@ -76,6 +77,7 @@ const TEXT = {
   en: {
     tryName: 'ELOP Crew (test)', install: 'Install', later: 'Later',
     termCmd: 'Command Prompt', termIn: 'Open in a project folder', termFailed: 'Could not start the shell.',
+    termAgents: 'Agent commands (read-only)', termNoAgents: 'No agents',
     termRename: 'Rename', termPin: 'Pin', termUnpin: 'Unpin', termDup: 'Duplicate — a new terminal, same shell and folder', termClear: 'Clear the output',
     termSplitRight: 'Split right', termSplitDown: 'Split down',
     termLeft: 'Move left', termRight: 'Move right', termClose: 'Close the tab', termCloseOthers: 'Close the others (pinned stay)', termCloseRight: 'Close those to the right (pinned stay)',
@@ -311,9 +313,18 @@ function newTerminal() {
 async function termMenu(x, y) {
   const { projects } = await termFolders()
   const shells = terminals.shells(), def = readSettings().termShell || shells[0]?.id
+  // every agent's commands, as a read-only tab (only with the monitor's server in this app)
+  const runs = globalThis.agentMonitorRuns
+  const crew = runs ? await runs.agents().catch(() => []) : null
+  const agentItems = !crew ? [] : [{ type: 'separator' }, {
+    label: t('termAgents'),
+    submenu: crew.length ? crew.map((a) => ({ label: (lang === 'ko' ? a.nick : a.nickEn) + '   ' + a.project, click: () => { if (term) term.webContents.send('monitor-term-agent', { name: a.name, label: lang === 'ko' ? a.nick : a.nickEn, project: a.project }) } }))
+      : [{ label: t('termNoAgents'), enabled: false }],
+  }]
   const menu = Menu.buildFromTemplate([
     ...shells.map((s) => ({ label: s.id === 'cmd' ? t('termCmd') : s.name, type: 'checkbox', checked: s.id === def, click: () => startShell(s.id) })),
     ...(projects.length ? [{ type: 'separator' }, { label: t('termIn'), submenu: projects.map((p) => ({ label: p.name + '   ' + p.root, click: () => startShell(null, p.root) })) }] : []),
+    ...agentItems,
   ])
   if (term && win) menu.popup({ window: win, x: Math.round(x), y: Math.round(term.getBounds().y + y) })
 }
@@ -361,12 +372,14 @@ ipcMain.handle('monitor-term', async (e, action, ...a) => {
   if (action === 'list') return { running: terminals.list(), layout: terminals.layout(), saved: terminals.count() ? [] : terminals.saved() }
   if (action === 'open') {
     const o = a[0] || {}
-    return terminals.open({ cols: o.cols, rows: o.rows, title: o.title, inherit: !!o.inherit, hid: o.hid, shell: o.shell || readSettings().termShell, cwd: o.cwd || (await termFolders()).cur })
+    return terminals.open({ cols: o.cols, rows: o.rows, title: o.title, inherit: !!o.inherit, hid: o.hid, prior: typeof o.prior === 'string' ? o.prior.slice(-64 * 1024) : '', shell: o.shell || readSettings().termShell, cwd: o.cwd || (await termFolders()).cur })
   }
   if (action === 'resize') terminals.resize(a[0], a[1], a[2])
   if (action === 'close') terminals.close(a[0])
   if (action === 'rename') terminals.rename(a[0], a[1])
   if (action === 'layout') terminals.setLayout(a[0])
+  // an agent's commands and what they printed (masked), for its read-only tab
+  if (action === 'runs') return globalThis.agentMonitorRuns ? globalThis.agentMonitorRuns.runs(String(a[0] || '')).catch(() => null) : null
   if (action === 'clear') terminals.clearBuf(a[0])
   if (action === 'tabMenu') tabMenu(a[0], a[1] || {}, a[2], a[3])
   if (action === 'hide') toggleTerminal(false)

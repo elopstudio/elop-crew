@@ -1743,6 +1743,37 @@ const assistant = createAssistant({
     return t?.sessionId ? transcriptEvents(t.sessionId) : []
   },
 })
+// The commands each agent ran in a shell (Bash, PowerShell) and what they printed, for the desktop app's terminal panel
+// (a read-only tab per agent): read from its transcript, masked as the conversation view is, never kept
+const RUN_TOOLS = /^(Bash|PowerShell)$/
+function commandOf(input) {
+  try { return String(JSON.parse(input).command || '') } catch {}
+  // cut short by the clip: the command as far as it goes
+  const m = /"command":\s*"((?:[^"\\]|\\.)*)/.exec(String(input || ''))
+  return m ? m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\') : ''
+}
+globalThis.agentMonitorRuns = {
+  async agents() {
+    const st = await cachedState()
+    return st.projects.flatMap((p) => p.sessions.map((x) => ({ name: x.name, nick: x.nickKo || x.nick || x.short || x.name, nickEn: x.nick || x.short || x.name, project: p.name || p.key, state: x.state, managed: !!x.managed })))
+  },
+  async runs(name) {
+    const t = (await readRegistry()).find((x) => x.name === name) || agents.sessions(Date.now()).find((x) => x.name === name)
+    if (!t?.sessionId) return null
+    const runs = [], byId = new Map()
+    for (const e of await transcriptEvents(t.sessionId)) {
+      if (e.kind === 'tool' && RUN_TOOLS.test(e.name)) {
+        const r = { id: e.id, at: e.at || 0, shell: e.name, command: commandOf(e.input), done: false, error: false, output: '' }
+        if (!r.command) continue
+        runs.push(r); byId.set(e.id, r)
+      } else if (e.kind === 'result' && byId.has(e.id)) {
+        const r = byId.get(e.id)
+        r.done = true; r.error = !!e.error; r.output = String(e.text || '')
+      }
+    }
+    return runs.slice(-80)
+  },
+}
 const processes = createProcesses({ mask, clip })
 // every session's process, with what the page knows of it, for the processes dialog and for ending one of its children
 async function processRoots() {

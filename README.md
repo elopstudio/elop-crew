@@ -464,10 +464,14 @@ itself. So a new PC needs only **Claude Code**, installed and signed in.
   right-click for pin (kept on the left, no × — closed only from its menu), duplicate (same shell and folder), clear,
   close the others or those to the right (pinned ones stay). **Split** a tab (the split button, **Ctrl + Shift + 5**, or its
   menu: right or down) into up to four panes, each its own shell in the folder of the one split; drag the line between
-  them to resize, **Alt + arrows** to go from one to the next, × on a pane to close it. Drag the
+  them to resize, **Alt + arrows** to go from one to the next, × on a pane to close it.
+  **Agent commands:** **⌄ → Agent commands** opens a read-only tab for one agent (a monitor agent or a VS Code session):
+  each command it ran in a shell (Bash, PowerShell), with when, and what it printed once it is done — from its
+  conversation, masked as the conversation view is (a long output shows its start). It follows as the agent works, ⏳
+  on the tab while one runs, and is open again after a restart. Drag the
   top edge for the height, **Ctrl + C** copies a selection (otherwise it goes to the shell), **Ctrl + V** or a right-click
   pastes. Hiding the panel keeps the shells running. A shell cannot outlive the app: when it starts again (an update, a
-  restart), the panel comes back with the same tabs and panes — shell, name, and the folder each was last in (the shells
+  restart), the panel comes back — under a `── ↻ 10:45 ──` line with the time — with the same tabs and panes — shell, name, and the folder each was last in (the shells
   say it at every prompt) — and their earlier output, a new shell under it. Each pane keeps its own command history
   (**↑**; a new pane starts with the last of the shared one), across restarts too, instead of the one every PowerShell shares (PowerShell and Git Bash; Command Prompt keeps none). Desktop app only — the page in a
   browser never reaches a shell.
