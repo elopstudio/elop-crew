@@ -52,6 +52,7 @@ button.ic svg{width:14px;height:14px}
 .row>.split{width:1px;cursor:col-resize}
 .column>.split{height:1px;cursor:row-resize}
 .split::before{content:"";position:absolute;inset:-3px}
+.split[hidden],.pane[hidden]{display:none}
 .split:hover,.split.on{background:var(--accent)}
 /* split: the pane typed in is marked, and each has its own close button */
 .group.multi .pane:not(.on) .xt{opacity:.72}
@@ -79,15 +80,15 @@ button.ic svg{width:14px;height:14px}
 const qs = new URLSearchParams(location.search), MAC = qs.get('platform') === 'darwin'
 const TEXT = {
   ko: {
-    newTerm: '새 터미널 (Ctrl+Shift+`)', pick: '셸 고르기', split: '오른쪽으로 분할 (Ctrl+Shift+5)', hide: '패널 숨기기 (Ctrl+`)', close: '닫기', tabs: '터미널',
-    closePane: '이 창 닫기', panes: (n) => n + '개로 분할됨',
+    newTerm: '새 터미널 (Ctrl+Shift+T)', pick: '셸 고르기', split: '오른쪽으로 분할 (Ctrl+Shift+5)', hide: '패널 숨기기 (Ctrl+`)', close: '닫기', tabs: '터미널',
+    closePane: '이 창 닫기 (Ctrl+Shift+W)', panes: (n) => n + '개로 분할됨', zoomed: '한 창만 크게 보는 중 (Ctrl+Shift+Z)',
     agentHead: (who, p) => who + ' (' + p + ') · 에이전트가 실행한 명령 · 읽기 전용', agentTab: '명령', agentGone: '이 에이전트의 대화 기록을 찾을 수 없습니다 (끝났거나 아직 시작 전).',
     agentNone: '아직 실행한 명령이 없습니다. 실행하면 여기에 나옵니다.', runFailed: '실패', runCut: '… 출력이 길어 앞부분만 보입니다', running: '실행 중…', agentRunning: '명령 실행 중',
     cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ', rename: '더블클릭하거나 F2 를 눌러 이름 바꾸기 · 끌어서 옮기기 · 오른쪽 클릭: 고정·분할·복제·닫기', pinned: '고정됨', renamePh: '비우면 원래 이름',
   },
   en: {
-    newTerm: 'New terminal (Ctrl+Shift+`)', pick: 'Pick a shell', split: 'Split right (Ctrl+Shift+5)', hide: 'Hide the panel (Ctrl+`)', close: 'Close', tabs: 'Terminals',
-    closePane: 'Close this pane', panes: (n) => 'Split in ' + n,
+    newTerm: 'New terminal (Ctrl+Shift+T)', pick: 'Pick a shell', split: 'Split right (Ctrl+Shift+5)', hide: 'Hide the panel (Ctrl+`)', close: 'Close', tabs: 'Terminals',
+    closePane: 'Close this pane (Ctrl+Shift+W)', panes: (n) => 'Split in ' + n, zoomed: 'One pane shown alone (Ctrl+Shift+Z)',
     agentHead: (who, p) => who + ' (' + p + ') · commands the agent ran · read-only', agentTab: 'commands', agentGone: 'This agent\'s conversation cannot be found (ended, or not started yet).',
     agentNone: 'No commands yet. They show here as it runs them.', runFailed: 'failed', runCut: '… a long output: only its start is shown', running: 'running…', agentRunning: 'A command is running',
     cmd: 'Command Prompt', failed: 'Could not start the shell: ', rename: 'Double-click or press F2 to rename · drag to move · right-click: pin, split, duplicate, close', pinned: 'Pinned', renamePh: 'Empty for the usual name',
@@ -131,7 +132,7 @@ function label(g) {
   else go.replaceChildren(document.createTextNode((x.shell === 'cmd' ? t('cmd') : x.name) + ' '), Object.assign(document.createElement('small'), { textContent: base(x.cwd) }))
   if (x.agent && x.running) go.append(Object.assign(document.createElement('small'), { textContent: ' ⏳', title: t('agentRunning') }))
   if (g.pinned) go.insertAdjacentHTML('afterbegin', PIN)
-  if (g.panes.length > 1) { const n = document.createElement('span'); n.className = 'n'; n.innerHTML = SPLIT; n.append(String(g.panes.length)); n.title = t('panes', g.panes.length); go.append(n) }
+  if (g.panes.length > 1) { const n = document.createElement('span'); n.className = 'n'; n.innerHTML = SPLIT; n.append(String(g.panes.length) + (g.zoom ? ' ⤢' : '')); n.title = t('panes', g.panes.length) + (g.zoom ? ' · ' + t('zoomed') : ''); go.append(n) }
   g.tab.classList.toggle('pinned', !!g.pinned)
   go.title = (g.pinned ? t('pinned') + ' · ' : '') + (x.agent ? t('agentHead', x.label, x.project) : x.cwd) + '\n' + t('rename')
   g.tab.querySelector('.x').title = t('close')
@@ -161,7 +162,7 @@ function newGroup(o = {}) {
   const go = tab.querySelector('.go')
   go.addEventListener('click', () => select(gid))
   go.addEventListener('dblclick', () => rename(g))
-  go.addEventListener('keydown', (e) => { if (e.key === 'F2') { e.preventDefault(); rename(g) } else if (groupKeys(g, e)) e.preventDefault() })
+  go.addEventListener('keydown', (e) => { if (e.key === 'F2') { e.preventDefault(); rename(g) } else if (g.focus && termKeys(g.focus, e)) e.preventDefault() })
   tab.querySelector('.x').addEventListener('click', () => closeGroup(g))
   tab.addEventListener('auxclick', (e) => { if (e.button === 1 && !g.pinned) closeGroup(g) })
   tab.addEventListener('contextmenu', (e) => tabMenu(g, e))
@@ -175,7 +176,7 @@ function addPane(g, info, buf, after) {
   view.innerHTML = '<div class="xt"></div><button class="px" type="button">×</button>'
   const term = new Terminal({
     fontFamily: MAC ? 'Menlo, "SF Mono", monospace' : '"Cascadia Mono", Consolas, "D2Coding", monospace',
-    fontSize: 13, lineHeight: 1.15, cursorBlink: !info.agent, scrollback: 5000, theme: theme(), allowProposedApi: false,
+    fontSize, lineHeight: 1.15, cursorBlink: !info.agent, scrollback: 5000, theme: theme(), allowProposedApi: false,
     ...(info.agent ? { disableStdin: true, cursorStyle: 'underline', cursorInactiveStyle: 'none' } : {}),
   })
   const fit = new FitAddon.FitAddon()
@@ -208,9 +209,11 @@ function addPane(g, info, buf, after) {
 function arrange(g) {
   g.box.className = 'group ' + g.dir + (g.panes.length > 1 ? ' multi' : '')
   const kids = []
+  if (g.zoom && !g.panes.includes(g.zoom)) g.zoom = null
   g.panes.forEach((x, i) => {
-    if (i) kids.push(splitter(g, i - 1))
+    if (i) { const l = splitter(g, i - 1); l.hidden = !!g.zoom; kids.push(l) }
     x.view.style.flex = (g.sizes[i] || 1) + ' 1 0'
+    x.view.hidden = !!g.zoom && g.zoom !== x
     kids.push(x.view)
   })
   g.box.replaceChildren(...kids)
@@ -427,6 +430,7 @@ async function openNew(o) {
 }
 // the pane typed in, split: a new shell beside it (right) or under it (down), same shell, in the folder it is in now
 async function split(g, dir = 'row') {
+  if (g) g.zoom = null
   if (!g || g.agent || g.panes.length >= MAX_PANES || (g.panes.length > 1 && g.dir !== dir)) return
   const src = g.focus || g.panes[g.panes.length - 1]
   $('msg').textContent = ''
@@ -507,6 +511,53 @@ function groupKeys(g, e) {
   if (to) select(to.gid)
   return true
 }
+// The keys of Windows Terminal and VS Code's terminal, in a terminal or on its tab:
+//   Ctrl+Shift+W close the pane (the tab with its last) · Ctrl+Shift+T a new tab · Ctrl+Shift+D duplicate the tab
+//   Alt+Shift+= / Alt+Shift+- split right / down (and Ctrl+Shift+5) · Alt+Shift+arrows make the pane bigger or smaller
+//   Ctrl+Shift+Z the pane alone, and back · Ctrl+Tab / Ctrl+Shift+Tab and Ctrl+PgUp / PgDn the next or previous tab
+//   (with Shift on PgUp / PgDn: move it) · Ctrl+Alt+1…9 that tab (9 the last) · Ctrl+= / Ctrl+- / Ctrl+0 the text size
+//   Alt+arrows the pane beside
+function termKeys(x, e) {
+  if (e.type && e.type !== 'keydown') return false
+  const g = x.g, c = e.code, ctrl = e.ctrlKey && !e.metaKey, all = tabsInOrder()
+  if (ctrl && e.shiftKey && !e.altKey) {
+    if (c === 'KeyW') { if (x.agent) closeGroup(g); else api.close(x.id); return true }
+    if (c === 'KeyT') { openNew(); return true }
+    if (c === 'KeyD') { dup(g); return true }
+    if (c === 'KeyZ') { if (g.panes.length > 1) { g.zoom = g.zoom ? null : x; arrange(g); for (const y of g.panes) fitNow(y); x.term.focus() } return true }
+    if (c === 'Tab') { const to = all[(all.indexOf(g) - 1 + all.length) % all.length]; if (to) select(to.gid); return true }
+  }
+  if (ctrl && !e.shiftKey && !e.altKey && c === 'Tab') { const to = all[(all.indexOf(g) + 1) % all.length]; if (to) select(to.gid); return true }
+  if (ctrl && e.altKey && !e.shiftKey && /^Digit[1-9]$/.test(c)) { const n = Number(c.slice(5)), to = n === 9 ? all[all.length - 1] : all[n - 1]; if (to) select(to.gid); return true }
+  if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    if (c === 'Equal' || c === 'NumpadAdd') { split(g, 'row'); return true }
+    if (c === 'Minus' || c === 'NumpadSubtract') { split(g, 'column'); return true }
+    if (/^Arrow/.test(c)) { grow(x, c); return true }
+  }
+  if (ctrl && !e.altKey && !e.shiftKey && (c === 'Equal' || c === 'Minus' || c === 'Digit0' || c === 'NumpadAdd' || c === 'NumpadSubtract' || c === 'Numpad0')) {
+    textSize(c === 'Digit0' || c === 'Numpad0' ? 0 : c === 'Equal' || c === 'NumpadAdd' ? 1 : -1); return true
+  }
+  return groupKeys(g, e) || paneKeys(x, e)
+}
+// Alt+Shift+arrows: the pane takes a tenth more of what it and its neighbour share (→ ↓), or gives it (← ↑)
+function grow(x, code) {
+  const g = x.g, i = g.panes.indexOf(x), n = g.panes.length
+  if (n < 2 || g.zoom) return
+  const along = g.dir === 'row' ? ['ArrowLeft', 'ArrowRight'] : ['ArrowUp', 'ArrowDown']
+  if (!along.includes(code)) return
+  const j = i + 1 < n ? i + 1 : i - 1, total = (g.sizes[i] || 1) + (g.sizes[j] || 1)
+  const f = Math.min(0.9, Math.max(0.1, (g.sizes[i] || 1) / total + (code === along[1] ? 0.1 : -0.1)))
+  g.sizes[i] = total * f; g.sizes[j] = total - g.sizes[i]
+  arrange(g); for (const y of g.panes) fitNow(y); x.term.focus(); sync()
+}
+// Ctrl+= / Ctrl+- / Ctrl+0: the text in every terminal, kept for the next time
+const FONT_KEY = 'crew.termFont'
+let fontSize = (() => { const v = Number(localStorage.getItem(FONT_KEY)); return v >= 8 && v <= 32 ? v : 13 })()
+function textSize(step) {
+  fontSize = step === 0 ? 13 : Math.min(32, Math.max(8, fontSize + step))
+  try { localStorage.setItem(FONT_KEY, String(fontSize)) } catch {}
+  for (const x of terms.values()) { x.term.options.fontSize = fontSize; fitNow(x) }
+}
 function paneKeys(x, e) {
   const g = x.g
   if (!e.altKey || e.ctrlKey || e.shiftKey || e.metaKey || g.panes.length < 2) return false
@@ -523,7 +574,7 @@ function copy(x) { const s = x.term.getSelection(); if (!s) return false; api.co
 function keys(x) {
   x.term.attachCustomKeyEventHandler((e) => {
     if (e.type !== 'keydown') return true
-    if (groupKeys(x.g, e) || paneKeys(x, e)) { e.preventDefault(); return false }
+    if (termKeys(x, e)) { e.preventDefault(); return false }
     if (MAC && e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); clearOut(x); return false }
     const mod = MAC ? e.metaKey : e.ctrlKey, k = e.key.toLowerCase()
     if (mod && k === 'c' && (e.shiftKey || MAC || x.term.hasSelection())) { e.preventDefault(); copy(x); return false }

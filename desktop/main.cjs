@@ -729,6 +729,7 @@ if (!app.requestSingleInstanceLock()) app.quit()
 else {
   app.on('second-instance', showWindow)
   app.whenReady().then(async () => {
+    if (!MAC) Menu.setApplicationMenu(null)
     setTheme(readSettings().theme)   // the theme picked last time, before any window shows
     lang = TEXT[readSettings().lang] ? readSettings().lang : systemLang()   // and the language
     try { await startServer() } catch (e) {
