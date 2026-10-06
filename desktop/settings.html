@@ -74,6 +74,13 @@ select{font:13px inherit;font-family:inherit;color:var(--text);background:var(--
     <div class="row"><span class="t"><span class="state" id="hookState">…</span><small id="hookHow"></small></span>
       <span class="btns"><button class="primary" id="installHooks" data-t="installHooks"></button></span></div>
   </section>
+  <section id="compactBox">
+    <h2 data-t="compact"></h2>
+    <label class="row"><span class="t"><span data-t="compactWin"></span><small data-t="compactHow"></small></span>
+      <select id="compactWindow"></select></label>
+    <label class="row" id="compactVsRow"><span class="t"><span data-t="compactVs"></span><small data-t="compactVsHow"></small></span>
+      <span class="sw"><input type="checkbox" id="compactVsCode"><span></span></span></label>
+  </section>
   <section>
     <h2 data-t="updates"></h2>
     <div class="row"><span class="t"><span class="state" id="updState">…</span><small id="updHow"></small></span>
@@ -106,6 +113,9 @@ const TEXT = {
     downloading: (v, p) => (v || '새 버전') + ' 받는 중… ' + p + '%', ready: (v) => v + ' 받음 — 다시 시작하면 적용됩니다',
     available: (v) => (v || '새 버전') + ' 나옴 — 받는 곳에서 새로 설치해 주세요', error: '확인하지 못했습니다 (인터넷이나 GitHub 연결)',
     info: '정보', version: '버전', about: '프로그램 정보', browser: '브라우저에서 열기',
+    compact: '에이전트 대화 자동 압축', compactWin: '이 크기에서 압축', compactHow: '대화가 이만큼 커지면 Claude Code가 스스로 요약해 줄입니다. 대화가 길수록 단계마다 전부 다시 읽어서 사용량이 커집니다. 에이전트마다 따로 바꿀 수도 있습니다',
+    compactVs: 'VS Code 세션에도 적용', compactVsHow: 'Claude Code 설정(~/.claude/settings.json)에 같은 값을 써서 이 PC의 모든 세션에 적용합니다',
+    compactAuto: 'auto (Claude Code가 정함)', tokens: (n) => (n / 10000) + '만 토큰',
   },
   en: {
     title: 'ELOP Crew Settings', start: 'Startup and window',
@@ -122,6 +132,9 @@ const TEXT = {
     downloading: (v, p) => 'Downloading ' + (v || 'the new version') + '… ' + p + '%', ready: (v) => v + ' downloaded — restart to apply it',
     available: (v) => (v || 'A new version') + ' is out — install it from the download page', error: 'Could not check (internet or GitHub connection)',
     info: 'About', version: 'Version', about: 'About ELOP Crew', browser: 'Open in browser',
+    compact: 'Agents\' conversations — auto-compact', compactWin: 'Compact at', compactHow: 'Once a conversation grows this big, Claude Code summarises it. Every step reads the whole conversation again, so a long one uses far more. Each agent can have its own',
+    compactVs: 'For VS Code sessions too', compactVsHow: 'Writes the same value into Claude Code\'s settings (~/.claude/settings.json), for every session on this PC',
+    compactAuto: 'auto (Claude Code decides)', tokens: (n) => (n / 1000) + 'k tokens',
   },
 }
 const UPDATE_STATES = ['dev', 'idle', 'checking', 'latest', 'none', 'downloading', 'ready', 'available', 'error']
@@ -161,6 +174,14 @@ async function load() {
   $('installUpdate').hidden = u.status !== 'ready' && u.status !== 'available'
   $('installUpdate').textContent = t(u.status === 'available' ? 'get' : 'install')
   $('updHow').textContent = t('updHow')
+  // the agents' compact window: only with the monitor's server in this app
+  $('compactBox').hidden = !s.compact
+  if (s.compact) {
+    $('compactWindow').replaceChildren(...['auto', 200000, 300000, 500000, 800000].map((v) => new Option(v === 'auto' ? t('compactAuto') : t('tokens', v), String(v))))
+    $('compactWindow').value = String(s.compact.window)
+    $('compactVsCode').checked = s.compact.vscode
+    $('compactVsRow').hidden = !!s.try
+  }
 }
 $('openAtLogin').addEventListener('change', (e) => api.set('openAtLogin', e.target.checked).then(load))
 $('closeToTray').addEventListener('change', (e) => api.set('closeToTray', e.target.checked).then(load))
@@ -170,12 +191,14 @@ $('installHooks').addEventListener('click', () => api.do('installHooks').then(lo
 $('openBrowser').addEventListener('click', () => api.do('openBrowser'))
 $('about').addEventListener('click', () => api.do('about'))
 $('hotkey').addEventListener('change', (e) => api.set('hotkey', e.target.value).then(load))
+$('compactWindow').addEventListener('change', (e) => api.set('compactWindow', e.target.value === 'auto' ? 'auto' : Number(e.target.value)).then(load))
+$('compactVsCode').addEventListener('change', (e) => api.set('compactVsCode', e.target.checked).then(load))
 $('checkUpdates').addEventListener('click', () => api.do('checkUpdates').then(load))
 $('installUpdate').addEventListener('click', () => api.do('installUpdate'))
 api.onChange(load)
 // the hotkey list drawn as the page's own (as fancySelect on the monitor's page): the real select stays, hidden, for
 // its value and its 'change'
-;(function fancy(sel) {
+function fancy(sel) {
   const VALUE = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')
   const wrap = document.createElement('span'); wrap.className = 'fsel'
   sel.replaceWith(wrap)
@@ -217,7 +240,9 @@ api.onChange(load)
   btn.addEventListener('click', () => (pop ? close() : open()))
   btn.addEventListener('keydown', (e) => { if (!pop && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); open() } })
   draw()
-})($('hotkey'))
+}
+fancy($('hotkey'))
+fancy($('compactWindow'))
 load()
 </script>
 </body>

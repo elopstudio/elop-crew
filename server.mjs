@@ -130,6 +130,33 @@ async function saveProjectCheck(body) {
     if (check) p.check = check; else delete p.check
   })
 }
+// How long a monitor agent's conversation may grow before Claude Code compacts it by itself (its autoCompactWindow):
+// the default for every agent that has no value of its own, kept in config.json (300k unless changed; "auto" leaves
+// it to Claude Code). With vscode on, the same value goes into Claude Code's own settings.json, so every other session
+// on this PC (VS Code too) gets it; turned off, the value put there is taken out again (one set by hand is left).
+const COMPACT_DEFAULT = 300000
+const compactWin = (v) => (v === 'auto' ? 'auto' : Number.isInteger(Number(v)) && Number(v) >= 100000 && Number(v) <= 1000000 ? Number(v) : null)
+let compactConf = (() => { const c = loadConfig().compact || {}; return { window: compactWin(c.window) || COMPACT_DEFAULT, vscode: !!c.vscode } })()
+const CLAUDE_SETTINGS = path.join(CLAUDE, 'settings.json')
+async function saveCompact(body) {
+  const window = body.window === undefined ? compactConf.window : compactWin(body.window)
+  if (!window) return 400
+  const vscode = body.vscode === undefined ? compactConf.vscode : !!body.vscode
+  const was = compactConf
+  if (vscode || was.vscode) {
+    let s = {}
+    try { s = JSON.parse(await fsp.readFile(CLAUDE_SETTINGS, 'utf8')) } catch (e) { if (e.code !== 'ENOENT') return 409 }
+    if (vscode) s.autoCompactWindow = window
+    else if (s.autoCompactWindow === was.window) delete s.autoCompactWindow
+    const tmp = CLAUDE_SETTINGS + '.' + process.pid + '.tmp'
+    try { await fsp.mkdir(CLAUDE, { recursive: true }); await fsp.writeFile(tmp, JSON.stringify(s, null, 2) + '\n'); await fsp.rename(tmp, CLAUDE_SETTINGS) } catch { return 500 }
+  }
+  const code = await editConfig((config) => { config.compact = { window, vscode } })
+  if (code !== 200) return code
+  compactConf = { window, vscode }
+  if (window !== was.window) agents.compactChanged().catch(() => {})
+  return 200
+}
 async function saveProjectName(body) {
   const key = String(body.project || '').toLowerCase()
   if (!PROJECT_KEY.test(key)) return 400
@@ -621,7 +648,7 @@ async function buildState() {
     return { project: hit.project, session: hit.sess.name, short: hit.sess.short, nick: hit.sess.nick, nickKo: hit.sess.nickKo, isLeader: !!hit.sess.isLeader, type: w.type, message: w.message, at: w.at }
   }).sort((a, b) => a.at - b.at)
   const recent = outcomes.map((o) => { const hit = bySession.get(o.sessionId); return { at: o.at, agent: hit ? (hit.sess.nickKo || hit.sess.name) : '(other)', tool: o.tool, how: o.how, ms: o.ms } })
-  return { now, version: VERSION, projects: out, approvals, inEditor, recent, token: TOKEN, usage: account.usageNow(), hooks: { ...hookStats, viewerSeenAgo: lastViewAt ? now - lastViewAt : null, openPages: streams.size } }
+  return { now, version: VERSION, projects: out, approvals, inEditor, recent, token: TOKEN, usage: account.usageNow(), compact: { ...compactConf }, hooks: { ...hookStats, viewerSeenAgo: lastViewAt ? now - lastViewAt : null, openPages: streams.size } }
 }
 
 /* ── Hooks: approvals and permission mode ─────── */
@@ -1768,7 +1795,10 @@ const agents = createAgents({
   // the person's language, for a monitor agent's system prompt and the monitor's own messages to it
   langRule, replyIn,
   modDirs: () => modsFound().filter((m) => m.on).map((m) => m.dir),
+  compactDefault: () => compactConf.window,
 })
+// the app's settings window sets the default too (main.cjs)
+globalThis.agentMonitorCompact = { get: () => ({ ...compactConf }), set: (body) => saveCompact(body || {}) }
 // the monitor's assistant behind the floating chat button (assistant.mjs)
 const assistant = createAssistant({
   agents, dataDir: DATA, state: () => cachedState(), notifyPages,
@@ -1895,6 +1925,7 @@ const server = http.createServer(async (req, res) => {
         return
       }
       if (url.pathname === '/api/project-check') { json(await saveProjectCheck(body), {}); return }
+      if (url.pathname === '/api/compact') { json(await saveCompact(body), {}); return }
       if (url.pathname === '/api/order') { json(await saveOrder(body), {}); return }
       if (url.pathname === '/api/processes/kill') { json(await processes.kill(Number(body.pid), await processRoots()), {}); return }
       if (url.pathname === '/api/board') { const code = await editBoard(body); json(code, {}); return }

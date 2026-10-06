@@ -342,6 +342,13 @@ on your own Claude Code login. Its dialog's conversation tab is the full chat:
   **Haiku**), a fixed version (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5), or **Other…** for any model name.
   **Effort** (low, medium, high, extra high, max, or Claude Code's default) is the third pill and changes at once too;
 - attached images go into the message as images; other files by path;
+- **Auto-compact**: a pill beside effort sets when Claude Code compacts the agent's conversation by itself (its
+  `autoCompactWindow`): the default, `auto`, or 200k–800k tokens; it takes effect at once, without a restart. The
+  default for every agent is in the app's Settings (300k unless changed). Every step reads the whole conversation
+  again, and after an hour's rest (the prompt cache gone) it is written into the cache whole: left to `auto` on a 1M
+  model, sessions grew to 970k, and six of them resuming after a usage limit used a fifth of a 5-hour session in three
+  minutes. "For VS Code sessions too" in Settings writes the same value into `~/.claude/settings.json` for every
+  Claude Code session on the PC (off by default; turned off, the value it wrote is taken out again);
 - **Slash commands**: a message that starts with `/` opens a list of Claude Code's commands for the agent's folder,
   the same ones it offers in the terminal and in VS Code: the built-ins (`/compact`, `/context`, `/usage`,
   `/model`, `/effort`, `/clear`, `/init`, `/code-review`…), your own and the project's skills and commands, and

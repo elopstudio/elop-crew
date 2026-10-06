@@ -699,7 +699,7 @@ function showSettings() {
     settingsWin.show(); settingsWin.focus(); return
   }
   settingsWin = new BrowserWindow({
-    ...centreOn(620, 800), resizable: false, minimizable: false, maximizable: false, title: t('settingsTitle'), icon: ICON,
+    ...centreOn(620, 900), resizable: false, minimizable: false, maximizable: false, title: t('settingsTitle'), icon: ICON,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f1116' : '#f2f3f7', autoHideMenuBar: true,
     ...titleBar(),
     webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'settings-preload.cjs') },
@@ -713,6 +713,10 @@ ipcMain.handle('monitor-settings', async (_e, action, key, value) => {
   if (action === 'set' && key === 'openAtLogin' && !TRY) app.setLoginItemSettings({ openAtLogin: !!value, ...LOGIN })
   if (action === 'set' && key === 'closeToTray') writeSettings({ ...cur, closeToTray: !!value })
   if (action === 'set' && key === 'hotkey' && HOTKEYS.includes(value)) { writeSettings({ ...cur, hotkey: value }); registerHotkey() }
+  // the monitor agents' compact window (the server's, in this process)
+  const compact = globalThis.agentMonitorCompact
+  if (action === 'set' && key === 'compactWindow' && compact) await compact.set({ window: value })
+  if (action === 'set' && key === 'compactVsCode' && compact && !TRY) await compact.set({ vscode: !!value })
   if (action === 'checkUpdates') checkUpdates()
   if (action === 'installUpdate') installUpdate()
   if (action === 'openData') shell.openPath(dataDir())
@@ -734,6 +738,7 @@ ipcMain.handle('monitor-settings', async (_e, action, key, value) => {
     openAtLogin: app.getLoginItemSettings(LOGIN).openAtLogin, closeToTray: s2.closeToTray !== false,
     dataDir: dataDir(), ownServer, hooks: hookState(), node: !!findNode(), version: app.getVersion(), url: URL,
     hotkey: hotkey(), hotkeys: HOTKEYS, hotkeyOk, update: { ...update }, platform: process.platform, lang, try: TRY,
+    compact: globalThis.agentMonitorCompact ? globalThis.agentMonitorCompact.get() : null,
   }
 })
 function quit() {

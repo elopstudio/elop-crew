@@ -47,7 +47,7 @@ export const systemNote = (text) => SYSTEM_NOTES.find(([re]) => re.test(String(t
 export const systemNoteText = (text) => { for (const [re] of SYSTEM_NOTES) { const m = String(text || '').match(re); if (m) return (m[1] || '').replace(/\n\n\(Write to the user in [A-Za-z]+\.\)\s*$/, '').trim().slice(0, 1000) } return '' }
 const assistantLookOf = (v) => (v && v.acc === 'crown' && Number.isInteger(v.c) && v.c >= 0 && v.c < 8 ? { c: v.c, acc: 'crown' } : avatarOf(v))
 
-export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd, langRule, replyIn, modDirs }) {
+export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd, langRule, replyIn, modDirs, compactDefault }) {
   // what the agent is for, one line written by the user (shown under its name)
   const descOf = (v) => clip(String(v || '').replace(/[\x00-\x1f<>]/g, ' ').replace(/\s+/g, ' ').trim(), 80)
   // its name: one for both languages (a string) or one per language ({ en, ko }); the server reads both shapes
@@ -60,7 +60,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // One that was in the middle of a turn when the monitor went away (quit, crash, an update) carries on by itself, and
   // one whose turn had ended just before is asked whether that turn was waiting for this restart (an install it started).
   const FILE = path.join(dataDir || root, '.runtime', 'agents.json')
-  const KEEP = ['id', 'kind', 'cwd', 'key', 'name', 'nick', 'desc', 'avatar', 'mode', 'model', 'effort', 'fast', 'sessionId', 'newSessionId', 'startedAt', 'midTurn', 'turnEndedAt', 'loginLost', 'limitHit', 'forkFrom', 'forkedFrom']
+  const KEEP = ['id', 'kind', 'cwd', 'key', 'name', 'nick', 'desc', 'avatar', 'mode', 'model', 'effort', 'fast', 'sessionId', 'newSessionId', 'startedAt', 'midTurn', 'turnEndedAt', 'compact', 'loginLost', 'limitHit', 'forkFrom', 'forkedFrom']
   const CARRY_ON = 'The agent monitor restarted (an update or a restart of the app) and cut your last turn short. Please carry on where you left off, and keep replying in the language you have been using with the user.'
   const JUST_AFTER = 'The agent monitor restarted (an update or a restart of the app) right after your last turn ended. If that turn started something this restart was part of — installing or updating the app, a restart you asked for — check now that it worked and tell the user what you found. If it had nothing to do with it, just say so in one line.'
   const JUST_AFTER_MS = 2 * 60 * 1000   // how soon after a turn ends a restart counts as "right after"
@@ -80,6 +80,14 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // the limit is the account's: logged in as another one, it may well have usage left — carried on at once
   const LIMIT_ACCOUNT = 'Your Claude usage limit stopped your last turn, and Claude Code is now logged in as another account, which has its own limits. Please carry on where you left off, and keep replying in the language you have been using with the user.'
   const LIMIT_GRACE_MS = 90 * 1000, LIMIT_RETRY_MS = 30 * 60 * 1000
+  // How long a conversation may grow before Claude Code compacts it by itself (its autoCompactWindow, in tokens, or
+  // "auto"): the agent's own choice, else the monitor's default. Left to "auto" on a 1M model, sessions grew to 970k,
+  // and every step read all of it again — after an hour's rest (the cache gone) six of them wrote 3M tokens into the
+  // cache within a minute, a fifth of a 5-hour session.
+  const compactOf = (v) => (v === 'auto' ? 'auto' : Number.isInteger(Number(v)) && Number(v) >= 100000 && Number(v) <= 1000000 ? Number(v) : null)
+  const windowOf = (a) => compactOf(a.compact) || compactOf(compactDefault?.()) || 'auto'
+  // the session's flag settings, given whole each time (a new set may replace the last): effort and the compact window
+  const flagSettings = (a) => ({ effortLevel: a.effort || null, autoCompactWindow: windowOf(a) })
   // when it resets, from its words: "resets 4:50pm", "resets Oct 4, 9am", or the older "…limit reached|1759377600"
   // (a time of day is taken as this PC's, the zone the message names being the account's, usually the same)
   function resetOf(text, now) {
@@ -458,6 +466,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     a.procHasRole = a.kind === 'assistant' && !!a.system
     if (a.model) args.push('--model', a.model)
     if (a.effort) args.push('--effort', a.effort)
+    args.push('--settings', JSON.stringify({ autoCompactWindow: windowOf(a) }))
     // quick start: only the monitor's own tool, none of the user's MCP servers and connectors
     if (a.fast) args.push('--strict-mcp-config')
     // the mods (not for the assistant, whose chat draws none of it)
@@ -746,16 +755,18 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       if (MODES.includes(body.mode)) a.mode = body.mode
       if (typeof body.model === 'string') { a.model = body.model.replace(/[^\w.:[\]-]/g, ''); a.initModel = '' }
       if (typeof body.effort === 'string') a.effort = effortOf(body.effort)
+      // '' follows the monitor's default
+      if ('compact' in body) a.compact = body.compact === '' || body.compact == null ? '' : compactOf(body.compact) || a.compact || ''
       if (typeof body.nick === 'string' || typeof body.nickKo === 'string') a.nick = nickOf(body.nick, typeof body.nickKo === 'string' ? body.nickKo : body.nick)
       if (body.avatar !== undefined) a.avatar = a.kind === 'assistant' ? assistantLookOf(body.avatar) : avatarOf(body.avatar)
       if (typeof body.desc === 'string') a.desc = descOf(body.desc)
-      if (typeof body.nick === 'string' || typeof body.nickKo === 'string' || body.avatar !== undefined || typeof body.desc === 'string') { save(); notifyPages(); if (!('mode' in body) && !('model' in body) && !('effort' in body)) return [200, {}] }
+      if (typeof body.nick === 'string' || typeof body.nickKo === 'string' || body.avatar !== undefined || typeof body.desc === 'string') { save(); notifyPages(); if (!('mode' in body) && !('model' in body) && !('effort' in body) && !('compact' in body)) return [200, {}] }
       save()
-      const what = 'mode ' + a.mode + (a.model ? ' · model ' + a.model : '') + (a.effort ? ' · effort ' + a.effort : '')
+      const what = 'mode ' + a.mode + (a.model ? ' · model ' + a.model : '') + (a.effort ? ' · effort ' + a.effort : '') + ' · compact at ' + windowOf(a)
       if (!a.proc) { emit(a, { kind: 'note', text: what + ' — from the next message' }); notifyPages(); return [200, {}] }
       const asks = [...('mode' in body ? [{ subtype: 'set_permission_mode', mode: a.mode }] : []), ...('model' in body ? [{ subtype: 'set_model', ...(a.model ? { model: a.model } : {}) }] : []),
-        // effort has no request of its own: it goes in as the session's effortLevel setting
-        ...('effort' in body ? [{ subtype: 'apply_flag_settings', settings: { effortLevel: a.effort || null } }] : [])]
+        // effort and the compact window have no request of their own: they go in as the session's settings
+        ...('effort' in body || 'compact' in body ? [{ subtype: 'apply_flag_settings', settings: flagSettings(a) }] : [])]
       const answers = await Promise.all(asks.map((r) => control(a, r)))
       if (answers.every((r) => r.subtype === 'success')) emit(a, { kind: 'note', text: what + ' — now' })
       else if (a.state === 'working') { a.restartAfterTurn = true; emit(a, { kind: 'note', text: what + ' — after this turn' }) }
@@ -804,7 +815,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       // forkedFrom: the VS Code session it was taken over from, for good (forkFrom only lasts until its first turn)
       managed: true, agentId: a.id, pid: a.proc?.pid || 0, loginLost: a.loginLost || 0, limitHit: a.limitHit || null, lastFail: a.lastFail || null, forkedFrom: a.forkedFrom || '', sessionId: a.sessionId || a.newSessionId, name: a.name, avatar: a.avatar, nick: a.nick, desc: a.desc || '', cwd: a.cwd, root: projectRoot(a.cwd), key: a.key,
       state: a.state === 'working' ? 'working' : a.state === 'idle' ? 'waiting' : 'resting', running: !!a.proc,
-      statusSince: a.stateSince, startedAt: a.startedAt, mode: a.mode, model: a.model, ctxWindow: a.ctxWindow || 0, effort: a.effort || '', activity: a.activity, activityAt: a.activityAt, lastEventAt: a.lastAt,
+      statusSince: a.stateSince, startedAt: a.startedAt, mode: a.mode, model: a.model, ctxWindow: a.ctxWindow || 0, effort: a.effort || '', compact: a.compact || '', activity: a.activity, activityAt: a.activityAt, lastEventAt: a.lastAt,
     }))
   }
   const byAgentSession = (sessionId) => [...agents.values()].find((a) => a.sessionId === sessionId || a.newSessionId === sessionId)
@@ -864,9 +875,18 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     }
     return a
   }
-  const assistantState = () => { const a = agents.get('assistant'); return a ? { state: a.state, running: !!a.proc, mode: a.mode, model: a.model, effort: a.effort || '', sessionId: a.sessionId, avatar: a.avatar || null, limitHit: a.limitHit || null } : null }
+  // the monitor's default changed: every running agent that follows it gets it now (or, mid-turn, when its turn is over)
+  async function compactChanged() {
+    for (const a of agents.values()) {
+      if (a.compact || !a.proc) continue
+      const r = await control(a, { subtype: 'apply_flag_settings', settings: flagSettings(a) })
+      if (r.subtype === 'success') continue
+      if (a.state === 'working') a.restartAfterTurn = true; else { a.respawn = true; stop(a) }
+    }
+  }
+  const assistantState = () => { const a = agents.get('assistant'); return a ? { state: a.state, running: !!a.proc, mode: a.mode, model: a.model, effort: a.effort || '', compact: a.compact || '', sessionId: a.sessionId, avatar: a.avatar || null, limitHit: a.limitHit || null } : null }
   // a line in the assistant's chat that is not a message: an alert, or something it did on its own
   const noteTo = (id, ev) => { const a = agents.get(id); if (a) emit(a, ev) }
 
-  return { reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, agentOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
+  return { reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, agentOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, compactChanged, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
 }
