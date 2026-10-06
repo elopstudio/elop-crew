@@ -11,6 +11,13 @@ contextBridge.exposeInMainWorld('monitorTerm', {
   close: (id) => call('close', id),
   // a name the person gave the tab, kept while the shell runs
   rename: (id, title) => call('rename', id, title),
+  // pinned (kept on the left, closed only from its menu), the tabs' order, a tab's output cleared
+  pin: (id, on) => call('pin', id, on),
+  order: (ids) => call('order', ids),
+  clear: (id) => call('clear', id),
+  // a tab's own menu at x, y; what is picked comes back by onCommand
+  tabMenu: (id, state, x, y) => call('tabMenu', id, state, x, y),
+  onCommand: (fn) => ipcRenderer.on('monitor-term-cmd', (_e, cmd, id) => fn(cmd, id)),
   // the shells to start, as a menu under the button at x, y
   menu: (x, y) => call('menu', x, y),
   hide: () => call('hide'),

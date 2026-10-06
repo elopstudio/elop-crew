@@ -26,6 +26,14 @@ body{display:flex;flex-direction:column;font:600 12px system-ui,"Segoe UI","Noto
 .tab .go small{font-weight:500;opacity:.75}
 .tab .x{appearance:none;border:0;background:none;color:inherit;font:15px/1 system-ui,sans-serif;padding:3px 8px 4px 4px;cursor:pointer;opacity:.6}
 .tab .x:hover{opacity:1;color:var(--text)}
+/* pinned: on the left, a pin instead of the close button */
+.tab.pinned .x{display:none}
+.tab.pinned .go{padding-right:10px}
+.tab .pin{width:11px;height:11px;margin-right:5px;vertical-align:-1px;color:var(--accent)}
+/* dragged to another place: a line where it will land */
+.tab.dragging{opacity:.4}
+.tab.drop-before{box-shadow:inset 2px 0 0 var(--accent)}
+.tab.drop-after{box-shadow:inset -2px 0 0 var(--accent)}
 button.ic{appearance:none;border:0;background:none;color:var(--muted);width:26px;height:24px;border-radius:7px;display:grid;place-items:center;cursor:pointer;flex:none;font:700 15px/1 system-ui,sans-serif}
 button.ic:hover{background:var(--hover);color:var(--text)}
 button.ic svg{width:14px;height:14px}
@@ -55,11 +63,11 @@ const qs = new URLSearchParams(location.search), MAC = qs.get('platform') === 'd
 const TEXT = {
   ko: {
     newTerm: '새 터미널 (Ctrl+Shift+`)', pick: '셸 고르기', hide: '패널 숨기기 (Ctrl+`)', close: '닫기', tabs: '터미널',
-    cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ', restored: '앱이 다시 시작되어 여기부터 새 셸입니다', rename: '더블클릭하거나 F2 를 눌러 이름 바꾸기', renamePh: '비우면 원래 이름',
+    cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ', restored: '앱이 다시 시작되어 여기부터 새 셸입니다', rename: '더블클릭하거나 F2 를 눌러 이름 바꾸기 · 끌어서 옮기기 · 오른쪽 클릭: 고정·복제·닫기', pinned: '고정됨', renamePh: '비우면 원래 이름',
   },
   en: {
     newTerm: 'New terminal (Ctrl+Shift+`)', pick: 'Pick a shell', hide: 'Hide the panel (Ctrl+`)', close: 'Close', tabs: 'Terminals',
-    cmd: 'Command Prompt', failed: 'Could not start the shell: ', restored: 'The app restarted — a new shell from here', rename: 'Double-click or press F2 to rename', renamePh: 'Empty for the usual name',
+    cmd: 'Command Prompt', failed: 'Could not start the shell: ', restored: 'The app restarted — a new shell from here', rename: 'Double-click or press F2 to rename · drag to move · right-click: pin, duplicate, close', pinned: 'Pinned', renamePh: 'Empty for the usual name',
   },
 }
 let lang = TEXT[qs.get('lang')] ? qs.get('lang') : 'en'
@@ -83,17 +91,88 @@ const theme = () => THEMES[dark.matches ? 'dark' : 'light']
 dark.addEventListener('change', () => { for (const x of terms.values()) x.term.options.theme = theme() })
 
 /* ── the shells, one tab each ── */
-const terms = new Map()   // id → { id, term, fit, view, tab, name, title, cwd } (title: a name given to it, kept by the app)
+const terms = new Map()   // id → { id, term, fit, view, tab, name, title, pinned, cwd } (title: a name given to it; kept by the app)
 let active = null
 const base = (p) => String(p || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p
 function label(x) {
   const go = x.tab.querySelector('.go')
   if (x.title) go.replaceChildren(x.title)
   else go.replaceChildren(document.createTextNode((x.shell === 'cmd' ? t('cmd') : x.name) + ' '), Object.assign(document.createElement('small'), { textContent: base(x.cwd) }))
-  go.title = x.cwd + '\n' + t('rename')
+  if (x.pinned) go.insertAdjacentHTML('afterbegin', PIN)
+  x.tab.classList.toggle('pinned', !!x.pinned)
+  go.title = (x.pinned ? t('pinned') + ' · ' : '') + x.cwd + '\n' + t('rename')
   x.tab.querySelector('.x').title = t('close')
   x.tab.querySelector('.x').setAttribute('aria-label', t('close'))
 }
+const PIN = '<svg class="pin" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 1.5h4M7 1.5v4.2L4.5 8.5h7L9 5.7V1.5M8 8.5v6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+const tabsInOrder = () => [...$('tabs').children].map((n) => terms.get(Number(n.dataset.id))).filter(Boolean)
+// pinned ones first, the rest after, each as they stand; the order told to the app
+function settle() {
+  const all = tabsInOrder()
+  $('tabs').append(...all.filter((x) => x.pinned).map((x) => x.tab), ...all.filter((x) => !x.pinned).map((x) => x.tab))
+  api.order(tabsInOrder().map((x) => x.id))
+}
+function move(x, step) {
+  const all = tabsInOrder(), i = all.indexOf(x), to = all[i + step]
+  if (!to || !!to.pinned !== !!x.pinned) return
+  if (step < 0) to.tab.before(x.tab); else to.tab.after(x.tab)
+  settle()
+  x.tab.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+}
+function setPin(x, on) { x.pinned = on; api.pin(x.id, on); label(x); settle() }
+// close many at once: the pinned ones stay
+function closeMany(list) { for (const x of list) if (!x.pinned) api.close(x.id) }
+function clearOut(x) { x.term.clear(); api.clear(x.id) }
+async function dup(x) {
+  const n = await openNew({ shell: x.shell, cwd: x.cwd })
+  if (n) { (x.pinned ? tabsInOrder().filter((y) => y.pinned).pop().tab : x.tab).after(n.tab); settle() }
+}
+// a tab's menu (right-click), and what is picked in it
+function tabMenu(x, e) {
+  e.preventDefault()
+  const all = tabsInOrder(), i = all.indexOf(x), same = (y) => y && !!y.pinned === !!x.pinned
+  api.tabMenu(x.id, {
+    pinned: !!x.pinned, left: same(all[i - 1]), right: same(all[i + 1]),
+    others: all.some((y) => y !== x && !y.pinned), toRight: all.slice(i + 1).some((y) => !y.pinned),
+  }, e.clientX, e.clientY)
+}
+api.onCommand((cmd, id) => {
+  const x = terms.get(id)
+  if (!x) return
+  if (cmd === 'rename') { select(id); rename(x) }
+  if (cmd === 'pin' || cmd === 'unpin') setPin(x, cmd === 'pin')
+  if (cmd === 'dup') dup(x)
+  if (cmd === 'left') move(x, -1)
+  if (cmd === 'right') move(x, 1)
+  if (cmd === 'clear') clearOut(x)
+  if (cmd === 'close') api.close(id)
+  if (cmd === 'closeOthers') closeMany(tabsInOrder().filter((y) => y !== x))
+  if (cmd === 'closeRight') { const all = tabsInOrder(); closeMany(all.slice(all.indexOf(x) + 1)) }
+})
+
+// dragging a tab to another place; pinned ones stay among the pinned, the rest after them
+let dragged = null
+function drags(x) {
+  const tab = x.tab
+  tab.draggable = true
+  const clear = () => { for (const n of $('tabs').children) n.classList.remove('drop-before', 'drop-after') }
+  tab.addEventListener('dragstart', (e) => { dragged = x; tab.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', '') })
+  tab.addEventListener('dragend', () => { dragged = null; tab.classList.remove('dragging'); clear() })
+  tab.addEventListener('dragover', (e) => {
+    if (!dragged || dragged === x || !!dragged.pinned !== !!x.pinned) return
+    e.preventDefault()
+    const r = tab.getBoundingClientRect(), after = e.clientX > r.left + r.width / 2
+    clear(); tab.classList.add(after ? 'drop-after' : 'drop-before')
+  })
+  tab.addEventListener('dragleave', () => tab.classList.remove('drop-before', 'drop-after'))
+  tab.addEventListener('drop', (e) => {
+    if (!dragged || dragged === x || !!dragged.pinned !== !!x.pinned) return
+    e.preventDefault()
+    if (tab.classList.contains('drop-after')) tab.after(dragged.tab); else tab.before(dragged.tab)
+    clear(); settle(); select(dragged.id)
+  })
+}
+
 function add(info, buf) {
   const view = document.createElement('div')
   view.className = 'view'
@@ -108,16 +187,19 @@ function add(info, buf) {
   const tab = document.createElement('span')
   tab.className = 'tab'
   tab.setAttribute('role', 'tab')
+  tab.dataset.id = info.id
   tab.innerHTML = '<button class="go" type="button"></button><button class="x" type="button">×</button>'
   $('tabs').append(tab)
   const x = { ...info, term, fit, view, tab }
   terms.set(info.id, x)
   label(x)
+  drags(x)
+  tab.addEventListener('contextmenu', (e) => tabMenu(x, e))
   tab.querySelector('.go').addEventListener('click', () => select(info.id))
   tab.querySelector('.go').addEventListener('dblclick', () => rename(x))
-  tab.querySelector('.go').addEventListener('keydown', (e) => { if (e.key === 'F2') { e.preventDefault(); rename(x) } })
+  tab.querySelector('.go').addEventListener('keydown', (e) => { if (e.key === 'F2') { e.preventDefault(); rename(x) } else if (tabKeys(x, e)) e.preventDefault() })
   tab.querySelector('.x').addEventListener('click', () => api.close(info.id))
-  tab.addEventListener('auxclick', (e) => { if (e.button === 1) api.close(info.id) })
+  tab.addEventListener('auxclick', (e) => { if (e.button === 1 && !x.pinned) api.close(info.id) })
   term.onData((d) => api.write(info.id, d))
   term.onResize(({ cols, rows }) => api.resize(info.id, cols, rows))
   keys(x)
@@ -166,9 +248,21 @@ new ResizeObserver(() => fitNow(terms.get(active))).observe($('views'))
 // copy with a selection, else Ctrl+C goes to the shell; paste from the app's clipboard; right-click does either
 async function paste(x) { const s = await api.paste(); if (s) x.term.paste(s) }
 function copy(x) { const s = x.term.getSelection(); if (!s) return false; api.copy(s); x.term.clearSelection(); return true }
+// Ctrl+PageUp / PageDown: the tab before or after; with Shift, the tab itself moves. Cmd+K clears it on a Mac (on
+// Windows Ctrl+K is the shells' own: bash's kill to the end of the line)
+function tabKeys(x, e) {
+  if (!e.ctrlKey || e.altKey || (e.key !== 'PageUp' && e.key !== 'PageDown')) return false
+  const step = e.key === 'PageUp' ? -1 : 1
+  if (e.shiftKey) { move(x, step); return true }
+  const all = tabsInOrder(), to = all[(all.indexOf(x) + step + all.length) % all.length]
+  if (to) select(to.id)
+  return true
+}
 function keys(x) {
   x.term.attachCustomKeyEventHandler((e) => {
     if (e.type !== 'keydown') return true
+    if (tabKeys(x, e)) { e.preventDefault(); return false }
+    if (MAC && e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); clearOut(x); return false }
     const mod = MAC ? e.metaKey : e.ctrlKey, k = e.key.toLowerCase()
     if (mod && k === 'c' && (e.shiftKey || MAC || x.term.hasSelection())) { e.preventDefault(); copy(x); return false }
     if (mod && k === 'v') { e.preventDefault(); paste(x); return false }
@@ -186,7 +280,7 @@ async function openNew(o) {
   $('msg').textContent = ''
   // as big as the one shown, so the first prompt is drawn at the right width
   const now = terms.get(active)?.term
-  try { const info = await api.open({ ...o, cols: now?.cols, rows: now?.rows }); if (!terms.has(info.id)) add(info) }
+  try { const info = await api.open({ ...o, cols: now?.cols, rows: now?.rows }); return terms.get(info.id) || add(info) }
   catch (e) { $('msg').textContent = t('failed') + String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') }
 }
 const early = new Map()   // id → output from a shell whose tab is not drawn yet
@@ -198,7 +292,7 @@ api.onExit((id) => {
   terms.delete(id)
   // the last one gone, the panel goes too, as VS Code's does
   if (!terms.size) { active = null; api.hide() }
-  else if (active === id) select([...terms.keys()].pop())
+  else if (active === id) select(tabsInOrder().pop().id)
 })
 // started from the app's shell menu
 api.onOpened((info) => { if (!terms.has(info.id)) add(info); else select(info.id) })
@@ -225,7 +319,7 @@ const ready = api.list().then(async ({ running, saved }) => {
   for (const info of running) add(info, info.buf)
   for (const s of saved) {
     try {
-      const info = await api.open({ shell: s.shell, cwd: s.cwd, title: s.title, inherit: true, ...size() })
+      const info = await api.open({ shell: s.shell, cwd: s.cwd, title: s.title, pinned: !!s.pinned, inherit: true, ...size() })
       add(info, (typeof s.buf === 'string' ? s.buf : '') + '\x1b[0m\r\n\x1b[2m── ' + t('restored') + ' ──\x1b[0m\r\n')
     } catch {}
   }

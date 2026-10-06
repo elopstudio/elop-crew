@@ -78,7 +78,7 @@ let saveTimer = null
 function save() {
   clearTimeout(saveTimer); saveTimer = null
   if (!keepFile) return
-  const tabs = [...terms.values()].map(({ shell, title, cwd, buf }) => ({ shell, title, cwd, buf: buf.slice(-SAVED) }))
+  const tabs = [...terms.values()].map(({ shell, title, pinned, cwd, buf }) => ({ shell, title, pinned, cwd, buf: buf.slice(-SAVED) }))
   try { fs.mkdirSync(path.dirname(keepFile), { recursive: true }); fs.writeFileSync(keepFile, JSON.stringify(tabs)) } catch {}
 }
 // output only says the file is due: written every few seconds, so an app killed (an update installing) loses little
@@ -96,7 +96,7 @@ function saved() {
 
 // inherit: the shell starts where the panel's cursor is, under the old output drawn there, instead of on a cleared
 // screen (Windows' console asks the panel where its cursor is; elsewhere a shell never clears it)
-function open({ shell, cwd, cols, rows, title, inherit } = {}) {
+function open({ shell, cwd, cols, rows, title, pinned, inherit } = {}) {
   const all = shells()
   const sh = all.find((s) => s.id === shell) || all[0]
   if (!sh) throw new Error('No shell found')
@@ -108,7 +108,7 @@ function open({ shell, cwd, cols, rows, title, inherit } = {}) {
     ...(WIN && inherit ? { conptyInheritCursor: true } : {}),
   })
   const id = nextId++
-  const t = { p, id, shell: sh.id, name: sh.name, title: String(title || '').trim().slice(0, 40), cwd: dir, buf: '' }
+  const t = { p, id, shell: sh.id, name: sh.name, title: String(title || '').trim().slice(0, 40), pinned: !!pinned, cwd: dir, buf: '' }
   terms.set(id, t)
   p.onData((d) => {
     t.buf += d.replace(/\x1b\[6n/g, '')
@@ -120,9 +120,21 @@ function open({ shell, cwd, cols, rows, title, inherit } = {}) {
   p.onExit(({ exitCode }) => { flush(); terms.delete(id); send('exit', id, exitCode); if (!stopping) save() })
   restored = true   // a shell started before any was restored: the old ones are not brought back over it
   save()
-  return { id, shell: t.shell, name: t.name, title: t.title, cwd: t.cwd }
+  return { id, shell: t.shell, name: t.name, title: t.title, pinned: t.pinned, cwd: t.cwd }
 }
-const list = () => [...terms.values()].map(({ id, shell, name, title, cwd, buf }) => ({ id, shell, name, title, cwd, buf }))
+const list = () => [...terms.values()].map(({ id, shell, name, title, pinned, cwd, buf }) => ({ id, shell, name, title, pinned, cwd, buf }))
+function pin(id, on) { const t = terms.get(id); if (t) { t.pinned = !!on; save() } }
+// the tabs' order, as the panel shows it (dragged, moved): kept for the panel drawn again and the next start
+function order(ids) {
+  if (!Array.isArray(ids)) return
+  const all = [...terms.entries()]
+  terms.clear()
+  for (const id of ids) { const e = all.find(([k]) => k === id); if (e) terms.set(e[0], e[1]) }
+  for (const [k, t] of all) if (!terms.has(k)) terms.set(k, t)
+  save()
+}
+// the panel's output cleared: not drawn again from what was kept either
+function clearBuf(id) { const t = terms.get(id); if (t) { t.buf = ''; save() } }
 function rename(id, title) { const t = terms.get(id); if (t) { t.title = String(title || '').trim().slice(0, 40); save() } }
 function write(id, data) { const t = terms.get(id); if (t && typeof data === 'string') t.p.write(data) }
 function resize(id, cols, rows) { const t = terms.get(id); if (t && cols > 1 && rows > 0) { try { t.p.resize(cols | 0, rows | 0) } catch {} } }
@@ -131,6 +143,6 @@ function close(id) { const t = terms.get(id); if (t) { try { t.p.kill() } catch 
 function closeAll() { if (stopping) return; save(); stopping = true; for (const t of terms.values()) { try { t.p.kill() } catch {} } terms.clear() }
 
 module.exports = {
-  shells, open, list, write, resize, rename, close, closeAll, saved, count: () => terms.size,
+  shells, open, list, write, resize, rename, pin, order, clearBuf, close, closeAll, saved, count: () => terms.size,
   onSend: (fn) => { send = fn }, keepIn: (file) => { keepFile = file },
 }

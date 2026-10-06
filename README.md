@@ -452,8 +452,10 @@ itself. So a new PC needs only **Claude Code**, installed and signed in.
 - **A terminal panel**, as in VS Code: the terminal button in the strip, or **Ctrl + `**, opens it under the page, with
   the shells installed here — PowerShell 7, Windows PowerShell, Command Prompt, Git Bash, WSL (on a Mac, the login
   shell and the others in `/etc/shells`). A new one (**+**, or **Ctrl + Shift + `**) starts in the folder of the project
-  picked on the page; **⌄** picks the shell (it becomes the default) or another project's folder. A tab per shell (double-click
-  it or press **F2** to name it), drag the
+  picked on the page; **⌄** picks the shell (it becomes the default) or another project's folder. A tab per shell: double-click it or
+  press **F2** to name it, drag it (or **Ctrl + Shift + PgUp / PgDn**) to move it, **Ctrl + PgUp / PgDn** to go to the next one;
+  right-click for pin (kept on the left, no × — closed only from its menu), duplicate (same shell and folder), clear,
+  close the others or those to the right (pinned ones stay). Drag the
   top edge for the height, **Ctrl + C** copies a selection (otherwise it goes to the shell), **Ctrl + V** or a right-click
   pastes. Hiding the panel keeps the shells running. A shell cannot outlive the app: when it starts again (an update, a
   restart), the panel comes back with the same tabs — shell, folder, name — and their earlier output, a new shell under it. Desktop app only — the page in a
