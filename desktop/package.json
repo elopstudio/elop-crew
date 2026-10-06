@@ -24,9 +24,16 @@
       "strip.html",
       "settings.html",
       "settings-preload.cjs",
+      "terminal.cjs",
+      "terminal-preload.cjs",
+      "terminal.html",
       "hooks-setup.cjs",
       "icon.png",
-      "package.json"
+      "package.json",
+      "!node_modules/node-pty/{src,deps,third_party,scripts,typings,binding.gyp}",
+      "!node_modules/node-pty/**/*.{pdb,map}",
+      "!node_modules/node-pty/lib/**/*.test.js",
+      "!node_modules/@xterm/**/*.{map,mjs}"
     ],
     "extraResources": [
       {
@@ -95,13 +102,20 @@
         "repo": "elop-crew",
         "releaseType": "release"
       }
-    ]
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**"
+    ],
+    "npmRebuild": false
   },
   "devDependencies": {
     "electron": "^44.5.0",
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "electron-updater": "^6.8.9",
+    "node-pty": "^1.1.0"
   }
 }

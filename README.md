@@ -436,7 +436,7 @@ user — no admin rights — and starts. The installer is not code-signed, so Wi
 itself. So a new PC needs only **Claude Code**, installed and signed in.
 
 **The window.**
-- No Windows title bar. A thin title strip on the window buttons' line holds **← → ⟳**, **− 100% +** and **⚙ settings**;
+- No Windows title bar. A thin title strip on the window buttons' line holds **← → ⟳**, **− 100% +**, the terminal and **⚙ settings**;
   drag it to move the window. Zooming (buttons, **Ctrl + wheel**, **Ctrl + − / 0 / =**) scales the page only — the strip
   stays put — and is remembered. **Alt + ← / →** and **F5** work too; project tabs are history entries.
 - The window opens where it was left, at the same size, maximised if it was — after a restart or an update too. If
@@ -445,6 +445,13 @@ itself. So a new PC needs only **Claude Code**, installed and signed in.
 - **Something waiting for you:** while requests wait, the taskbar button and the tray icon carry an orange dot and the
   tray tooltip counts them. A new request flashes the taskbar and sends a desktop notification if the window is not in
   front; so do an agent that looks stuck and a limit passing 80 % or 95 %. Clicking a notification opens the window.
+- **A terminal panel**, as in VS Code: the terminal button in the strip, or **Ctrl + `**, opens it under the page, with
+  the shells installed here — PowerShell 7, Windows PowerShell, Command Prompt, Git Bash, WSL (on a Mac, the login
+  shell and the others in `/etc/shells`). A new one (**+**, or **Ctrl + Shift + `**) starts in the folder of the project
+  picked on the page; **⌄** picks the shell (it becomes the default) or another project's folder. A tab per shell, drag the
+  top edge for the height, **Ctrl + C** copies a selection (otherwise it goes to the shell), **Ctrl + V** or a right-click
+  pastes. Hiding the panel keeps the shells running; quitting the app ends them. Desktop app only — the page in a
+  browser never reaches a shell.
 - **A shortcut from anywhere** (**Ctrl + Alt + J** by default) brings the window up with the keys on the page, so the number
   keys answer the first request at once; pressing it again hides the window. If another program has it, the app takes
   the next free one — pick another in the settings.

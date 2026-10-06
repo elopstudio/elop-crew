@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('monitorApp', {
   zoomReset: () => call('zoom-reset'),
   state: () => call('state'),
   settings: () => call('settings'),
+  // the terminal panel under the page: shown or hidden
+  terminal: () => call('terminal'),
   account: () => call('account'),
   // the theme picked in the page's menu (system, light or dark): the window's header, title bar and settings follow
   theme: (v) => call('theme:' + v),

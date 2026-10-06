@@ -1,6 +1,6 @@
 // ELOP Crew (AI Agent Monitor) as a desktop app: runs the monitor server inside the app, shows it in its own window,
 // and lives in the tray — so it no longer depends on a terminal or on VS Code staying open.
-const { app, BaseWindow, BrowserWindow, WebContentsView, Tray, Menu, shell, dialog, nativeImage, nativeTheme, ipcMain, Notification, globalShortcut, screen } = require('electron')
+const { app, BaseWindow, BrowserWindow, WebContentsView, Tray, Menu, shell, dialog, nativeImage, nativeTheme, ipcMain, Notification, globalShortcut, screen, clipboard } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const http = require('node:http')
@@ -13,6 +13,8 @@ const CODE = app.isPackaged ? path.join(process.resourcesPath, 'monitor') : path
 const ICON = path.join(__dirname, 'icon.png')
 const MAC = process.platform === 'darwin'
 const RELEASES = 'https://github.com/elopstudio/elop-crew/releases/latest'
+// the terminal panel's shells; loaded before the server sets its PORT and MONITOR_HOME, which the shells must not get
+const terminals = require('./terminal.cjs')
 
 /* ── settings: where the monitor keeps config.json, boards/ and its agent list ── */
 // read before startServer sets it for the server
@@ -45,6 +47,7 @@ function dataDir() {
 const TEXT = {
   ko: {
     tryName: 'ELOP Crew (테스트)', install: '설치', later: '나중에',
+    termCmd: '명령 프롬프트', termIn: '프로젝트 폴더에서 열기', termFailed: '셸을 시작하지 못했습니다.',
     hooksAgain: 'Claude Code hook을 이 앱 기준으로 다시 설치할까요?', hooksUpdate: '모니터 hook을 새 버전으로 갱신할까요?', hooksAsk: 'Claude Code에 모니터 hook을 설치할까요?',
     hooksWhy: (file) => '승인·질문에 답하기, 권한 모드 표시, 에이전트에게 메시지 보내기, 리더에게 팀원 알려 주기에 필요합니다.\n' + file + ' 의 모니터 항목만 추가·교체하고, 다른 설정은 그대로 둡니다 (백업: settings.json.before-agent-monitor).\n',
     hooksNode: 'hook은 이 PC의 Node.js로 실행됩니다.', hooksNoNode: 'Node.js가 없어서 hook은 이 앱으로 실행됩니다.',
@@ -69,6 +72,7 @@ const TEXT = {
   },
   en: {
     tryName: 'ELOP Crew (test)', install: 'Install', later: 'Later',
+    termCmd: 'Command Prompt', termIn: 'Open in a project folder', termFailed: 'Could not start the shell.',
     hooksAgain: 'Reinstall the Claude Code hooks for this app?', hooksUpdate: 'Update the monitor hooks to the new version?', hooksAsk: 'Install the monitor hooks in Claude Code?',
     hooksWhy: (file) => 'They let you answer approvals and questions, show permission modes, send messages to agents, and tell leaders who is on their team.\nOnly the monitor\'s entries in ' + file + ' are added or replaced; every other setting stays as it is (backup: settings.json.before-agent-monitor).\n',
     hooksNode: 'The hooks run on this PC\'s Node.js.', hooksNoNode: 'Node.js was not found, so the hooks run on this app.',
@@ -103,6 +107,7 @@ function setLang(v) {
   if (tray) tray.setContextMenu(trayMenu())
   paintBadge()
   if (strip) strip.webContents.send('monitor-app-lang', lang)
+  if (term) term.webContents.send('monitor-app-lang', lang)
   if (settingsWin) settingsWin.webContents.send('monitor-settings-changed')
 }
 
@@ -183,11 +188,11 @@ nativeTheme.on('updated', () => { if (win && !MAC) { try { win.setTitleBarOverla
 const titleBar = () => (MAC ? { titleBarStyle: 'hidden', trafficLightPosition: { x: 14, y: 11 } } : { titleBarStyle: 'hidden', titleBarOverlay: overlay() })
 const LOGIN = { args: ['--hidden'] }   // started at login: stay in the tray
 const zoom = () => { const z = Number(readSettings().zoom); return z >= 0.5 && z <= 2 ? z : 1 }
-let win = null, page = null, strip = null
+let win = null, page = null, strip = null, term = null
 function pageState() {
-  if (!page) return { zoom: 1, canBack: false, canForward: false }
+  if (!page) return { zoom: 1, canBack: false, canForward: false, term: false }
   const wc = page.webContents, h = wc.navigationHistory
-  return { zoom: wc.getZoomFactor(), canBack: h.canGoBack(), canForward: h.canGoForward() }
+  return { zoom: wc.getZoomFactor(), canBack: h.canGoBack(), canForward: h.canGoForward(), term: termOpen }
 }
 function report() { if (strip) strip.webContents.send('monitor-app-state', pageState()) }
 function appAction(action) {
@@ -209,6 +214,7 @@ function appAction(action) {
 }
 ipcMain.handle('monitor-app', (_e, action) => {
   if (action === 'settings') { showSettings(); return pageState() }
+  if (action === 'terminal') { toggleTerminal(); return pageState() }
   // the usage in the strip opens the page's account dialog
   if (String(action).startsWith('theme:')) { setTheme(String(action).slice(6)); return pageState() }
   if (String(action).startsWith('lang:')) { setLang(String(action).slice(5)); return pageState() }
@@ -220,7 +226,11 @@ function layout() {
   if (!win) return
   const { width, height } = win.getContentBounds()
   strip.setBounds({ x: 0, y: 0, width, height: STRIP })
-  page.setBounds({ x: 0, y: STRIP, width, height: Math.max(0, height - STRIP) })
+  // the terminal panel, when shown, under the page: the page keeps at least 120 px
+  const room = Math.max(0, height - STRIP)
+  const th = term && termOpen ? Math.max(140, Math.min(termH || termHeight(), room - 120)) : 0
+  page.setBounds({ x: 0, y: STRIP, width, height: room - th })
+  if (term) { term.setVisible(termOpen); if (termOpen) term.setBounds({ x: 0, y: STRIP + room - th, width, height: th }) }
 }
 // the usual shortcuts, in either view: zoom, reload, back / forward
 function shortcuts(wc) {
@@ -231,7 +241,96 @@ function shortcuts(wc) {
       : k === 'F5' || (mod && k.toLowerCase() === 'r') ? 'reload' : i.alt && k === 'ArrowLeft' ? 'back' : i.alt && k === 'ArrowRight' ? 'forward' : null
     if (act) { e.preventDefault(); appAction(act) }
   })
+  termKeys(wc)
 }
+// Ctrl+` shows or hides the terminal panel and Ctrl+Shift+` starts a new shell in it, as in VS Code (⌃` on a Mac too)
+function termKeys(wc) {
+  wc.on('before-input-event', (e, i) => {
+    if (i.type !== 'keyDown' || !i.control || i.alt || i.meta || i.code !== 'Backquote') return
+    e.preventDefault()
+    if (i.shift) newTerminal(); else toggleTerminal()
+  })
+}
+
+/* ── the terminal panel ── */
+// A view under the page with the shells installed here (terminal.cjs runs them). Hidden, its shells keep running;
+// the panel's height is kept in the settings.
+let termOpen = false, termH = 0, termKeep = null
+const termHeight = () => { const h = Number(readSettings().termHeight); return h >= 140 ? h : 300 }
+terminals.onSend((event, ...a) => { if (term) term.webContents.send('monitor-term-' + event, ...a) })
+function toggleTerminal(show = !termOpen) {
+  if (!win && !show) return
+  if (show) showWindow()
+  termOpen = show
+  if (show && !term) {
+    term = new WebContentsView({ webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'terminal-preload.cjs') } })
+    term.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#0f1116' : '#ffffff')
+    win.contentView.addChildView(term)
+    const wc = term.webContents
+    wc.loadFile(path.join(__dirname, 'terminal.html'), { query: { platform: process.platform, lang } })
+    wc.on('did-finish-load', () => { if (termOpen && term) wc.send('monitor-term-shown') })
+    wc.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' } })
+    wc.on('will-navigate', (e) => e.preventDefault())
+    termKeys(wc)
+  }
+  layout()
+  if (show) { term.webContents.focus(); if (!term.webContents.isLoading()) term.webContents.send('monitor-term-shown') }
+  else if (page) page.webContents.focus()
+  report()
+}
+// the folder of the project picked on the page (its tab is the address's #, else the one it remembers), and every project's
+async function termFolders() {
+  let key = '', projects = []
+  try { key = await page.webContents.executeJavaScript("decodeURIComponent(location.hash.slice(1)) || localStorage.getItem('am.tab') || ''") } catch {}
+  try { projects = (await (await fetch(URL + 'api/state')).json()).projects.map((p) => ({ key: p.key, root: p.root, name: p.name || p.key })) } catch {}
+  return { cur: projects.find((p) => p.key === key)?.root || '', projects }
+}
+// a shell started from the app (the shell menu, Ctrl+Shift+`), handed to the panel; one picked becomes the default
+async function startShell(shellId, cwd) {
+  if (shellId) writeSettings({ ...readSettings(), termShell: shellId })
+  try {
+    const info = terminals.open({ shell: shellId || readSettings().termShell, cwd: cwd || (await termFolders()).cur })
+    if (term) term.webContents.send('monitor-term-opened', info)
+  } catch (e) { dialog.showErrorBox('ELOP Crew', t('termFailed') + '\n\n' + (e && e.message || e)) }
+}
+function newTerminal() {
+  // a panel not drawn yet, or with no shell, starts one itself once shown
+  const starts = !term || term.webContents.isLoading() || !terminals.count()
+  toggleTerminal(true)
+  if (!starts) startShell()
+}
+async function termMenu(x, y) {
+  const { projects } = await termFolders()
+  const shells = terminals.shells(), def = readSettings().termShell || shells[0]?.id
+  const menu = Menu.buildFromTemplate([
+    ...shells.map((s) => ({ label: s.id === 'cmd' ? t('termCmd') : s.name, type: 'checkbox', checked: s.id === def, click: () => startShell(s.id) })),
+    ...(projects.length ? [{ type: 'separator' }, { label: t('termIn'), submenu: projects.map((p) => ({ label: p.name + '   ' + p.root, click: () => startShell(null, p.root) })) }] : []),
+  ])
+  if (term && win) menu.popup({ window: win, x: Math.round(x), y: Math.round(term.getBounds().y + y) })
+}
+const fromTerm = (e) => !!term && e.sender === term.webContents
+ipcMain.handle('monitor-term', async (e, action, ...a) => {
+  if (!fromTerm(e)) return null
+  if (action === 'list') return terminals.list()
+  if (action === 'open') { const o = a[0] || {}; return terminals.open({ cols: o.cols, rows: o.rows, shell: readSettings().termShell, cwd: (await termFolders()).cur }) }
+  if (action === 'resize') terminals.resize(a[0], a[1], a[2])
+  if (action === 'close') terminals.close(a[0])
+  if (action === 'hide') toggleTerminal(false)
+  if (action === 'menu') termMenu(a[0], a[1])
+  if (action === 'copy') clipboard.writeText(String(a[0] || ''))
+  if (action === 'paste') return clipboard.readText()
+  return null
+})
+ipcMain.on('monitor-term-write', (e, id, data) => { if (fromTerm(e)) terminals.write(id, data) })
+// the panel's top edge dragged to a height on the screen
+ipcMain.on('monitor-term-drag', (e, screenY) => {
+  if (!fromTerm(e) || !win || !Number.isFinite(screenY)) return
+  const b = win.getContentBounds()
+  termH = Math.max(140, Math.min(b.y + b.height - screenY, b.height - STRIP - 120))
+  layout()
+  clearTimeout(termKeep)
+  termKeep = setTimeout(() => writeSettings({ ...readSettings(), termHeight: termH }), 400)
+})
 let tray = null, quitting = false
 // the window opens where it was and as big as it was, maximised if it was — unless that place is on no screen now
 // (a monitor unplugged since), when it opens at the default size on the main one
@@ -289,7 +388,7 @@ function showWindow() {
   wc.on('will-navigate', (e, url) => { if (!url.startsWith(URL)) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url) } })
   // closing the window keeps the monitor running in the tray
   win.on('close', (e) => { keepBounds(); if (quitting) return; if (readSettings().closeToTray === false) { quit(); return } e.preventDefault(); win.hide() })
-  win.on('closed', () => { win = page = strip = null })
+  win.on('closed', () => { win = page = strip = term = null; termOpen = false })
   win.on('focus', () => { try { win.flashFrame(false) } catch {} })
   paintBadge()
 }
@@ -519,6 +618,7 @@ ipcMain.handle('monitor-settings', async (_e, action, key, value) => {
 })
 function quit() {
   quitting = true
+  terminals.closeAll()
   if (ownServer && typeof globalThis.agentMonitorShutdown === 'function') globalThis.agentMonitorShutdown()
   app.quit()
 }

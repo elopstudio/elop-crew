@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Terminal</title>
+<link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
+<style>
+/* The terminal panel: its own view under the page, as VS Code's panel is, with a tab per shell. */
+:root{--bg:#ffffff;--bar:#f2f3f7;--line:#e0e3ea;--muted:#5b6372;--text:#171a21;--hover:#e6e8ee;--accent:#3a63d8;--bad:#b0341f}
+@media (prefers-color-scheme: dark){:root{--bg:#0f1116;--bar:#171b22;--line:#2a303b;--muted:#a3abb8;--text:#e8eaef;--hover:#232830;--accent:#86a6f5;--bad:#f0907d}}
+html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
+body{display:flex;flex-direction:column;font:600 12px system-ui,"Segoe UI","Noto Sans KR",sans-serif;color:var(--muted)}
+/* the top edge: drag it to make the panel taller or shorter */
+#grip{position:absolute;left:0;right:0;top:0;height:5px;cursor:ns-resize;z-index:2}
+#grip:hover,#grip.on{background:var(--accent)}
+#bar{display:flex;align-items:center;gap:4px;height:32px;flex:none;padding:0 6px;background:var(--bar);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none}
+#tabs{display:flex;align-items:center;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.tab{display:inline-flex;align-items:center;flex:none;border-radius:7px;color:var(--muted)}
+.tab:hover{background:var(--hover)}
+.tab[aria-selected="true"]{background:var(--bg);color:var(--text);box-shadow:inset 0 -2px 0 var(--accent)}
+.tab .go{appearance:none;border:0;background:none;color:inherit;font:inherit;padding:5px 4px 5px 10px;cursor:pointer;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.tab .go small{font-weight:500;opacity:.75}
+.tab .x{appearance:none;border:0;background:none;color:inherit;font:15px/1 system-ui,sans-serif;padding:3px 8px 4px 4px;cursor:pointer;opacity:.6}
+.tab .x:hover{opacity:1;color:var(--text)}
+button.ic{appearance:none;border:0;background:none;color:var(--muted);width:26px;height:24px;border-radius:7px;display:grid;place-items:center;cursor:pointer;flex:none;font:700 15px/1 system-ui,sans-serif}
+button.ic:hover{background:var(--hover);color:var(--text)}
+button.ic svg{width:14px;height:14px}
+#msg{color:var(--bad);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grow{flex:1}
+#views{flex:1;min-height:0;position:relative}
+.view{position:absolute;inset:4px 0 0 10px}
+.view[hidden]{display:none}
+.xterm-viewport{scrollbar-width:thin}
+</style>
+</head>
+<body>
+<div id="grip" role="separator" aria-orientation="horizontal"></div>
+<div id="bar">
+  <div id="tabs" role="tablist"></div>
+  <button class="ic" id="new" data-tip="newTerm"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+  <button class="ic" id="pick" data-tip="pick" aria-haspopup="menu"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <span id="msg"></span>
+  <span class="grow"></span>
+  <button class="ic" id="hide" data-tip="hide"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4.5l4 4 4-4M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+</div>
+<div id="views"></div>
+<script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
+<script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+<script>
+const qs = new URLSearchParams(location.search), MAC = qs.get('platform') === 'darwin'
+const TEXT = {
+  ko: {
+    newTerm: '새 터미널 (Ctrl+Shift+`)', pick: '셸 고르기', hide: '패널 숨기기 (Ctrl+`)', close: '닫기', tabs: '터미널',
+    cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ',
+  },
+  en: {
+    newTerm: 'New terminal (Ctrl+Shift+`)', pick: 'Pick a shell', hide: 'Hide the panel (Ctrl+`)', close: 'Close', tabs: 'Terminals',
+    cmd: 'Command Prompt', failed: 'Could not start the shell: ',
+  },
+}
+let lang = TEXT[qs.get('lang')] ? qs.get('lang') : 'en'
+const t = (k) => TEXT[lang][k]
+const $ = (id) => document.getElementById(id)
+const api = window.monitorTerm
+function words() {
+  document.documentElement.lang = lang
+  for (const b of document.querySelectorAll('[data-tip]')) { b.title = t(b.dataset.tip).replace(/Ctrl\+/g, MAC ? '⌃' : 'Ctrl+'); b.setAttribute('aria-label', t(b.dataset.tip).replace(/ \(.*\)$/, '')) }
+  $('tabs').setAttribute('aria-label', t('tabs'))
+  for (const x of terms.values()) label(x)
+}
+
+/* ── the look, light or dark as the app is ── */
+const dark = matchMedia('(prefers-color-scheme: dark)')
+const THEMES = {
+  dark: { background: '#0f1116', foreground: '#e8eaef', cursor: '#e8eaef', selectionBackground: '#3a4d7a', black: '#171b22', brightBlack: '#737c8a' },
+  light: { background: '#ffffff', foreground: '#171a21', cursor: '#171a21', selectionBackground: '#c9d6f7', black: '#171a21', brightBlack: '#5b6372', white: '#8d95a3', brightWhite: '#5b6372', yellow: '#8c6a10', brightYellow: '#a07c12' },
+}
+const theme = () => THEMES[dark.matches ? 'dark' : 'light']
+dark.addEventListener('change', () => { for (const x of terms.values()) x.term.options.theme = theme() })
+
+/* ── the shells, one tab each ── */
+const terms = new Map()   // id → { id, term, fit, view, tab, name, cwd }
+let active = null
+const base = (p) => String(p || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p
+function label(x) {
+  const go = x.tab.querySelector('.go')
+  go.replaceChildren(document.createTextNode((x.shell === 'cmd' ? t('cmd') : x.name) + ' '), Object.assign(document.createElement('small'), { textContent: base(x.cwd) }))
+  go.title = x.cwd
+  x.tab.querySelector('.x').title = t('close')
+  x.tab.querySelector('.x').setAttribute('aria-label', t('close'))
+}
+function add(info, buf) {
+  const view = document.createElement('div')
+  view.className = 'view'
+  $('views').append(view)
+  const term = new Terminal({
+    fontFamily: MAC ? 'Menlo, "SF Mono", monospace' : '"Cascadia Mono", Consolas, "D2Coding", monospace',
+    fontSize: 13, lineHeight: 1.15, cursorBlink: true, scrollback: 5000, theme: theme(), allowProposedApi: false,
+  })
+  const fit = new FitAddon.FitAddon()
+  term.loadAddon(fit)
+  term.open(view)
+  const tab = document.createElement('span')
+  tab.className = 'tab'
+  tab.setAttribute('role', 'tab')
+  tab.innerHTML = '<button class="go" type="button"></button><button class="x" type="button">×</button>'
+  $('tabs').append(tab)
+  const x = { ...info, term, fit, view, tab }
+  terms.set(info.id, x)
+  label(x)
+  tab.querySelector('.go').addEventListener('click', () => select(info.id))
+  tab.querySelector('.x').addEventListener('click', () => api.close(info.id))
+  tab.addEventListener('auxclick', (e) => { if (e.button === 1) api.close(info.id) })
+  term.onData((d) => api.write(info.id, d))
+  term.onResize(({ cols, rows }) => api.resize(info.id, cols, rows))
+  keys(x)
+  if (buf) term.write(buf)
+  select(info.id)
+  return x
+}
+function select(id) {
+  active = id
+  for (const x of terms.values()) {
+    const on = x.id === id
+    x.view.hidden = !on
+    x.tab.setAttribute('aria-selected', String(on))
+  }
+  const x = terms.get(id)
+  if (x) { fitNow(x); x.term.focus(); x.tab.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }
+}
+function fitNow(x) { if (x && !x.view.hidden && x.view.clientWidth > 20 && x.view.clientHeight > 10) { try { x.fit.fit() } catch {} } }
+new ResizeObserver(() => fitNow(terms.get(active))).observe($('views'))
+
+// copy with a selection, else Ctrl+C goes to the shell; paste from the app's clipboard; right-click does either
+async function paste(x) { const s = await api.paste(); if (s) x.term.paste(s) }
+function copy(x) { const s = x.term.getSelection(); if (!s) return false; api.copy(s); x.term.clearSelection(); return true }
+function keys(x) {
+  x.term.attachCustomKeyEventHandler((e) => {
+    if (e.type !== 'keydown') return true
+    const mod = MAC ? e.metaKey : e.ctrlKey, k = e.key.toLowerCase()
+    if (mod && k === 'c' && (e.shiftKey || MAC || x.term.hasSelection())) { e.preventDefault(); copy(x); return false }
+    if (mod && k === 'v') { e.preventDefault(); paste(x); return false }
+    return true
+  })
+  x.view.addEventListener('contextmenu', (e) => { e.preventDefault(); if (!copy(x)) paste(x) })
+}
+
+async function openNew(o) {
+  $('msg').textContent = ''
+  // as big as the one shown, so the first prompt is drawn at the right width
+  const now = terms.get(active)?.term
+  try { const info = await api.open({ ...o, cols: now?.cols, rows: now?.rows }); if (!terms.has(info.id)) add(info) }
+  catch (e) { $('msg').textContent = t('failed') + String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') }
+}
+api.onData((id, d) => terms.get(id)?.term.write(d))
+api.onExit((id) => {
+  const x = terms.get(id)
+  if (!x) return
+  x.term.dispose(); x.view.remove(); x.tab.remove()
+  terms.delete(id)
+  // the last one gone, the panel goes too, as VS Code's does
+  if (!terms.size) { active = null; api.hide() }
+  else if (active === id) select([...terms.keys()].pop())
+})
+// started from the app's shell menu
+api.onOpened((info) => { if (!terms.has(info.id)) add(info); else select(info.id) })
+api.onShown(() => ready.then(() => { if (!terms.size) openNew(); else select(active) }))
+api.onLang((l) => { if (TEXT[l]) { lang = l; words() } })
+window.addEventListener('focus', () => terms.get(active)?.term.focus())
+
+$('new').addEventListener('click', () => openNew())
+$('pick').addEventListener('click', () => { const r = $('pick').getBoundingClientRect(); api.menu(Math.round(r.left), Math.round(r.bottom)) })
+$('hide').addEventListener('click', () => api.hide())
+
+// the top edge, dragged: the app sets the panel's height from where the pointer is
+const grip = $('grip')
+grip.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; grip.setPointerCapture(e.pointerId); grip.classList.add('on') })
+grip.addEventListener('pointermove', (e) => { if (grip.hasPointerCapture(e.pointerId)) api.drag(e.screenY) })
+const done = (e) => { grip.classList.remove('on'); try { grip.releasePointerCapture(e.pointerId) } catch {} }
+grip.addEventListener('pointerup', done)
+grip.addEventListener('pointercancel', done)
+
+words()
+// the shells still running from before this view was drawn (the window closed to the tray and opened again)
+const ready = api.list().then((all) => { for (const info of all) add(info, info.buf) }, () => {})
+</script>
+</body>
+</html>

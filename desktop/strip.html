@@ -16,6 +16,8 @@ body{display:flex;align-items:center;gap:10px;padding:0 150px 0 10px;border-bott
 button{appearance:none;border:0;background:transparent;color:var(--muted);font:700 14px system-ui,"Segoe UI",sans-serif;width:28px;height:26px;border-radius:8px;cursor:pointer;display:grid;place-items:center}
 button:hover:not(:disabled){background:var(--hover);color:var(--text)}
 button:disabled{opacity:.3;cursor:default}
+button.on{background:var(--hover);color:var(--text)}
+button svg{width:15px;height:15px}
 button.pct{width:auto;padding:0 6px;font:700 11.5px ui-monospace,Consolas,monospace}
 .sep{width:1px;height:18px;background:var(--line);margin:0 6px}
 /* the plan's limits: yellow past 80 %, red past 95 % */
@@ -39,6 +41,7 @@ body.mac{padding:0 10px 0 80px}
   <button id="pct" class="pct" data-tip="pct">100%</button>
   <button id="in" data-tip="in">+</button>
   <span class="sep"></span>
+  <button id="term" data-tip="term" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M4.5 6l2 2-2 2M8.5 10.5h3"/></svg></button>
   <button id="settings" data-tip="settings">⚙</button>
 </div>
 <script>
@@ -47,20 +50,20 @@ if (MAC) document.body.classList.add('mac')
 // the strip's words, in the language picked on the page (the app passes it on); a button's name, then its keys
 const TEXT = {
   ko: {
-    back: '뒤로', forward: '앞으로', reload: '새로 고침', out: '축소', pct: '원래 크기', in: '확대', settings: '설정',
+    back: '뒤로', forward: '앞으로', reload: '새로 고침', out: '축소', pct: '원래 크기', in: '확대', settings: '설정', term: '터미널',
     session: '세션 ', week: '주간 ', limSession: '현재 세션 (5시간)', limWeekAll: '주간 · 전체 모델', limWeekScoped: '주간 · ',
     min: (m) => m + '분', hours: (h, m) => h + '시간' + (m ? ' ' + m + '분' : ''), days: (d) => d + '일', resets: (l) => l + ' 후 초기화',
     old: (m) => m + '분 전에 확인한 값', account: '누르면 계정 창을 엽니다',
   },
   en: {
-    back: 'Back', forward: 'Forward', reload: 'Reload', out: 'Zoom out', pct: 'Reset zoom', in: 'Zoom in', settings: 'Settings',
+    back: 'Back', forward: 'Forward', reload: 'Reload', out: 'Zoom out', pct: 'Reset zoom', in: 'Zoom in', settings: 'Settings', term: 'Terminal',
     session: 'Session ', week: 'Week ', limSession: 'Current session (5 hours)', limWeekAll: 'Weekly · all models', limWeekScoped: 'Weekly · ',
     min: (m) => m + 'm', hours: (h, m) => h + 'h' + (m ? ' ' + m + 'm' : ''), days: (d) => d + 'd', resets: (l) => 'resets in ' + l,
     old: (m) => 'as checked ' + m + ' min ago', account: 'Click to open your account',
   },
 }
 const KEYS = MAC ? { reload: '⌘R', out: '⌘-', pct: '⌘0', in: '⌘=' } : { reload: 'F5', out: 'Ctrl+-', pct: 'Ctrl+0', in: 'Ctrl+=' }
-KEYS.back = 'Alt+←'; KEYS.forward = 'Alt+→'
+KEYS.back = 'Alt+←'; KEYS.forward = 'Alt+→'; KEYS.term = MAC ? '⌃`' : 'Ctrl+`'
 let lang = TEXT[qs.get('lang')] ? qs.get('lang') : 'en', lastUsage = null
 const t = (key, ...a) => { const v = TEXT[lang][key]; return typeof v === 'function' ? v(...a) : v }
 function words() {
@@ -70,9 +73,9 @@ function words() {
 }
 const app = window.monitorApp
 const $ = (id) => document.getElementById(id)
-const wire = { back: 'back', forward: 'forward', reload: 'reload', out: 'zoomOut', pct: 'zoomReset', in: 'zoomIn', settings: 'settings' }
+const wire = { back: 'back', forward: 'forward', reload: 'reload', out: 'zoomOut', pct: 'zoomReset', in: 'zoomIn', settings: 'settings', term: 'terminal' }
 for (const [id, fn] of Object.entries(wire)) $(id).addEventListener('click', () => app[fn]())
-const show = (s) => { if (!s) return; $('pct').textContent = Math.round(s.zoom * 100) + '%'; $('back').disabled = !s.canBack; $('forward').disabled = !s.canForward }
+const show = (s) => { if (!s) return; $('pct').textContent = Math.round(s.zoom * 100) + '%'; $('back').disabled = !s.canBack; $('forward').disabled = !s.canForward; $('term').classList.toggle('on', !!s.term); $('term').setAttribute('aria-pressed', String(!!s.term)) }
 app.onChange(show)
 app.state().then(show)
 // the session and the week, as on Claude Code's /usage; the other limits in the tooltip
