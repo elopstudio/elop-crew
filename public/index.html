@@ -2527,7 +2527,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   $('detail').addEventListener('click', (e) => { if (e.target === $('detail')) $('detail').close(); });   // click outside closes
   $('detail').addEventListener('close', () => {
     if ($('detail').open) return;   // opened again before this late event came in: the requests and the dock stay inside it
-    leaveDialog(); $('projects').after(approvalsBox, dockBox, assistBox, fabBox); stopLive(); if (last) approvalsNode(last); renderDock(); });
+    leaveDialog(); $('projects').after(approvalsBox, dockBox, assistBox, fabBox); assistScrollBack(); stopLive(); if (last) approvalsNode(last); renderDock(); });
 
   /* ── Dock ── agent dialogs minimised along the bottom; a click opens one, a click on the open one folds it again */
   const dockBox = $('dock');
@@ -2559,6 +2559,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     if (approvalsBox.parentNode !== d) d.append(approvalsBox);
     if (dockBox.parentNode !== d) d.append(dockBox);
     for (const n of [assistBox, fabBox]) if (n.parentNode !== d) d.append(n);
+    assistScrollBack();
   }
   function toggleDocked(k) {
     const d = $('detail');
@@ -4132,7 +4133,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
 
   /* ── The assistant ── one agent of the monitor's own that looks after the others (assistant.mjs on the server).
      A floating button opens its chat; a badge counts what it said while the chat was closed. */
-  const assist = { es: null, open: false, built: false, list: null, blocks: new Map(), state: 'idle', unread: 0, seen: 0, exists: false };
+  const assist = { es: null, open: false, built: false, list: null, blocks: new Map(), state: 'idle', unread: 0, seen: 0, exists: false, scroll: { end: true, top: 0 } };
   try { assist.seen = Number(localStorage.getItem('am.assistSeen')) || 0; } catch (e) {}
   function assistBadge() {
     const b = $('fbadge');
@@ -4162,6 +4163,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const list = el('div', 'alist');
     list.append(el('div', 'hello', t('assistHello')));
     assist.list = list;
+    // where the chat is scrolled to, as the person left it (only while it is on the page and shown)
+    list.addEventListener('scroll', () => { if (list.isConnected && list.clientHeight) assist.scroll = { end: atBottom(), top: list.scrollTop }; });
     // the same message box as an agent's dialog: Enter sends, Shift+Enter starts a new line
     const form = el('form', 'msg');
     const ta = document.createElement('textarea');
@@ -4217,6 +4220,13 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   }
   const atBottom = () => { const l = assist.list; return !l || l.scrollHeight - l.scrollTop - l.clientHeight < 80; };
   const toBottom = () => { if (assist.list) assist.list.scrollTop = assist.list.scrollHeight; };
+  // The chat moves into an agent's dialog and back (and out and in again when the dialog is redrawn), and a scrolled
+  // box taken out of the page comes back at its top: put it back where it was, at the end if it was there.
+  function assistScrollBack() {
+    const l = assist.list;
+    if (!l || !l.isConnected || !l.clientHeight) return;
+    if (assist.scroll.end) toBottom(); else l.scrollTop = assist.scroll.top;
+  }
   function assistAdd(ev, fresh) {
     if (!assist.built) assistBuild();
     const l = assist.list, stick = atBottom();
@@ -4304,7 +4314,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     }
     assist.unread = 0; assist.seen = Date.now();
     try { localStorage.setItem('am.assistSeen', String(assist.seen)); } catch (e) {}
-    assistBadge(); toBottom();
+    assistBadge(); assistScrollBack();
     assist.ta?.focus();
   }
   // the assistant's look: kept on the server with the agent, drawn on its button, its chat and its requests
