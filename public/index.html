@@ -2346,7 +2346,10 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     }
     const form = el('form', 'msg');
     const ta = document.createElement('textarea');
-    ta.value = kept?.draft || '';   // what was being written when it was minimised
+    // what was being written to this agent: kept when the dialog closes or shows another agent
+    ta.value = drafts.get(s.name) ?? kept?.draft ?? '';
+    const keepDraft = () => { if (ta.value.trim()) drafts.set(s.name, ta.value); else drafts.delete(s.name); };
+    ta.addEventListener('input', keepDraft);
     ta.placeholder = t('msgPh', { x: nickFor(s) || str(s.name) });
     ta.setAttribute('aria-label', ta.placeholder);
     const hint = el('div', 'hint', s.managed ? t('msgAgent') : s.listening ? t('msgNow') : st === 'working' ? t('msgAfterTurn') : t('msgNotListening'));
@@ -2423,7 +2426,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       try { r = await post(); if (r.status === 403) { await refreshToken(); r = await post(); } r = r.ok ? await r.json() : null; } catch (e2) { r = null; }
       send.disabled = false;
       if (!r) { status.textContent = t('runFailed'); status.className = 'status bad'; return; }
-      ta.value = ''; asCommand(); box.grow(); ready();
+      ta.value = ''; keepDraft(); asCommand(); box.grow(); ready();
       runOut.hidden = false;
       runOut.classList.toggle('err', !!r.error || r.timedOut || r.code !== 0);
       runOut.textContent = '$ ' + command + '\n' + (r.error ? r.error : r.stdout + (r.stderr ? (r.stdout && !r.stdout.endsWith('\n') ? '\n' : '') + r.stderr : ''));
@@ -2450,7 +2453,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       try { r = await post(); if (r.status === 403) { await refreshToken(); r = await post(); } } catch (e2) { r = null; }
       send.disabled = false;
       if (r && r.ok) {
-        ta.value = ''; files.length = 0; chips.replaceChildren(); box.grow(); ready();
+        ta.value = ''; keepDraft(); files.length = 0; chips.replaceChildren(); box.grow(); ready();
         // a VS Code session with no one waiting for it (it rested past the wait, or its last turn is older than the hook):
         // the message only goes in when it next ends a turn, so say so rather than look as if it went
         const now = (last?.projects || []).flatMap((p) => p.sessions).find((x) => x.name === s.name) || s;
@@ -2518,7 +2521,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     current = { name: s.name, tab: () => pick, draft: () => ta.value };
     floatInto(d);
     renderDock();
-    (focusMessage || kept?.draft ? ta : close).focus();
+    // with a draft, the box is focused at its end, to go on writing
+    if (focusMessage || ta.value) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } else close.focus();
   }
   $('detail').addEventListener('click', (e) => { if (e.target === $('detail')) $('detail').close(); });   // click outside closes
   $('detail').addEventListener('close', () => {
@@ -2530,6 +2534,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   // the assistant's chat and button float over the dialog too; held here, since redrawing the dialog takes them out of the page for a moment
   const assistBox = $('assist'), fabBox = $('fab');
   const docked = [];   // { name, s, tab, draft, at } — the draft stays in memory only
+  // the unsent message to each agent, by session: in memory only (never stored), so it lasts until the page reloads
+  const drafts = new Map();
   let current = null;   // the agent dialog on screen: { name, tab(), draft() }
   try { for (const name of JSON.parse(localStorage.getItem('am.dock') || '[]')) if (typeof name === 'string') docked.push({ name, s: null, at: 0 }); } catch (e) {}
   const saveDock = () => { try { localStorage.setItem('am.dock', JSON.stringify(docked.map((k) => k.name))); } catch (e) {} };
