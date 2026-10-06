@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('monitorApp', {
   // the terminal panel under the page: shown or hidden
   terminal: () => call('terminal'),
   account: () => call('account'),
+  // the page's browsers panel, from the strip's button; and the page telling the app whether it is open (and how many)
+  browsers: () => call('browsers'),
+  panel: (name, on, n) => call('panel:' + name + ':' + (on ? 1 : 0) + ':' + (Number(n) | 0)),
   // the theme picked in the page's menu (system, light or dark): the window's header, title bar and settings follow
   theme: (v) => call('theme:' + v),
   // the language picked on the page ('ko' or 'en'): the tray, the dialogs, this header and the settings follow

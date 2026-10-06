@@ -848,6 +848,7 @@ body.docked .detail{bottom:60px;max-height:calc(100vh - 92px)}
 #proc-btn,#browser-btn{display:inline-flex;align-items:center;gap:5px}
 #proc-btn svg,#browser-btn svg{width:13px;height:13px;flex:none}
 #browser-btn.on{border-color:var(--accent);color:var(--accent)}
+#browser-btn[hidden]{display:none}
 /* the browser panel: floats over the page (it can be moved by its title and resized from its corner), so the agents
    stay in sight while a page they drive is watched */
 .bpanel{position:fixed;right:18px;bottom:18px;z-index:60;width:min(760px,calc(100vw - 36px));height:min(560px,calc(100vh - 36px));min-width:420px;min-height:280px;resize:both;overflow:hidden;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.35)}
@@ -3208,8 +3209,15 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const n = all.reduce((a, x) => a + (x.procs?.browsers || 0), 0);
     const b = $('browser-btn');
     menuItem(b, 'globe', t('browsers') + (n ? ' ' + n : ''));
-    b.classList.toggle('on', !$('bpanel')?.hidden && !!$('bpanel'));
+    const on = !$('bpanel')?.hidden && !!$('bpanel');
+    b.classList.toggle('on', on);
     b.title = t('bTip');
+    // the desktop app has it in its title strip, beside the terminal panel's: told when it opens or closes, or the count changes
+    if (inApp && window.monitorApp?.panel) {
+      b.hidden = true;
+      const sig = on + ':' + n;
+      if (sig !== browserButton.told) { browserButton.told = sig; window.monitorApp.panel('browsers', on, n).catch(() => {}); }
+    }
   }
   function procButton(data) {
     browserButton(data);

@@ -199,10 +199,11 @@ const titleBar = () => (MAC ? { titleBarStyle: 'hidden', trafficLightPosition: {
 const LOGIN = { args: ['--hidden'] }   // started at login: stay in the tray
 const zoom = () => { const z = Number(readSettings().zoom); return z >= 0.5 && z <= 2 ? z : 1 }
 let win = null, page = null, strip = null, term = null
+let browsersPanel = { on: false, n: 0 }   // the page's browsers panel, as it last said
 function pageState() {
   if (!page) return { zoom: 1, canBack: false, canForward: false, term: false }
   const wc = page.webContents, h = wc.navigationHistory
-  return { zoom: wc.getZoomFactor(), canBack: h.canGoBack(), canForward: h.canGoForward(), term: termOpen }
+  return { zoom: wc.getZoomFactor(), canBack: h.canGoBack(), canForward: h.canGoForward(), term: termOpen, browsers: browsersPanel }
 }
 function report() { if (strip) strip.webContents.send('monitor-app-state', pageState()) }
 function appAction(action) {
@@ -225,6 +226,9 @@ function appAction(action) {
 ipcMain.handle('monitor-app', (_e, action) => {
   if (action === 'settings') { showSettings(); return pageState() }
   if (action === 'terminal') { toggleTerminal(); return pageState() }
+  // the browsers panel is the page's: the strip's button presses the page's own, and the page says what came of it
+  if (action === 'browsers') { if (page) page.webContents.executeJavaScript("document.getElementById('browser-btn')?.click()").catch(() => {}); return pageState() }
+  if (String(action).startsWith('panel:browsers:')) { const [, , on, n] = String(action).split(':'); browsersPanel = { on: on === '1', n: Number(n) || 0 }; report(); return pageState() }
   // the usage in the strip opens the page's account dialog
   if (String(action).startsWith('theme:')) { setTheme(String(action).slice(6)); return pageState() }
   if (String(action).startsWith('lang:')) { setLang(String(action).slice(5)); return pageState() }

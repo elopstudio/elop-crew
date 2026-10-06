@@ -17,6 +17,8 @@ button{appearance:none;border:0;background:transparent;color:var(--muted);font:7
 button:hover:not(:disabled){background:var(--hover);color:var(--text)}
 button:disabled{opacity:.3;cursor:default}
 button.on{background:var(--hover);color:var(--text)}
+#browsers{position:relative}
+#browsers .n{position:absolute;right:1px;top:1px;min-width:12px;height:12px;padding:0 2px;border-radius:6px;background:var(--wait);color:var(--bg);font:800 9px/12px system-ui,sans-serif;text-align:center}
 button svg{width:15px;height:15px}
 button.pct{width:auto;padding:0 6px;font:700 11.5px ui-monospace,Consolas,monospace}
 .sep{width:1px;height:18px;background:var(--line);margin:0 6px}
@@ -41,6 +43,7 @@ body.mac{padding:0 10px 0 80px}
   <button id="pct" class="pct" data-tip="pct">100%</button>
   <button id="in" data-tip="in">+</button>
   <span class="sep"></span>
+  <button id="browsers" data-tip="browsers" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.8"/><path d="M2.2 8h11.6M8 2.2c1.7 1.6 2.6 3.6 2.6 5.8S9.7 12.2 8 13.8M8 2.2C6.3 3.8 5.4 5.8 5.4 8s.9 4.2 2.6 5.8"/></svg><b class="n" id="bn" hidden></b></button>
   <button id="term" data-tip="term" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M4.5 6l2 2-2 2M8.5 10.5h3"/></svg></button>
   <button id="settings" data-tip="settings">⚙</button>
 </div>
@@ -50,13 +53,13 @@ if (MAC) document.body.classList.add('mac')
 // the strip's words, in the language picked on the page (the app passes it on); a button's name, then its keys
 const TEXT = {
   ko: {
-    back: '뒤로', forward: '앞으로', reload: '새로 고침', out: '축소', pct: '원래 크기', in: '확대', settings: '설정', term: '터미널',
+    back: '뒤로', forward: '앞으로', reload: '새로 고침', out: '축소', pct: '원래 크기', in: '확대', settings: '설정', term: '터미널', browsers: '브라우저 — 에이전트가 띄운 브라우저와 페이지',
     session: '세션 ', week: '주간 ', limSession: '현재 세션 (5시간)', limWeekAll: '주간 · 전체 모델', limWeekScoped: '주간 · ',
     min: (m) => m + '분', hours: (h, m) => h + '시간' + (m ? ' ' + m + '분' : ''), days: (d) => d + '일', resets: (l) => l + ' 후 초기화',
     old: (m) => m + '분 전에 확인한 값', account: '누르면 계정 창을 엽니다',
   },
   en: {
-    back: 'Back', forward: 'Forward', reload: 'Reload', out: 'Zoom out', pct: 'Reset zoom', in: 'Zoom in', settings: 'Settings', term: 'Terminal',
+    back: 'Back', forward: 'Forward', reload: 'Reload', out: 'Zoom out', pct: 'Reset zoom', in: 'Zoom in', settings: 'Settings', term: 'Terminal', browsers: 'Browsers — the ones the agents drive, and their pages',
     session: 'Session ', week: 'Week ', limSession: 'Current session (5 hours)', limWeekAll: 'Weekly · all models', limWeekScoped: 'Weekly · ',
     min: (m) => m + 'm', hours: (h, m) => h + 'h' + (m ? ' ' + m + 'm' : ''), days: (d) => d + 'd', resets: (l) => 'resets in ' + l,
     old: (m) => 'as checked ' + m + ' min ago', account: 'Click to open your account',
@@ -73,9 +76,12 @@ function words() {
 }
 const app = window.monitorApp
 const $ = (id) => document.getElementById(id)
-const wire = { back: 'back', forward: 'forward', reload: 'reload', out: 'zoomOut', pct: 'zoomReset', in: 'zoomIn', settings: 'settings', term: 'terminal' }
+const wire = { back: 'back', forward: 'forward', reload: 'reload', out: 'zoomOut', pct: 'zoomReset', in: 'zoomIn', settings: 'settings', term: 'terminal', browsers: 'browsers' }
 for (const [id, fn] of Object.entries(wire)) $(id).addEventListener('click', () => app[fn]())
-const show = (s) => { if (!s) return; $('pct').textContent = Math.round(s.zoom * 100) + '%'; $('back').disabled = !s.canBack; $('forward').disabled = !s.canForward; $('term').classList.toggle('on', !!s.term); $('term').setAttribute('aria-pressed', String(!!s.term)) }
+const show = (s) => { if (!s) return; $('pct').textContent = Math.round(s.zoom * 100) + '%'; $('back').disabled = !s.canBack; $('forward').disabled = !s.canForward; $('term').classList.toggle('on', !!s.term); $('term').setAttribute('aria-pressed', String(!!s.term))
+  // the page's browsers panel: pressed while open, with how many the agents have open
+  const b = s.browsers || {}; $('browsers').classList.toggle('on', !!b.on); $('browsers').setAttribute('aria-pressed', String(!!b.on))
+  $('bn').hidden = !b.n; $('bn').textContent = b.n > 9 ? '9+' : String(b.n || '') }
 app.onChange(show)
 app.state().then(show)
 // the session and the week, as on Claude Code's /usage; the other limits in the tooltip

@@ -65,7 +65,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   is pointed at. Emptied, the folder's name is back.
 - **Org chart.** The leader (crowned robot) sits on top; the other agents hang below it.
   Each card shows the session's current action in a speech bubble, how long it has been in its state, and its uptime.
-- **Browsers.** **Browsers** in the header (or **🌐 N** on an agent's card) opens a panel over the page, which can be
+- **Browsers.** **Browsers** in the header — in the desktop app the globe in the title strip, beside the terminal — (or
+  **🌐 N** on an agent's card) opens a panel over the page, which can be
   moved by its title and resized from its corner: the browsers the agents drive to look at what they build (headless
   Chrome, Edge, Playwright's Chromium), grouped by agent, with the pages open in each, and a live picture of the page
   picked. A browser started with a DevTools port is watched as it is; one Playwright started over a pipe (its default)
@@ -447,7 +448,7 @@ user — no admin rights — and starts. The installer is not code-signed, so Wi
 itself. So a new PC needs only **Claude Code**, installed and signed in.
 
 **The window.**
-- No Windows title bar. A thin title strip on the window buttons' line holds **← → ⟳**, **− 100% +**, the terminal and **⚙ settings**;
+- No Windows title bar. A thin title strip on the window buttons' line holds **← → ⟳**, **− 100% +**, the browsers and the terminal panels' buttons and **⚙ settings**;
   drag it to move the window. Zooming (buttons, **Ctrl + wheel**, **Ctrl + − / 0 / =**) scales the page only — the strip
   stays put — and is remembered. **Alt + ← / →** and **F5** work too; project tabs are history entries.
 - The window opens where it was left, at the same size, maximised if it was — after a restart or an update too. If
