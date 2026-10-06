@@ -352,6 +352,16 @@ on your own Claude Code login. Its dialog's conversation tab is the full chat:
   or a message, so no session is made and nothing is used up, and the list is kept for 5 minutes. The commands that only
   mean something in a terminal (colours, the focus view) are left out. The assistant's chat has the same list. A VS
   Code session's box does not, since the text only reaches that session as a message;
+- **Mods**: Claude Code plugins with a hooks module (ask Claude Code for a mod; its `plugin-authoring` skill writes
+  one) work in these agents as in VS Code. **About → Mods** lists the ones found in its folders (`~/.claude/crew-mods` until
+  you add your own; a folder is a mod or holds mods), each on or off, and the agents load the ones on (`--plugin-dir`).
+  The agent's dialog draws what they show: a mod's band and status line just above the message box, its toasts,
+  and its panes as tabs beside **Conversation** (× closes one). Buttons, text fields and selects in them
+  work; links open in the browser. Commands a mod registers are in the "/" list. The page joins the agent's claude as
+  a VS Code surface (`ui_attach`) and asks it for each drawing, which it builds from the tree the mod returned, as text
+  only (an SVG as an image); `Client` modules, desktop-only, are not run. Turning a mod on or off, or changing the
+  folders, restarts each agent at once when it is free, else after its turn; a mod edited while an agent runs is loaded
+  again by itself, and the conversation says so. The assistant loads none;
 - **End agent** asks first: **Keep in archive and end**, or **Just end**. Either way it stops and leaves the page, and its
   transcript stays in `~/.claude/projects`. The archive (`.runtime/archive.json`, up to 100) keeps who it was (name, look,
   what it does, folder, mode, model, effort) and which conversation it had, never what was said. Keeping it asks for a

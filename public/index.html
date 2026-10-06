@@ -332,6 +332,51 @@ form.inline button.ok{background:var(--run);border-color:var(--run);color:var(--
 .detail .ctxwarn{display:flex;gap:10px;align-items:center;margin:0 0 8px;padding:8px 10px;border:1px solid var(--wait);background:var(--wait-soft);color:var(--text);border-radius:10px;font-size:12.5px;line-height:1.45}
 .detail .ctxwarn span{flex:1;min-width:0}
 .detail .ctxwarn[hidden]{display:none}
+/* mods (Claude Code plugins): what they draw, in the code font, a character cell to 1ch */
+.mod{font:12.5px/1.45 var(--mono);color:var(--text);min-width:0}
+.mod .mbx{display:flex;min-width:0}
+.mod{position:relative}
+.mod .mtx{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.mod .mtx.nowrap{white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.mod button.mbt{appearance:none;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);border-radius:7px;padding:2px 10px;font:700 12px var(--sans);cursor:pointer;align-self:flex-start}
+.mod button.mbt.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.mod button.mbt.plain{border-color:transparent;background:none;padding:2px 4px}
+.mod button.mbt:disabled{opacity:.55;cursor:default}
+.mod input.min,.mod select.msel{font:12.5px var(--sans);color:var(--text);background:var(--surface);border:1px solid var(--line-strong);border-radius:7px;padding:4px 8px;min-width:0}
+.mod label.mlb{display:flex;gap:8px;align-items:center;font:12.5px var(--sans)}
+.mod pre.mcode{margin:0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);overflow:auto;font:12px/1.45 var(--mono)}
+.mod pre.mcode .add{color:#1a7f37}.mod pre.mcode .del{color:var(--block)}.mod pre.mcode .hunk{color:var(--muted)}
+.mod a{color:var(--accent)}
+.mod img.msvg{max-width:100%;height:auto}
+.mod .mmd{font-family:var(--sans)}
+.mod .mph{color:var(--faint);font-style:italic}
+.detail .modband{margin:0 0 8px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.detail .modband[hidden],.detail .modstat[hidden]{display:none}
+.detail .modstat{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0 0 6px;padding:0 4px;font:12px var(--mono);color:var(--muted)}
+.detail .modstat span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.detail .modstat b{font-weight:700;color:var(--faint);margin-right:6px}
+.detail .modpane{padding:12px 16px}
+.detail .modpane .mhead{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--muted);font:12px var(--sans)}
+.detail .modpane .mhead span{flex:1}
+.detail .modpane .mhead button{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:7px;padding:2px 9px;font:12px var(--sans);cursor:pointer}
+.detail .dtab.modtab .x{margin-left:8px;color:var(--faint);font-weight:400}
+.detail .dtab.modtab .x:hover{color:var(--text)}
+.detail .dtab.modtab.fresh::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle}
+.modtoasts{position:absolute;right:18px;bottom:96px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;z-index:30;pointer-events:none}
+.modtoasts div{max-width:min(420px,80vw);background:var(--text);color:var(--surface);border-radius:9px;padding:7px 12px;font:12.5px/1.4 var(--sans);box-shadow:0 6px 20px var(--shadow);white-space:pre-wrap;overflow-wrap:anywhere}
+.modtoasts div b{opacity:.65;font-weight:700;margin-right:6px}
+.lpane .m.note.mod{font-family:var(--mono)}
+.about.mods ul{list-style:none;margin:8px 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.about.mods li{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+.about.mods li .mi{flex:1;min-width:0}
+.about.mods li .mi b{font-family:var(--mono)}
+.about.mods li .mi div{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.about.mods .dirs{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.about.mods .dirs div{display:flex;gap:8px;align-items:center}
+.about.mods .dirs code{flex:1;min-width:0;overflow-wrap:anywhere}
+.about.mods .add{display:flex;gap:8px}
+.about.mods .add input{flex:1;min-width:0;font:12.5px var(--mono);padding:5px 8px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--text)}
+.about.mods button{appearance:none;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);border-radius:8px;padding:4px 10px;font:12.5px var(--sans);cursor:pointer;flex:none}
 .detail .ctxwarn button{appearance:none;flex:none;border:1px solid var(--wait);background:var(--surface);color:var(--text);border-radius:8px;padding:4px 10px;font:700 12px var(--sans);cursor:pointer}
 .detail .ctxwarn button:disabled{opacity:.6;cursor:default}
 .info .when .errs{color:var(--block);font-weight:700}
@@ -1063,7 +1108,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       didAllow: '✓ Allowed', didAlways: '✓ Allowed — won’t ask again', didDeny: '✕ Denied', didStop: '■ Denied and stopped', always: 'Always allow: {x}', stop: 'Deny and stop', didEditor: '↩ Sent back to VS Code',
       keysTool: 'Keys: press the number · Alt+number while typing', keysQ: 'Keys: number picks · Enter sends · Alt with them while typing', keysQs: 'Keys: number picks · ↑↓ question · Enter sends · Alt with them while typing',
       cloudTitle: 'ELOP Crew account', cloudOut: 'Link this PC to ELOP Crew Cloud and look after its agents from your phone, even away from the desk.', cloudWhy1: 'Every agent on this PC in the ELOP Crew app, like contacts: its conversation, and a chat to send it messages', cloudWhy2: 'Answer permission requests and questions from the phone, as on this page', cloudWhy3: 'A notification on the phone when an agent waits for an answer (who and which tool, nothing more)', cloudWhy4: 'Several PCs linked to one account, all in the same app', cloudHow: 'It goes through crew.elopstudio.com, encrypted on the way and stored nowhere.', cloudLink: 'Link this PC', cloudWait: 'Open the page, sign in, and link the PC if the page shows this code:', cloudOpen: 'Open the page', cloudCancel: 'Cancel', cloudThisPc: 'This PC: {pc}', cloudPcs: '{n} / {m} PCs', cloudNoName: '(no name)', cloudOffline: 'Cannot reach crew.elopstudio.com right now.', cloudManage: 'Manage PCs', cloudRelayOn: '● The mobile app can reach this PC', cloudRelayConnecting: '○ Connecting for the mobile app…', cloudRelayOff: '○ Not reachable from the mobile app right now — trying again', cloudRelayNode: 'The mobile app needs the desktop app or Node 22 or later to reach this PC.', cloudRelayWhat: 'The ELOP Crew app on your phone sees and does what this page does, through crew.elopstudio.com (encrypted in transit, nothing stored there). Unlink to stop it.', cloudUnlink: 'Unlink this PC', cloudUnlinkConfirm: 'Unlink this PC from the account? Its key is deleted; linking again makes a new one.', cloudLinked: 'Linked.', cloudDenied: 'The code was denied on the page.', cloudExpired: 'The code expired before it was approved — try again.', cloudRemoved: 'This PC was removed from the account on the web.', cloudUnlinked: 'This PC is no longer linked.', cloudFailed: 'Could not reach crew.elopstudio.com — try again.',
-      acct: 'Account', acctTitle: 'Claude account', acctOut: 'Claude Code on this PC is not signed in.', acctUsage: 'Usage', lim_session: 'Current session (5 h)', lim_weekly_all: 'Week · all models', lim_weekly_scoped: 'Week · {x}', resetsIn: 'resets in {t} · {at}', extraUsage: 'Extra usage', srcLive: 'Checked {t} · asked again every 5 minutes', srcCache: 'Could not reach Anthropic — these are the numbers from {t}', srcBusy: 'Anthropic is turning requests away for now (asked too often) — these are the numbers from {t}; asked again in {n}', limReset: 'reset since then — the new number is not in yet', srcExpired: 'The sign-in has expired for now — these are the numbers from {t}; using Claude Code renews it', srcNone: 'No usage numbers yet', refresh: 'Refresh', switchAcct: 'Switch account', logout: 'Sign out', login: 'Sign in', acctWarn: 'Signing out stops every Claude Code session on this PC — in VS Code and the monitor’s agents — until you sign in again.', switchConfirm: 'Sign out and sign in with another account?', logoutConfirm: 'Sign out of Claude Code?', loginWait: 'Finish signing in in the browser — a window with the steps opened as well. This page updates by itself.', acctFailed: 'That did not work — try again.', about: 'About', aboutTitle: 'About ELOP Crew', aboutWhat: 'A local dashboard for every Claude Code session on this PC, grouped as project → leader → agents. Answer approvals and questions, message the agents, run agents of its own, and keep an eye on your plan’s usage.', aboutPrivacy: 'It runs only on this PC (127.0.0.1). Conversations, e-mail addresses and tokens are never stored. The only requests that leave the PC are the usage question to api.anthropic.com and, in the desktop app, the update check on GitHub.', aVersion: 'Version', aApp: 'desktop app {v}', aMaker: 'Made by', aRepo: 'Source code', aIssues: 'Report a problem', aLicense: 'License', aLicenseText: 'PolyForm Noncommercial 1.0.0 — free for personal and other noncommercial use. Commercial use needs a separate licence from ELOP Studio.', aShowLicense: 'Full text', aHideLicense: 'Hide', aTabAbout: 'About', aTabKeys: 'Shortcuts', kgAsk: 'Approvals and questions', kPick: 'Pick an answer on the highlighted request — Allow, Deny, an option', kPickTyping: 'The same while typing in a text box', kSendAnswers: 'Send the answers to a question', kMoveQ: 'Move between the questions of one request', kgAgent: 'Agent dialog', kSendMsg: 'Send the message', kNewLine: 'A new line in the message', kDockReorder: 'Move the minimised agent on the bar (on a focused chip; or drag it)', dockDrag: 'drag to reorder', kDock: 'Open or fold the minimised agent with that number, even while typing', kEsc: 'Close the dialog (a minimised agent stays on the bar)', kRun: 'Start a message with ! to run it as a command on this PC; the agent gets the output', kgTabs: 'Project tabs (with a tab focused)', kTabMove: 'Previous / next project', kTabEnds: 'First / last project', kTabReorder: 'Move the project itself', kgApp: 'Desktop app', kHotkey: 'Show or hide the window from anywhere (the default; change it in the settings)', kZoom: 'Zoom in / out', kZoomReset: 'Actual size', kReload: 'Reload the page', kBackFwd: 'Back / forward', kgTerm: 'Terminal panel (desktop app)', kTerm: 'Show or hide the terminal panel', kTermNew: 'A new terminal', kTermSplit: 'Split the terminal (right)', kTermTabs: 'The previous / next terminal tab (with Shift: move the tab)', kTermPane: 'The pane beside it in a split tab', kTermRename: 'Rename the terminal tab (or double-click it)', kTermClose: 'Close the pane (the tab, with its last)', kTermDup: 'Duplicate the tab (same shell and folder)', kTermSplitDown: 'Split the terminal (down)', kTermGrow: 'Make the pane bigger or smaller', kTermZoom: 'Show the pane alone, and back', kTermNext: 'The next / previous terminal tab', kTermNth: 'That terminal tab (9: the last)', kTermFont: 'Text size: bigger / smaller / as it was', dragTab: 'Drag to reorder (or Ctrl+Shift+← →)',
+      acct: 'Account', acctTitle: 'Claude account', acctOut: 'Claude Code on this PC is not signed in.', acctUsage: 'Usage', lim_session: 'Current session (5 h)', lim_weekly_all: 'Week · all models', lim_weekly_scoped: 'Week · {x}', resetsIn: 'resets in {t} · {at}', extraUsage: 'Extra usage', srcLive: 'Checked {t} · asked again every 5 minutes', srcCache: 'Could not reach Anthropic — these are the numbers from {t}', srcBusy: 'Anthropic is turning requests away for now (asked too often) — these are the numbers from {t}; asked again in {n}', limReset: 'reset since then — the new number is not in yet', srcExpired: 'The sign-in has expired for now — these are the numbers from {t}; using Claude Code renews it', srcNone: 'No usage numbers yet', refresh: 'Refresh', switchAcct: 'Switch account', logout: 'Sign out', login: 'Sign in', acctWarn: 'Signing out stops every Claude Code session on this PC — in VS Code and the monitor’s agents — until you sign in again.', switchConfirm: 'Sign out and sign in with another account?', logoutConfirm: 'Sign out of Claude Code?', loginWait: 'Finish signing in in the browser — a window with the steps opened as well. This page updates by itself.', acctFailed: 'That did not work — try again.', about: 'About', aboutTitle: 'About ELOP Crew', aboutWhat: 'A local dashboard for every Claude Code session on this PC, grouped as project → leader → agents. Answer approvals and questions, message the agents, run agents of its own, and keep an eye on your plan’s usage.', aboutPrivacy: 'It runs only on this PC (127.0.0.1). Conversations, e-mail addresses and tokens are never stored. The only requests that leave the PC are the usage question to api.anthropic.com and, in the desktop app, the update check on GitHub.', aVersion: 'Version', aApp: 'desktop app {v}', aMaker: 'Made by', aRepo: 'Source code', aIssues: 'Report a problem', aLicense: 'License', aLicenseText: 'PolyForm Noncommercial 1.0.0 — free for personal and other noncommercial use. Commercial use needs a separate licence from ELOP Studio.', aShowLicense: 'Full text', aHideLicense: 'Hide', aTabAbout: 'About', aTabKeys: 'Shortcuts', aTabMods: 'Mods', modsWhat: 'Mods are Claude Code plugins with a hooks module (made with Claude Code: ask it for a mod). The agents the monitor runs load the ones on here, and their dialog draws what they show: a status line and toasts, a band above the message box, panes as tabs. A change applies to each agent at once when it is free, else after its turn; a mod edited while an agent runs is loaded again by itself.', modsNone: 'No mods found in these folders.', modsDirs: 'Folders (each a mod, or holding mods)', modsAddPh: 'A folder path, e.g. C:\\Users\\me\\my-mods', modsAdd: 'Add', modsOpen: 'Open', modsRemove: 'Remove', modsOn: 'On', modsFailed: 'Could not save', modClose: 'Close this pane', modRedraw: 'Draw again', modFrom: 'from the mod {x}', kgAsk: 'Approvals and questions', kPick: 'Pick an answer on the highlighted request — Allow, Deny, an option', kPickTyping: 'The same while typing in a text box', kSendAnswers: 'Send the answers to a question', kMoveQ: 'Move between the questions of one request', kgAgent: 'Agent dialog', kSendMsg: 'Send the message', kNewLine: 'A new line in the message', kDockReorder: 'Move the minimised agent on the bar (on a focused chip; or drag it)', dockDrag: 'drag to reorder', kDock: 'Open or fold the minimised agent with that number, even while typing', kEsc: 'Close the dialog (a minimised agent stays on the bar)', kRun: 'Start a message with ! to run it as a command on this PC; the agent gets the output', kgTabs: 'Project tabs (with a tab focused)', kTabMove: 'Previous / next project', kTabEnds: 'First / last project', kTabReorder: 'Move the project itself', kgApp: 'Desktop app', kHotkey: 'Show or hide the window from anywhere (the default; change it in the settings)', kZoom: 'Zoom in / out', kZoomReset: 'Actual size', kReload: 'Reload the page', kBackFwd: 'Back / forward', kgTerm: 'Terminal panel (desktop app)', kTerm: 'Show or hide the terminal panel', kTermNew: 'A new terminal', kTermSplit: 'Split the terminal (right)', kTermTabs: 'The previous / next terminal tab (with Shift: move the tab)', kTermPane: 'The pane beside it in a split tab', kTermRename: 'Rename the terminal tab (or double-click it)', kTermClose: 'Close the pane (the tab, with its last)', kTermDup: 'Duplicate the tab (same shell and folder)', kTermSplitDown: 'Split the terminal (down)', kTermGrow: 'Make the pane bigger or smaller', kTermZoom: 'Show the pane alone, and back', kTermNext: 'The next / previous terminal tab', kTermNth: 'That terminal tab (9: the last)', kTermFont: 'Text size: bigger / smaller / as it was', dragTab: 'Drag to reorder (or Ctrl+Shift+← →)',
       usageAlert: 'Claude usage at {p}% — {x}', usageAlertBody: 'Resets in {t} ({at})', dToday: 'Tokens today', dAway: 'Also working in', awayRow: '{x} — changed a file there {t}', awayTitle: 'Changing files in {x} · {t}', guestsTitle: 'Working here from other projects', guestTitle: 'Belongs to {x} · changed a file here {t}', todayOf: 'input {i} · cache reads {r} · cache writes {c} · output {o}', topToday: 'Most tokens today', noneToday: 'No agent has used tokens today yet', stallNotify: '{x} may be stuck', nudge: 'Stop and carry on', nudgeText: 'It looked like you were stuck, so you were stopped. Please carry on with what you were doing.', nudgeVs: 'This one runs in VS Code: press Esc in its panel, then ask it to carry on.', nudged: '✓ Stopped and asked to carry on',
       modes: { default: 'MANUAL', auto: 'AUTO', acceptEdits: 'EDITS OK', plan: 'PLAN', bypassPermissions: 'ALL OK', dontAsk: 'NO ASK' },
       forClaude: 'for Claude Code', noServer: 'Cannot reach the monitor server — start it again with npm start.', tabsLabel: 'Projects', lookTitle: 'Name and look', saveLook: 'Save', saved: '✓ Saved', fastStart: 'Quick start — without your MCP servers and connectors', nickLabel: 'Name', nickKoPh: 'In Korean', nickEnPh: 'In English', nickHint: 'Both empty: an automatic name. Only one: that name in both languages.', descLabel: 'What it does', descPh: 'One line, e.g. infrastructure and CI/CD', nickAuto: 'Leave empty for an automatic name', avatarLabel: 'Look', colour: 'Colour', acc_ball: 'Antenna', acc_twin: 'Twin', acc_phones: 'Headphones', acc_sprout: 'Sprout', acc_bolt: 'Bolt', acc_crown: 'Crown', projectLabel: 'Project', otherFolder: 'Other folder…', browse: 'Browse', up2: 'Up', pickThis: 'Use this folder', drives: 'Drives', noFolders: 'No folders here', tabSubs: 'Subagents ({n})', subTools: '{n} tool calls', subBack: 'All subagents', subsRunning: '{n} subagent(s) running', newAgent: 'New agent', folder: 'Folder', modelLabel: 'Model', effortLabel: 'Effort', effort_default: 'Default effort', effort_low: 'Effort: low', effort_medium: 'Effort: medium', effort_high: 'Effort: high', effort_xhigh: 'Effort: extra high', effort_max: 'Effort: max', modelDefault: 'Default model', modelLatest: 'Latest (always the newest)', modelPinned: 'This version', modelOther: 'Other…', modelOtherPh: 'model name, e.g. claude-opus-4-1', firstMsg: 'First message (optional)', newAgentHint: 'Runs the claude program here, on your own Claude Code login — no VS Code needed. Approvals and questions come to this page.', startAgent: 'Start', startFailed: 'Could not start — check the folder.', stopAgent: 'Stop', endAgent: 'End agent', endConfirm: 'End this agent? Its conversation stays in the transcript.', endAsk: 'End this agent? Kept in the archive, its conversation can be carried on later from New agent.', endArchive: 'Keep in archive and end', archiveTitle: 'Name in the archive', archiveTitlePh: 'Name to find it by (optional), e.g. login bug, half done', archiveNote: 'Note', archiveNotePh: 'Note (optional): where it left off, what is next', resumeFind: 'Search the archive and earlier conversations', renameProject: 'Project name', renameFailed: 'Could not save the name.', renameHint: 'Its name on this page; the folder ({x}) stays as it is. Leave it empty for the folder’s name.', endPlain: 'Just end', resumeTitle: 'Carry on an earlier conversation…', resumeArchived: 'Archive', resumePast: 'Earlier conversations in this folder', resumeNone: 'None', resumeNoName: 'Agent', resumeLive: 'open in VS Code — carried on as a copy', resumeInUse: 'already open in the monitor', resumeFailed: 'Could not carry it on (it may be open already, or the folder is gone).', unarchive: 'Take out of the archive', assistTitle: 'Assistant', menuCloud: 'ELOP Crew Cloud', menu: 'Menu', menuLang: 'Language', menuTheme: 'Theme', themeSystem: 'System', themeLight: 'Light', themeDark: 'Dark', assistSub: 'Looks after every agent here', assistOpen: 'Talk to the assistant', assistPh: 'Ask about the agents, or tell it what to do', assistHello: 'I am this monitor\'s assistant. I keep an eye on every agent, tell you when something needs you, and can pass on messages, nudge a stuck agent or answer routine requests. What can I do?', assistWorking: 'Thinking…', assistEvents: 'The monitor noticed:', assistRestarted: 'The monitor restarted — it told the assistant so.', assistSettings: 'Assistant settings', aOpts: 'What it may do', aRun: 'Runs on', aApprove: 'Answering requests', aEventsHint: 'Each one it is told about costs it a turn.', aApprove_off: 'Off', aApprove_read: 'Reading only', aApprove_project: 'In the project', aApproveHint_off: 'It answers none; it tells you what it recommends.', aApproveHint_read: 'It allows only what changes nothing: reading, searching, git status/diff/log, tests.', aApproveHint_project: 'It allows routine work inside the agent\'s project that can be undone; pushes, deletes, secrets and deploys stay yours.', aEvents: 'It is told about', aEv_asks: 'Permission requests', aEv_waiting: 'Questions and plans', aEv_finished: 'Finished work', aEv_failed: 'Failed turns', aEv_stuck: 'Stuck agents', aEv_login: 'The login', aEv_usage: 'Plan usage', ctxLong: 'A long conversation: {n} tokens, all read again on every step it takes. /compact shortens it, and the next turns cost less.', ctxLongVs: 'A long conversation: {n} tokens, all read again on every step it takes. Type /compact in VS Code to shorten it.', ctxMeter: 'Context: {n} tokens of {w} ({p}%)', mcpTitle: 'Connectors', mcpHint: 'The MCP servers and claude.ai connectors Claude Code uses, checked by claude itself (it takes a few seconds).', mcpCheck: 'Check again', mcpChecking: 'Checking…', mcpOpen: 'claude.ai connector settings', mcpConnect: 'Connect on claude.ai', mcpLocal: 'this PC', mcpLocalAuth: 'Sign in from a terminal: run claude and type /mcp.', mcpFailed: 'Could not ask claude for its connectors.', mcpNone: 'No MCP servers or connectors.', mcp_ok: 'Connected', mcp_auth: 'Needs signing in', mcp_warn: 'Check it', mcp_failed: 'Not working', mcpAt: 'Checked {t}', mcpRestart: 'agents already running get a newly connected one when they next start', ctxHead: 'Context {p} used', ctxShortTip: 'The whole conversation is read again on every step: the longer it grows, the more each step costs.', ctxVsCompact: 'Type /compact in VS Code to shorten it.', sys_restart: '↻ The monitor restarted and told it to carry on', sys_login: '🔑 Logged in again — told it to carry on', sys_limit: '⏳ The usage limit reset — told it to carry on', sys_relimit: '🔑 Logged in as another account (its own usage limits) — told it to carry on', sys_nudge: '👉 The assistant nudged it to carry on', sys_task: '📋 From the board: {x}', sys_answer: '📋 Your answer from the board: {x}', autoRun: 'Auto-run', autoRunTip: 'An agent that finishes a turn is handed its next queued task. It ends one with TASK DONE, or with TASK BLOCKED: <question> to ask you here.', requeue: 'Back to the queue', sys_assist: '🤖 The assistant told it: {x}', browsers: 'Browsers', bTitle: 'Browsers', bTip: 'The browsers the agents drive (headless Chrome, Playwright…): their pages, and a live picture of one', bChip: '{n} browser(s) it started — watch', bShared: 'Shared browser', bSharedTip: 'A headless browser of the monitor’s own. While it runs, every agent is told to look at pages there instead of starting its own, so you can watch all of them here. Pressed again, it is closed.', bShareFailed: 'Could not start the shared browser (no Chrome or Edge found?).', bHeadless: 'headless', bWindow: 'window', bPipe: 'Started by Playwright over a pipe: cannot be watched from outside. Turn on the shared browser and the agents use that one.', bNoPort: 'Started without a DevTools port: cannot be watched.', bNoPages: 'No page open', bNone: 'No agent has a browser open right now.', bNoneShare: 'Turn on the shared browser above and the agents will use it — you can watch it here.', bPick: 'Pick a page on the left.', bNothing: 'No page to watch.', bNothingPipe: 'No page to watch: this browser cannot be seen from outside. Turn on Shared browser at the top right; the agent is told to use it from its next message.', bUntitled: '(no title)', bShot: 'The page as the browser shows it', bGone: 'The page was closed', filterOn: 'Only: {x}', filterTip: 'Show only: {x} (press again for all)', filterClear: 'Show every agent', filterNone: 'None right now: {x}', sys_fresh: '↺ A new conversation — the last one had grown long; its finished tasks and last message were handed over', sys_check: '✗ The project check failed — sent back: {x}', checkLabel: 'Check before done', checkNone: 'none — a task is done when the agent says so', checkSet: 'Set', checkPh: 'A command run in the project folder, e.g. npm test', checkTip: 'Run in the project folder, as you, when an agent says TASK DONE. If it fails, the agent gets the end of its output and tries again (3 times, then it asks you here). Set only here, never by an agent.', ctxCompact: 'Run /compact', ctxCompacting: 'Compacting…', ctxLongTip: 'A long conversation: {n} tokens read again on every step; /compact makes the next turns cost less', assistTool_status: 'looked at the agents', assistTool_conversation: 'read a conversation', assistTool_send_message: 'sent a message', assistTool_answer_request: 'answered a request', assistTool_nudge: 'nudged an agent', assistTool_notify_user: 'notified you', takeOver: 'Take over in the monitor', takeOverHint: 'Carries this conversation on as a monitor agent, where you can set its mode, model and effort and stop it. The VS Code session stays as it is — close it there if you will not use it.', takeOverConfirm: 'Carry this conversation on as a monitor agent? The VS Code session is left as it is; close it in VS Code if you will not use it.', takeOverBusy: 'It is working — take it over when the turn is done, so the copy does not start in the middle of one.', takeOverFailed: 'Could not take it over (it may be working, or already taken over).', takenOverTag: 'IN MONITOR', takenOverTitle: 'Carried on in the monitor as {x}; this is the old copy — close it in VS Code', takenOverNote: 'Already carried on in the monitor as {x}. This VS Code session is the old copy: both can work, on the same folder, so close it in VS Code if you will not use it.', openTaken: 'Open {x}', monTag: 'MONITOR', msgAgent: 'Goes straight to the agent.', slashHint: ' · / for Claude Code commands', slashLoading: 'Loading commands…', slashNone: 'No command by that name', slashTitle: 'Claude Code commands', barStopped: 'Stopped — send a message to continue', turnDone: 'turn done · {t}s', newBelow: 'New below ↓', attach: 'Attach', remove: 'Remove', tooMany: 'Up to 5 files per message', tooBig: '{x} is over 20 MB', uploadFailed: 'Could not upload {x}', stillUploading: 'Still uploading — wait a moment', sec: '{n}s', barThink: 'Thinking… {t}', barTool: '{x} — running for {t}', barAsk: 'Waiting for your answer below', barVs: 'Waiting for an answer in VS Code', barWaiting: 'Done — waiting for input', barResting: 'Resting', barGone: 'This session has ended', tabInfo: 'Info', tabConv: 'Conversation', fromPage: '✉ FROM THE MONITOR', liveTitle: 'Conversation', liveConnecting: 'connecting…', liveOn: 'live', liveOff: 'disconnected — reconnecting', liveMasked: 'e-mails, phone and ID numbers, keys and tokens are masked; nothing is stored', msgTo: 'Message {x}', msgPh: 'Message to {x} — Enter sends, Shift+Enter for a new line · drop or paste files · start with ! to run a command', runCmd: 'Run', runHint: 'Runs on this PC in the agent’s folder, as you — no permission check — and the agent gets what it printed.', running: 'Running…', runFailed: 'Could not run it.', runNoStart: 'Could not start', runTimeout: 'Stopped after 2 minutes', runExit: 'Exit code {n}', runSent: 'sent to the agent', msgNow: 'Delivered right away — the agent is listening.', msgAfterTurn: 'Delivered when the agent finishes its current turn.', msgNotListening: 'Delivered once the agent next finishes a turn (it is not listening yet).', msgQueued: 'Queued, but this session is not listening now, so it will not wake up: say something to it once in VS Code, and from then on it can be woken from here.', msgSent: '✓ Sent', answer: 'Answer', reanswer: 'Change', answerPh: 'Your answer', send: 'Send', cancel: 'Cancel', addTask: 'Add a task', taskPh: 'What needs doing', assignee: 'Assign to', nobody: 'Anyone', moveUp: 'Move up', moveDown: 'Move down', boardChanged: 'The board changed meanwhile — reloaded, try again.', stallTag: 'STUCK? {t}', stallLong: 'Working, but no sign of activity for {t}', dStall: 'Possibly stuck', dCtx: 'Context size', tok: 'tokens', dErr: 'Tool errors', errOf: '{e} of the last {n} tool results failed', lastErr: 'last one {t}', vsTitle: 'ANSWER IN VS CODE', vsTag: 'IN VS CODE', vsHint: 'This prompt can only be answered in VS Code.', close: 'Close', minimise: 'Minimise', dockLabel: 'Minimised agents', dockOpen: 'Open {x} (Ctrl+{n})', dockFold: 'Fold {x} away (Ctrl+{n})', dockRemove: 'Take {x} off the bar', dProject: 'Project', dRole: 'Role', dTitle: 'Session', dNow: 'Doing now', dLast: 'Last action', dState: 'State', dMode: 'Mode', dUp: 'Running for', dAsk: 'Waiting for you', notifyOn: 'Notify me', allTab: 'All agents',
@@ -1088,7 +1133,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       didAllow: '✓ 허용함', didAlways: '✓ 허용함 — 다음부터 묻지 않음', didDeny: '✕ 거부함', didStop: '■ 거부하고 멈춤', always: '항상 허용: {x}', stop: '거부하고 멈추기', didEditor: '↩ VS Code로 넘김',
       keysTool: '단축키: 숫자 키 · 입력 중에는 Alt+숫자', keysQ: '단축키: 숫자로 고르기 · Enter 보내기 · 입력 중에는 Alt와 함께', keysQs: '단축키: 숫자로 고르기 · ↑↓ 질문 이동 · Enter 보내기 · 입력 중에는 Alt와 함께',
       cloudTitle: 'ELOP Crew 계정', cloudOut: '이 PC를 ELOP Crew 클라우드에 연결하면, 자리를 비워도 휴대폰으로 에이전트를 챙길 수 있습니다.', cloudWhy1: 'ELOP Crew 앱에 이 PC의 에이전트가 주소록처럼 나오고, 에이전트마다 대화를 보며 메시지를 보냅니다', cloudWhy2: '승인 요청과 질문에 이 화면에서처럼 휴대폰에서 바로 답합니다', cloudWhy3: '에이전트가 답을 기다리면 휴대폰으로 알림이 옵니다(누가, 어떤 도구인지만)', cloudWhy4: '여러 PC를 한 계정에 연결해 한 앱에서 모두 다룹니다', cloudHow: 'crew.elopstudio.com을 거쳐 오가며, 오가는 동안 암호화되고 어디에도 저장되지 않습니다.', cloudLink: '이 PC 연결', cloudWait: '페이지를 열어 로그인하고, 아래 코드가 보이면 연결하세요:', cloudOpen: '페이지 열기', cloudCancel: '취소', cloudThisPc: '이 PC: {pc}', cloudPcs: 'PC {n} / {m}대', cloudNoName: '(이름 없음)', cloudOffline: '지금은 crew.elopstudio.com에 연결할 수 없습니다.', cloudManage: 'PC 관리', cloudRelayOn: '● 모바일 앱에서 이 PC에 연결할 수 있습니다', cloudRelayConnecting: '○ 모바일 앱 연결 준비 중…', cloudRelayOff: '○ 지금은 모바일 앱에서 연결할 수 없습니다 — 다시 시도하는 중', cloudRelayNode: '모바일 앱으로 이 PC에 연결하려면 데스크톱 앱이나 Node 22 이상이 필요합니다.', cloudRelayWhat: '휴대폰의 ELOP Crew 앱에서 이 화면과 같은 것을 보고 할 수 있습니다. crew.elopstudio.com을 거치며, 오가는 동안 암호화되고 그곳에 저장되지 않습니다. 멈추려면 연결을 해제하세요.', cloudUnlink: '이 PC 연결 해제', cloudUnlinkConfirm: '이 PC를 계정에서 해제할까요? 키는 지워지고, 다시 연결하면 새 키를 만듭니다.', cloudLinked: '연결했습니다.', cloudDenied: '페이지에서 코드를 거절했습니다.', cloudExpired: '승인 전에 코드가 만료됐습니다 — 다시 해 주세요.', cloudRemoved: '웹에서 이 PC를 계정에서 해제했습니다.', cloudUnlinked: '이 PC는 이제 연결돼 있지 않습니다.', cloudFailed: 'crew.elopstudio.com에 연결하지 못했습니다 — 다시 해 주세요.',
-      acct: '계정', acctTitle: 'Claude 계정', acctOut: '이 PC의 Claude Code에 로그인돼 있지 않습니다.', acctUsage: '사용량', lim_session: '현재 세션 (5시간)', lim_weekly_all: '주간 · 전체 모델', lim_weekly_scoped: '주간 · {x}', resetsIn: '{t} 후 초기화 · {at}', extraUsage: '추가 사용량', srcLive: '{t} 확인 · 5분마다 다시 물어봅니다', srcCache: 'Anthropic에 물어보지 못해 {t} 확인한 값을 보여 줍니다', srcBusy: 'Anthropic이 잠시 조회를 막아서(너무 자주 물음) {t} 확인한 값을 보여 줍니다. {n} 뒤 다시 물어봅니다', limReset: '그사이 초기화됨 — 새 값 확인 전', srcExpired: '로그인이 잠시 만료돼 {t} 확인한 값을 보여 줍니다 — Claude Code를 쓰면 다시 이어집니다', srcNone: '아직 사용량 정보가 없습니다', refresh: '새로 고침', switchAcct: '계정 바꾸기', logout: '로그아웃', login: '로그인', acctWarn: '로그아웃하면 다시 로그인할 때까지 이 PC의 모든 Claude Code 세션(VS Code, 모니터 에이전트)이 멈춥니다.', switchConfirm: '로그아웃하고 다른 계정으로 로그인할까요?', logoutConfirm: 'Claude Code에서 로그아웃할까요?', loginWait: '브라우저에서 로그인을 마쳐 주세요. 안내 창도 하나 열렸습니다. 끝나면 이 화면이 저절로 바뀝니다.', acctFailed: '실패했습니다 — 다시 해 주세요.', about: '정보', aboutTitle: 'ELOP Crew 정보', aboutWhat: '이 PC에서 도는 모든 Claude Code 세션을 프로젝트 → 리더 → 에이전트로 묶어 보여 주는 로컬 대시보드입니다. 승인과 질문에 답하고, 에이전트에게 메시지를 보내고, 에이전트를 직접 띄우고, 요금제 사용량도 볼 수 있습니다.', aboutPrivacy: '이 PC 안에서만 돕니다(127.0.0.1). 대화, 이메일, 토큰은 저장하지 않습니다. PC 밖으로 나가는 요청은 api.anthropic.com 에 사용량을 묻는 것과, 데스크톱 앱에서 GitHub 에 업데이트를 확인하는 것뿐입니다.', aVersion: '버전', aApp: '데스크톱 앱 {v}', aMaker: '만든 곳', aRepo: '소스 코드', aIssues: '문제 알리기', aLicense: '라이선스', aLicenseText: 'PolyForm Noncommercial 1.0.0 — 개인 용도와 비상업적 용도로는 무료입니다. 상업적으로 쓰려면 이롭스튜디오의 별도 라이선스가 필요합니다.', aShowLicense: '전문 보기', aHideLicense: '접기', aTabAbout: '정보', aTabKeys: '단축키', kgAsk: '승인·질문', kPick: '강조된 요청에서 답 고르기 — 허용, 거부, 선택지', kPickTyping: '입력창에 쓰는 중에 같은 동작', kSendAnswers: '질문의 답 보내기', kMoveQ: '한 요청 안의 질문 사이 이동', kgAgent: '에이전트 창', kSendMsg: '메시지 보내기', kNewLine: '메시지 안에서 줄바꿈', kDockReorder: '막대의 최소화한 에이전트 순서 옮기기 (칩에 초점을 두고, 또는 끌어서)', dockDrag: '끌어서 순서 바꾸기', kDock: '그 번호의 최소화한 에이전트 열기·접기 (입력 중에도)', kEsc: '창 닫기 (최소화한 에이전트는 막대에 남음)', kRun: '메시지를 !로 시작하면 이 PC에서 명령으로 실행하고 출력을 에이전트에게 전달', kgTabs: '프로젝트 탭 (탭에 초점이 있을 때)', kTabMove: '이전·다음 프로젝트', kTabEnds: '처음·마지막 프로젝트', kTabReorder: '프로젝트 순서 옮기기', kgApp: '데스크톱 앱', kHotkey: '어디서든 창 보이기·숨기기 (기본값, 설정에서 바꿀 수 있음)', kZoom: '확대·축소', kZoomReset: '원래 크기', kReload: '페이지 새로 고침', kBackFwd: '뒤로·앞으로', kgTerm: '터미널 패널 (데스크톱 앱)', kTerm: '터미널 패널 보이기·숨기기', kTermNew: '새 터미널', kTermSplit: '터미널 분할 (오른쪽)', kTermTabs: '이전·다음 터미널 탭 (Shift 와 함께: 탭 옮기기)', kTermPane: '분할된 탭에서 옆 창으로', kTermRename: '터미널 탭 이름 바꾸기 (더블클릭도 됨)', kTermClose: '창 닫기 (마지막 창이면 탭까지)', kTermDup: '탭 복제 (같은 셸·폴더)', kTermSplitDown: '터미널 분할 (아래)', kTermGrow: '분할 창 크게·작게', kTermZoom: '이 창만 크게 보기, 다시 누르면 원래대로', kTermNext: '다음·이전 터미널 탭', kTermNth: '그 번호의 터미널 탭 (9: 마지막)', kTermFont: '글자 크기: 크게·작게·원래대로', dragTab: '끌어서 순서 바꾸기 (또는 Ctrl+Shift+← →)',
+      acct: '계정', acctTitle: 'Claude 계정', acctOut: '이 PC의 Claude Code에 로그인돼 있지 않습니다.', acctUsage: '사용량', lim_session: '현재 세션 (5시간)', lim_weekly_all: '주간 · 전체 모델', lim_weekly_scoped: '주간 · {x}', resetsIn: '{t} 후 초기화 · {at}', extraUsage: '추가 사용량', srcLive: '{t} 확인 · 5분마다 다시 물어봅니다', srcCache: 'Anthropic에 물어보지 못해 {t} 확인한 값을 보여 줍니다', srcBusy: 'Anthropic이 잠시 조회를 막아서(너무 자주 물음) {t} 확인한 값을 보여 줍니다. {n} 뒤 다시 물어봅니다', limReset: '그사이 초기화됨 — 새 값 확인 전', srcExpired: '로그인이 잠시 만료돼 {t} 확인한 값을 보여 줍니다 — Claude Code를 쓰면 다시 이어집니다', srcNone: '아직 사용량 정보가 없습니다', refresh: '새로 고침', switchAcct: '계정 바꾸기', logout: '로그아웃', login: '로그인', acctWarn: '로그아웃하면 다시 로그인할 때까지 이 PC의 모든 Claude Code 세션(VS Code, 모니터 에이전트)이 멈춥니다.', switchConfirm: '로그아웃하고 다른 계정으로 로그인할까요?', logoutConfirm: 'Claude Code에서 로그아웃할까요?', loginWait: '브라우저에서 로그인을 마쳐 주세요. 안내 창도 하나 열렸습니다. 끝나면 이 화면이 저절로 바뀝니다.', acctFailed: '실패했습니다 — 다시 해 주세요.', about: '정보', aboutTitle: 'ELOP Crew 정보', aboutWhat: '이 PC에서 도는 모든 Claude Code 세션을 프로젝트 → 리더 → 에이전트로 묶어 보여 주는 로컬 대시보드입니다. 승인과 질문에 답하고, 에이전트에게 메시지를 보내고, 에이전트를 직접 띄우고, 요금제 사용량도 볼 수 있습니다.', aboutPrivacy: '이 PC 안에서만 돕니다(127.0.0.1). 대화, 이메일, 토큰은 저장하지 않습니다. PC 밖으로 나가는 요청은 api.anthropic.com 에 사용량을 묻는 것과, 데스크톱 앱에서 GitHub 에 업데이트를 확인하는 것뿐입니다.', aVersion: '버전', aApp: '데스크톱 앱 {v}', aMaker: '만든 곳', aRepo: '소스 코드', aIssues: '문제 알리기', aLicense: '라이선스', aLicenseText: 'PolyForm Noncommercial 1.0.0 — 개인 용도와 비상업적 용도로는 무료입니다. 상업적으로 쓰려면 이롭스튜디오의 별도 라이선스가 필요합니다.', aShowLicense: '전문 보기', aHideLicense: '접기', aTabAbout: '정보', aTabKeys: '단축키', aTabMods: '모드', modsWhat: '모드는 훅 모듈이 있는 Claude Code 플러그인입니다(Claude Code 에 "모드 만들어 줘" 하면 만들어 줍니다). 모니터가 실행하는 에이전트들이 여기서 켠 모드를 불러오고, 에이전트 창이 모드가 보여 주는 것을 그립니다: 상태줄과 토스트, 입력창 위 띠, 탭으로 열리는 패널. 바꾸면 각 에이전트에 쉬고 있으면 바로, 일하는 중이면 그 턴이 끝난 뒤 적용되고, 에이전트가 도는 동안 모드 파일을 고치면 저절로 다시 불러옵니다.', modsNone: '이 폴더들에 모드가 없습니다.', modsDirs: '폴더 (모드 하나, 또는 모드들이 든 폴더)', modsAddPh: '폴더 경로, 예: C:\\Users\\me\\my-mods', modsAdd: '추가', modsOpen: '열기', modsRemove: '빼기', modsOn: '켜기', modsFailed: '저장하지 못했습니다', modClose: '이 패널 닫기', modRedraw: '다시 그리기', modFrom: '모드 {x} 의 패널', kgAsk: '승인·질문', kPick: '강조된 요청에서 답 고르기 — 허용, 거부, 선택지', kPickTyping: '입력창에 쓰는 중에 같은 동작', kSendAnswers: '질문의 답 보내기', kMoveQ: '한 요청 안의 질문 사이 이동', kgAgent: '에이전트 창', kSendMsg: '메시지 보내기', kNewLine: '메시지 안에서 줄바꿈', kDockReorder: '막대의 최소화한 에이전트 순서 옮기기 (칩에 초점을 두고, 또는 끌어서)', dockDrag: '끌어서 순서 바꾸기', kDock: '그 번호의 최소화한 에이전트 열기·접기 (입력 중에도)', kEsc: '창 닫기 (최소화한 에이전트는 막대에 남음)', kRun: '메시지를 !로 시작하면 이 PC에서 명령으로 실행하고 출력을 에이전트에게 전달', kgTabs: '프로젝트 탭 (탭에 초점이 있을 때)', kTabMove: '이전·다음 프로젝트', kTabEnds: '처음·마지막 프로젝트', kTabReorder: '프로젝트 순서 옮기기', kgApp: '데스크톱 앱', kHotkey: '어디서든 창 보이기·숨기기 (기본값, 설정에서 바꿀 수 있음)', kZoom: '확대·축소', kZoomReset: '원래 크기', kReload: '페이지 새로 고침', kBackFwd: '뒤로·앞으로', kgTerm: '터미널 패널 (데스크톱 앱)', kTerm: '터미널 패널 보이기·숨기기', kTermNew: '새 터미널', kTermSplit: '터미널 분할 (오른쪽)', kTermTabs: '이전·다음 터미널 탭 (Shift 와 함께: 탭 옮기기)', kTermPane: '분할된 탭에서 옆 창으로', kTermRename: '터미널 탭 이름 바꾸기 (더블클릭도 됨)', kTermClose: '창 닫기 (마지막 창이면 탭까지)', kTermDup: '탭 복제 (같은 셸·폴더)', kTermSplitDown: '터미널 분할 (아래)', kTermGrow: '분할 창 크게·작게', kTermZoom: '이 창만 크게 보기, 다시 누르면 원래대로', kTermNext: '다음·이전 터미널 탭', kTermNth: '그 번호의 터미널 탭 (9: 마지막)', kTermFont: '글자 크기: 크게·작게·원래대로', dragTab: '끌어서 순서 바꾸기 (또는 Ctrl+Shift+← →)',
       usageAlert: 'Claude 사용량 {p}% — {x}', usageAlertBody: '{t} 후 초기화 ({at})', dToday: '오늘 쓴 토큰', dAway: '다른 프로젝트 작업', awayRow: '{x} — {t} 그쪽 파일을 고침', awayTitle: '{x} 프로젝트 파일을 고치는 중 · {t}', guestsTitle: '다른 프로젝트에서 와서 작업 중', guestTitle: '{x} 프로젝트 에이전트 · {t} 여기 파일을 고침', todayOf: '입력 {i} · 캐시 읽기 {r} · 캐시 쓰기 {c} · 출력 {o}', topToday: '오늘 토큰을 많이 쓴 에이전트', noneToday: '오늘은 아직 토큰을 쓴 에이전트가 없습니다', stallNotify: '{x} 멈춘 듯합니다', nudge: '멈추고 이어서 하기', nudgeText: '멈춘 것 같아서 중단했습니다. 하던 작업을 이어서 해 주세요.', nudgeVs: 'VS Code에서 도는 세션입니다. 그 패널에서 Esc를 누른 뒤 이어서 하라고 보내 주세요.', nudged: '✓ 멈추고 이어서 하라고 보냈습니다',
       modes: { default: '수동', auto: 'AUTO', acceptEdits: '편집 자동', plan: '계획', bypassPermissions: '전부 허용', dontAsk: '묻지 않음' },
       forClaude: 'Claude Code 전용', noServer: '모니터 서버에 연결할 수 없습니다 — npm start 로 다시 띄우세요.', tabsLabel: '프로젝트', lookTitle: '이름·모습', saveLook: '저장', saved: '✓ 저장했습니다', fastStart: '빠른 시작 — 연결 도구(MCP·커넥터) 없이', nickLabel: '이름', nickKoPh: '한국어 이름', nickEnPh: '영어 이름', nickHint: '둘 다 비우면 자동 이름, 하나만 적으면 두 언어 모두 그 이름입니다.', descLabel: '하는 일', descPh: '한 줄로 — 예: 인프라 구성 및 CI/CD 담당', nickAuto: '비워 두면 자동으로 붙습니다', avatarLabel: '모습', colour: '색', acc_ball: '안테나', acc_twin: '쌍안테나', acc_phones: '헤드폰', acc_sprout: '새싹', acc_bolt: '번개', acc_crown: '왕관', projectLabel: '프로젝트', otherFolder: '다른 폴더…', browse: '찾아보기', up2: '위로', pickThis: '이 폴더 선택', drives: '드라이브', noFolders: '하위 폴더 없음', tabSubs: '서브에이전트 ({n})', subTools: '도구 {n}회', subBack: '목록', subsRunning: '서브에이전트 {n}개 실행 중', newAgent: '새 에이전트', folder: '폴더', modelLabel: '모델', effortLabel: '노력', effort_default: '기본 노력', effort_low: '노력: 낮음', effort_medium: '노력: 보통', effort_high: '노력: 높음', effort_xhigh: '노력: 매우 높음', effort_max: '노력: 최대', modelDefault: '기본 모델', modelLatest: '최신 (늘 새 버전)', modelPinned: '버전 고정', modelOther: '직접 입력…', modelOtherPh: '모델 이름 (예: claude-opus-4-1)', firstMsg: '첫 메시지 (선택)', newAgentHint: '이 폴더에서 claude 프로그램을 직접 실행합니다 — 지금 로그인된 Claude Code 그대로, VS Code 없이. 승인과 질문은 이 페이지로 옵니다.', startAgent: '시작', startFailed: '시작하지 못했습니다 — 폴더를 확인해 주세요.', stopAgent: '중단', endAgent: '에이전트 종료', endConfirm: '이 에이전트를 종료할까요? 대화 기록은 남습니다.', endAsk: '이 에이전트를 종료할까요? 보관해 두면 나중에 새 에이전트에서 이 대화를 이어서 시작할 수 있습니다.', endArchive: '보관하고 종료', archiveTitle: '보관 이름', archiveTitlePh: '나중에 찾을 이름(선택) — 예: 로그인 버그, 절반 함', archiveNote: '메모', archiveNotePh: '메모(선택) — 어디까지 했는지, 다음에 할 일', resumeFind: '보관함과 지난 대화에서 찾기', renameProject: '프로젝트 이름', renameFailed: '이름을 저장하지 못했습니다.', renameHint: '이 화면에서만 쓰는 이름입니다. 폴더({x})는 그대로입니다. 비우면 폴더 이름으로 돌아갑니다.', endPlain: '그냥 종료', resumeTitle: '지난 대화 이어서 시작…', resumeArchived: '보관함', resumePast: '이 폴더의 지난 대화', resumeNone: '없음', resumeNoName: '에이전트', resumeLive: 'VS Code에서 열려 있음 — 복사해서 이어감', resumeInUse: '이미 모니터에서 열려 있음', resumeFailed: '이어서 시작하지 못했습니다(이미 열려 있거나 폴더가 없을 수 있습니다).', unarchive: '보관함에서 빼기', assistTitle: '비서', menuCloud: 'ELOP Crew 클라우드', menu: '메뉴', menuLang: '언어', menuTheme: '테마', themeSystem: '시스템', themeLight: '라이트', themeDark: '다크', assistSub: '모든 에이전트를 돌봅니다', assistOpen: '비서와 대화', assistPh: '에이전트에 대해 묻거나, 시킬 일을 말하세요', assistHello: '이 모니터의 비서입니다. 모든 에이전트를 지켜보다가 필요할 때 알려 드리고, 메시지 전달·멈춘 에이전트 재촉·간단한 승인을 대신할 수 있어요. 무엇을 도와드릴까요?', assistWorking: '생각 중…', assistEvents: '모니터가 알린 일:', assistRestarted: '모니터가 재시작됐다고 비서에게 알렸습니다.', assistSettings: '비서 설정', aOpts: '비서가 할 일', aRun: '실행', aApprove: '자동 승인', aEventsHint: '알릴 때마다 비서가 한 턴(토큰)을 씁니다.', aApprove_off: '끄기', aApprove_read: '읽기만', aApprove_project: '프로젝트 안', aApproveHint_off: '요청에 답하지 않고, 추천만 알려 줍니다.', aApproveHint_read: '아무것도 바꾸지 않는 일만 승인합니다: 읽기, 검색, git status/diff/log, 테스트.', aApproveHint_project: '에이전트 프로젝트 안의 되돌릴 수 있는 일상 작업을 승인합니다. push, 삭제, 비밀 정보, 배포는 직접 답합니다.', aEvents: '비서에게 알릴 것', aEv_asks: '권한 요청', aEv_waiting: '질문·계획 승인', aEv_finished: '일을 마친 에이전트', aEv_failed: '실패한 턴', aEv_stuck: '멈춘 에이전트', aEv_login: '로그인', aEv_usage: '요금제 사용량', ctxLong: '대화가 깁니다: {n} 토큰을 매 단계마다 전부 다시 읽습니다. /compact 로 줄이면 다음 턴부터 비용이 줄어듭니다.', ctxLongVs: '대화가 깁니다: {n} 토큰을 매 단계마다 전부 다시 읽습니다. VS Code 에서 /compact 를 입력해 줄이세요.', ctxMeter: '컨텍스트: {w} 중 {n} 토큰 ({p}%)', mcpTitle: '커넥터', mcpHint: 'Claude Code 가 쓰는 MCP 서버와 claude.ai 커넥터입니다. 상태는 claude 가 직접 확인합니다(몇 초 걸립니다).', mcpCheck: '다시 확인', mcpChecking: '확인 중…', mcpOpen: 'claude.ai 커넥터 설정', mcpConnect: 'claude.ai 에서 연결', mcpLocal: '이 PC', mcpLocalAuth: '터미널에서 claude 를 실행하고 /mcp 를 입력해 로그인하세요.', mcpFailed: 'claude 에게 커넥터 목록을 받지 못했습니다.', mcpNone: 'MCP 서버나 커넥터가 없습니다.', mcp_ok: '연결됨', mcp_auth: '로그인 필요', mcp_warn: '확인 필요', mcp_failed: '연결 안 됨', mcpAt: '{t} 확인', mcpRestart: '이미 실행 중인 에이전트는 다음에 새로 시작할 때부터 새 커넥터를 씁니다', ctxHead: '컨텍스트 {p} 사용 중', ctxShortTip: '매 단계마다 대화 전체를 다시 읽습니다. 길어질수록 한 단계의 비용이 커집니다.', ctxVsCompact: 'VS Code 에서 /compact 를 입력하면 대화가 줄어듭니다.', sys_restart: '↻ 모니터가 재시작되어 이어서 하라고 알렸습니다', sys_login: '🔑 다시 로그인되어 이어서 하라고 알렸습니다', sys_limit: '⏳ 사용량 한도가 풀려 이어서 하라고 알렸습니다', sys_relimit: '🔑 다른 계정으로 로그인되어(한도는 계정마다 따로) 이어서 하라고 알렸습니다', sys_nudge: '👉 비서가 이어서 하라고 재촉했습니다', sys_task: '📋 작업판에서 넘긴 일: {x}', sys_answer: '📋 작업판의 답을 전달했습니다: {x}', autoRun: '자동 진행', autoRunTip: '턴을 마친 에이전트에게 대기 중인 다음 작업을 넘깁니다. 에이전트는 TASK DONE 으로 작업을 끝내거나, TASK BLOCKED: <질문> 으로 여기서 결정을 묻습니다.', requeue: '다시 대기열로', sys_assist: '🤖 비서가 전달: {x}', browsers: '브라우저', bTitle: '브라우저', bTip: '에이전트가 띄운 브라우저(헤드리스 Chrome, Playwright 등)와 열린 페이지, 그리고 한 페이지의 실시간 화면', bChip: '띄운 브라우저 {n}개 — 보기', bShared: '공용 브라우저', bSharedTip: '모니터가 직접 띄우는 헤드리스 브라우저입니다. 켜 두면 모든 에이전트에게 자기 브라우저 대신 여기서 페이지를 보라고 알려 주므로, 무엇을 보는지 여기서 다 볼 수 있습니다. 다시 누르면 닫습니다.', bShareFailed: '공용 브라우저를 띄우지 못했습니다(Chrome 이나 Edge 가 없나요?).', bHeadless: '헤드리스', bWindow: '창', bPipe: 'Playwright 가 파이프로 띄운 브라우저라 밖에서 볼 수 없습니다. 공용 브라우저를 켜면 에이전트가 그것을 씁니다.', bNoPort: '디버깅 포트 없이 띄운 브라우저라 볼 수 없습니다.', bNoPages: '열린 페이지 없음', bNone: '지금 브라우저를 띄운 에이전트가 없습니다.', bNoneShare: '위의 공용 브라우저를 켜면 에이전트들이 그것을 쓰고, 여기서 볼 수 있습니다.', bPick: '왼쪽에서 페이지를 고르세요.', bNothing: '볼 수 있는 페이지가 없습니다.', bNothingPipe: '볼 수 있는 페이지가 없습니다. 이 브라우저는 밖에서 볼 수 없으니 오른쪽 위 ‘공용 브라우저’를 켜세요. 에이전트는 다음 메시지부터 그것을 쓰라는 안내를 받습니다.', bUntitled: '(제목 없음)', bShot: '브라우저에 보이는 페이지 화면', bGone: '페이지가 닫혔습니다', filterOn: '{x}만 보기', filterTip: '{x}인 에이전트만 보기 (다시 누르면 모두)', filterClear: '모든 에이전트 보기', filterNone: '지금 {x} 상태인 에이전트가 없습니다.', sys_fresh: '↺ 대화가 길어져 새 대화로 시작했습니다 — 끝낸 작업과 마지막 보고를 넘겨주었습니다', sys_check: '✗ 확인 명령이 실패해 다시 맡겼습니다: {x}', checkLabel: '완료 전 확인', checkNone: '없음 — 에이전트가 끝났다고 하면 완료', checkSet: '정하기', checkPh: '프로젝트 폴더에서 실행할 명령 — 예: npm test', checkTip: '에이전트가 TASK DONE 이라고 하면 프로젝트 폴더에서 내 권한으로 실행합니다. 실패하면 출력 끝부분과 함께 에이전트에게 다시 맡기고, 3번 실패하면 여기서 결정을 묻습니다. 에이전트는 바꿀 수 없고 여기서만 정합니다.', ctxCompact: '/compact 실행', ctxCompacting: '줄이는 중…', ctxLongTip: '대화가 깁니다: {n} 토큰을 매 단계마다 다시 읽습니다. /compact 하면 다음 턴부터 비용이 줄어듭니다', assistTool_status: '에이전트 상황 확인', assistTool_conversation: '대화 확인', assistTool_send_message: '메시지 전달', assistTool_answer_request: '승인 요청에 답함', assistTool_nudge: '에이전트 재촉', assistTool_notify_user: '알림 보냄', takeOver: '모니터로 가져오기', takeOverHint: '이 대화를 모니터 에이전트로 이어받습니다. 모드·모델·effort를 고르고 중단할 수 있습니다. VS Code의 원래 세션은 그대로 남으니, 더 쓰지 않으려면 VS Code에서 닫으세요.', takeOverConfirm: '이 대화를 모니터 에이전트로 이어받을까요? VS Code의 원래 세션은 그대로 남습니다. 더 쓰지 않으려면 VS Code에서 닫으세요.', takeOverBusy: '작업 중입니다 — 턴이 끝난 뒤에 가져오세요. 턴 도중에 복사하면 도구 호출이 끊긴 채로 시작합니다.', takeOverFailed: '가져오지 못했습니다(작업 중이거나 이미 가져왔을 수 있습니다).', takenOverTag: '모니터로 감', takenOverTitle: '모니터에서 {x}(으)로 이어지는 중입니다. 이건 예전 복사본이니 VS Code에서 닫으세요', takenOverNote: '이미 모니터에서 {x}(으)로 이어지고 있습니다. 이 VS Code 세션은 예전 복사본입니다. 둘 다 같은 폴더에서 일할 수 있으니, 더 쓰지 않으려면 VS Code에서 닫으세요.', openTaken: '{x} 열기', monTag: '모니터', msgAgent: '에이전트에게 바로 전달됩니다.', slashHint: ' · /로 Claude Code 명령어', slashLoading: '명령어 불러오는 중…', slashNone: '그런 이름의 명령어가 없습니다', slashTitle: 'Claude Code 명령어', barStopped: '멈춤 — 메시지를 보내면 이어서 합니다', turnDone: '턴 완료 · {t}초', newBelow: '새 내용 ↓', attach: '파일 첨부', remove: '빼기', tooMany: '한 번에 5개까지 첨부할 수 있습니다', tooBig: '{x} 파일이 20MB를 넘습니다', uploadFailed: '{x} 파일을 올리지 못했습니다', stillUploading: '아직 올리는 중입니다 — 잠시만요', sec: '{n}초', barThink: '생각 중… {t}', barTool: '{x} — {t}째 실행 중', barAsk: '아래에서 답을 기다리는 중', barVs: 'VS Code에서 답을 기다리는 중', barWaiting: '끝남 — 입력을 기다리는 중', barResting: '쉬는 중', barGone: '이 세션은 종료됐습니다', tabInfo: '정보', tabConv: '대화', fromPage: '✉ 모니터에서', liveTitle: '대화', liveConnecting: '연결 중…', liveOn: '실시간', liveOff: '끊김 — 다시 연결 중', liveMasked: '이메일·전화·주민/카드번호·키·토큰은 가려집니다 · 저장하지 않습니다', msgTo: '{x}에게 메시지', msgPh: '{x}에게 보낼 메시지 — Enter 보내기, Shift+Enter 줄바꿈 · 파일은 끌어다 놓거나 붙여넣기 · !로 시작하면 명령 실행', runCmd: '실행', runHint: '이 PC에서 에이전트 폴더를 기준으로 내 권한으로 실행합니다 — 권한 검사 없음 — 출력은 에이전트에게 전달됩니다.', running: '실행 중…', runFailed: '실행하지 못했습니다.', runNoStart: '시작하지 못함', runTimeout: '2분이 지나 멈춤', runExit: '종료 코드 {n}', runSent: '에이전트에게 보냄', msgNow: '바로 전달됩니다 — 에이전트가 듣고 있습니다.', msgAfterTurn: '지금 하는 턴이 끝나면 전달됩니다.', msgNotListening: '에이전트가 다음 턴을 마치면 전달됩니다 (아직 듣고 있지 않음).', msgQueued: '메시지는 쌓였지만 이 세션이 지금 듣고 있지 않아 깨어나지 않습니다. VS Code에서 한 번 말을 걸면 그다음부터 여기서 깨울 수 있습니다.', msgSent: '✓ 보냈습니다', answer: '답하기', reanswer: '바꾸기', answerPh: '답을 입력', send: '보내기', cancel: '취소', addTask: '작업 추가', taskPh: '할 일', assignee: '담당', nobody: '미정', moveUp: '위로', moveDown: '아래로', boardChanged: '그사이 작업판이 바뀌었습니다 — 새로 불러왔으니 다시 해 주세요.', stallTag: '멈춘 듯 {t}', stallLong: '작업 중인데 {t} 동안 아무 활동이 없습니다', dStall: '멈춤 의심', dCtx: '컨텍스트 크기', tok: '토큰', dErr: '도구 오류', errOf: '최근 도구 결과 {n}개 중 {e}개 실패', lastErr: '마지막 {t}', vsTitle: 'VS Code에서 답하기', vsTag: 'VS Code 대기', vsHint: '이 창은 VS Code에서만 답할 수 있습니다.', close: '닫기', minimise: '최소화', dockLabel: '최소화한 에이전트', dockOpen: '{x} 열기 (Ctrl+{n})', dockFold: '{x} 접기 (Ctrl+{n})', dockRemove: '{x} 막대에서 빼기', dProject: '프로젝트', dRole: '역할', dTitle: '세션', dNow: '지금 하는 일', dLast: '마지막 동작', dState: '상태', dMode: '모드', dUp: '켜진 지', dAsk: '승인 대기', notifyOn: '알림 켜기', allTab: '전체 에이전트',
@@ -1508,6 +1553,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       const atBottom = nearBottom();
       const before = pane.children.length;
       for (const e of entries) {
+        if (e.role === 'note' && e.mod) { add(el('div', 'm note wrap mod', '🧩 ' + str(e.mod) + ': ' + str(e.text) + (e.at ? '  · ' + time(e.at) : ''))); continue; }
         if (e.role === 'note') { add(el('div', 'm note' + (e.sys === 'assist' ? ' wrap' : ''), (e.sys ? t('sys_' + e.sys, { x: str(e.text) }) : str(e.text)) + (e.at ? '  · ' + time(e.at) : ''))); continue; }
         if (e.role === 'user' || e.role === 'assistant' || e.role === 'monitor') {
           open.clear();   // a new reply or message means the calls before it are over, even if a result never landed
@@ -1570,11 +1616,13 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     // a monitor agent: its own stream — text grows in place as it is written, like the VS Code panel
     const blocks = new Map();   // message id + block index → its text element
     const putAgent = (ev) => {
-      if (ev.kind === 'state') { agentState = ev.state; if (ev.state !== 'working') thinking = false; if (liveCtl) liveCtl.update(last); if (onAgentState) onAgentState(ev.state); return; }
+      if (ev.kind === 'state') { agentState = ev.state; if (ev.state !== 'working') thinking = false; if (liveCtl) liveCtl.update(last); if (onAgentState) onAgentState(ev.state); if (onUi) onUi({ ui: 'state', state: ev.state }); return; }
       if (ev.kind === 'user') return put([{ role: 'user', text: ev.text, files: ev.files, refs: ev.refs, at: ev.at }]);
       if (ev.kind === 'tool') return put([{ role: 'tool', id: ev.id, name: ev.name, action: ev.action, input: ev.input, at: ev.at }]);
       if (ev.kind === 'result') return put([{ role: 'result', id: ev.id, error: ev.error, text: ev.text, images: ev.images, at: ev.at }]);
+      if (ev.kind === 'note' && ev.mod) return put([{ role: 'note', mod: ev.mod, text: ev.text, at: ev.at }]);
       if (ev.kind === 'note') return put([{ role: 'note', text: ev.text, sys: ev.sys, at: ev.at }]);
+      if (ev.kind === 'ui') { if (onUi) onUi(ev); return; }
       if (ev.kind === 'turn') return put([{ role: 'note', text: (ev.ok ? '✓ ' : '⚠ ') + t('turnDone', { t: (ev.ms / 1000).toFixed(1) }) + (ev.text ? ' — ' + str(ev.text) : ''), at: ev.at }]);
       if (ev.kind === 'block' && ev.type === 'thinking') { thinking = !ev.done; return; }
       if (ev.kind === 'block' && ev.type === 'text') {
@@ -1598,8 +1646,10 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
         else jump.hidden = false;
       }
     };
-    let onAgentState = null;
+    let onAgentState = null, onUi = null;
     wrap.onAgentState = (fn) => { onAgentState = fn; };
+    // what the agent's mods show (status, toasts, panes, redraws): handed to the dialog; the kept state comes with init
+    wrap.onUi = (fn) => { onUi = fn; };
     if (s.managed && !sub) {
       try {
         liveES = new EventSource('/api/agent-stream?id=' + encodeURIComponent(str(s.agentId)) + '&token=' + encodeURIComponent(token));
@@ -1608,6 +1658,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
           pane.replaceChildren(tail); tools.clear(); open.clear(); blocks.clear();
           for (const e of d.events) putAgent(e);
           agentState = d.state; if (onAgentState) onAgentState(d.state);
+          if (onUi) { onUi({ ui: 'state', state: d.state }); onUi({ ui: 'init', state: d.ui || null }); }
           state.textContent = ''; state.className = 'lstate on'; toBottom();
           if (liveCtl) liveCtl.update(last);
         });
@@ -2299,6 +2350,285 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     return wrap;
   }
 
+  /* ── Mods ── Claude Code plugins an agent loads (About → Mods) draw here as they would in VS Code: a status line and
+     toasts, a band above the message box, panes as tabs of the dialog. The trees their hooks return are asked of the
+     agent's claude (ui_render through /api/agents/ui) and drawn with the page's own elements: text only, never markup
+     (an SVG goes in as an image, which runs nothing); a press, typing or a pick goes back the same way. */
+  const MOD_COLORS = { black: '#1f2328', red: '#cf222e', green: '#1a7f37', yellow: '#9a6700', blue: '#0969da', magenta: '#8250df', cyan: '#1b7c83', white: '#f6f8fa', gray: 'var(--muted)', grey: 'var(--muted)',
+    text: 'var(--text)', inversetext: 'var(--surface)', inactive: 'var(--faint)', subtle: 'var(--muted)', suggestion: 'var(--accent)', remember: 'var(--accent)', permission: 'var(--accent)', ide: 'var(--accent)',
+    success: '#1a7f37', error: 'var(--block)', warning: 'var(--wait)', merged: '#8250df', claude: 'var(--claude)', planmode: '#1b7c83', autoaccept: '#8250df', promptborder: 'var(--line-strong)', bashborder: '#bf3989',
+    diffadded: '#1a7f37', diffremoved: 'var(--block)', diffaddeddimmed: '#1a7f37', diffremoveddimmed: 'var(--block)', diffaddedword: '#1a7f37', diffremovedword: 'var(--block)' };
+  function modColor(c) {
+    if (typeof c !== 'string') return '';
+    if (/^#[0-9a-f]{3,8}$/i.test(c) || /^rgba?\([\d\s.,%]+\)$/.test(c)) return c;
+    const k = c.replace(/Bright$/, '').replace(/_/g, '').toLowerCase();
+    return MOD_COLORS[k] || '';
+  }
+  const cells = (v, axis) => typeof v === 'number' && isFinite(v) ? (axis === 'y' ? v * 1.45 + 'em' : v + 'ch') : typeof v === 'string' && /^\d+(\.\d+)?%$/.test(v) ? v : '';
+  function modTree(n, act) {
+    if (n == null || n === false || n === true) return document.createTextNode('');
+    if (typeof n === 'string' || typeof n === 'number') return document.createTextNode(String(n));
+    if (Array.isArray(n)) { const f = document.createDocumentFragment(); for (const c of n) f.append(modTree(c, act)); return f; }
+    if (typeof n !== 'object') return document.createTextNode('');
+    const p = n.props && typeof n.props === 'object' ? n.props : {};
+    const kids = () => { const f = document.createDocumentFragment(); for (const c of Array.isArray(n.children) ? n.children : []) f.append(modTree(c, act)); return f; };
+    const textOf = (x) => Array.isArray(x) ? x.map(textOf).join('') : typeof x === 'string' || typeof x === 'number' ? String(x) : x && typeof x === 'object' ? textOf(x.children) : '';
+    switch (n.type) {
+      case 'Box': {
+        const b = el('div', 'mbx'), st = b.style;
+        st.flexDirection = { row: 'row', column: 'column', 'row-reverse': 'row-reverse', 'column-reverse': 'column-reverse' }[p.flexDirection] || 'row';
+        for (const [k, axis] of [['gap', 'x'], ['columnGap', 'x'], ['rowGap', 'y']]) if (p[k] != null) st[k] = cells(p[k], axis);
+        const side = (pre, css) => {
+          const all = p[pre], x = p[pre + 'X'], y = p[pre + 'Y'];
+          for (const [s2, axis, v] of [['Top', 'y', p[pre + 'Top'] ?? y ?? all], ['Bottom', 'y', p[pre + 'Bottom'] ?? y ?? all], ['Left', 'x', p[pre + 'Left'] ?? x ?? all], ['Right', 'x', p[pre + 'Right'] ?? x ?? all]]) if (v != null) st[css + s2] = cells(v, axis);
+        };
+        side('padding', 'padding'); side('margin', 'margin');
+        for (const [k, axis] of [['width', 'x'], ['height', 'y'], ['minWidth', 'x'], ['minHeight', 'y'], ['maxWidth', 'x'], ['maxHeight', 'y']]) if (p[k] != null) st[k] = cells(p[k], axis);
+        if (p.flexGrow != null) st.flexGrow = String(Number(p.flexGrow) || 0);
+        if (p.flexShrink != null) st.flexShrink = String(Number(p.flexShrink) || 0);
+        if (p.flexBasis != null) st.flexBasis = cells(p.flexBasis, 'x');
+        const al = { 'flex-start': 'flex-start', center: 'center', 'flex-end': 'flex-end', stretch: 'stretch', baseline: 'baseline' };
+        if (al[p.alignItems]) st.alignItems = al[p.alignItems];
+        if (al[p.alignSelf]) st.alignSelf = al[p.alignSelf];
+        const ju = { 'flex-start': 'flex-start', center: 'center', 'flex-end': 'flex-end', 'space-between': 'space-between', 'space-around': 'space-around', 'space-evenly': 'space-evenly' };
+        if (ju[p.justifyContent]) st.justifyContent = ju[p.justifyContent];
+        if (p.flexWrap === 'wrap' || p.flexWrap === 'wrap-reverse') st.flexWrap = p.flexWrap;
+        if (p.overflow === 'hidden' || p.overflowX === 'hidden' || p.overflowY === 'hidden') st.overflow = 'hidden';
+        if (p.display === 'none') st.display = 'none';
+        if (p.position === 'absolute') { st.position = 'absolute'; for (const k of ['top', 'bottom']) if (p[k] != null) st[k] = cells(p[k], 'y'); for (const k of ['left', 'right']) if (p[k] != null) st[k] = cells(p[k], 'x'); }
+        else if (p.position === 'relative') st.position = 'relative';
+        if (typeof p.borderStyle === 'string' && p.borderStyle) {
+          const bc = modColor(p.borderColor) || 'var(--line-strong)';
+          if (p.borderDimColor) st.borderColor = 'var(--line)';
+          st.border = (p.borderStyle === 'double' ? '3px double ' : p.borderStyle === 'bold' ? '2px solid ' : p.borderStyle === 'dashed' ? '1px dashed ' : '1px solid ') + (p.borderDimColor ? 'var(--line)' : bc);
+          if (p.borderStyle === 'round') st.borderRadius = '8px';
+          for (const [k, css] of [['borderTop', 'borderTopStyle'], ['borderBottom', 'borderBottomStyle'], ['borderLeft', 'borderLeftStyle'], ['borderRight', 'borderRightStyle']]) if (p[k] === false) st[css] = 'none';
+          if (!st.padding && p.padding == null && p.paddingX == null) st.padding = '2px 6px';
+        }
+        if (p.backgroundColor) st.background = modColor(p.backgroundColor);
+        b.append(kids());
+        return b;
+      }
+      case 'Text': {
+        const x = el('span', 'mtx'), st = x.style;
+        if (p.color) st.color = modColor(p.color);
+        if (p.backgroundColor) st.background = modColor(p.backgroundColor);
+        if (p.bold) st.fontWeight = '700';
+        if (p.italic) st.fontStyle = 'italic';
+        if (p.underline || p.strikethrough) st.textDecoration = [p.underline ? 'underline' : '', p.strikethrough ? 'line-through' : ''].join(' ').trim();
+        if (p.dimColor) st.opacity = '.6';
+        if (p.inverse) { st.background = st.color || 'var(--text)'; st.color = 'var(--surface)'; }
+        if (p.wrap && p.wrap !== 'wrap') x.classList.add('nowrap');
+        if (p.wrap === 'truncate-start') x.style.direction = 'rtl';
+        x.append(kids());
+        return x;
+      }
+      case 'Button': {
+        const b = el('button', 'mbt' + (p.variant === 'primary' ? ' primary' : '') + (p.plain ? ' plain' : ''), str(p.label) || textOf(n.children));
+        b.type = 'button';
+        if (p.dimColor) b.style.opacity = '.7';
+        if (p.role === 'dismiss') b.setAttribute('aria-label', str(p.label) || 'close');
+        if (n.press) b.addEventListener('click', () => act.press(n.press, p.key, b)); else b.disabled = true;
+        if (p.autoFocus) requestAnimationFrame(() => b.focus());
+        return b;
+      }
+      case 'Input': {
+        const w = el('label', 'mlb'), i = document.createElement('input');
+        i.className = 'min';
+        i.value = str(p.value); i.placeholder = str(p.placeholder);
+        if (p.label) w.append(el('span', null, str(p.label)));
+        w.append(i);
+        if (!n.press) { i.disabled = true; return w; }
+        let tmr = 0;
+        const submit = () => { clearTimeout(tmr); act.input(n.press, p.key, i.value, 'submit'); };
+        i.addEventListener('input', () => { clearTimeout(tmr); tmr = setTimeout(() => act.input(n.press, p.key, i.value, 'change'), 250); });
+        i.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submit(); } });
+        if (p.submitLabel) { const b = el('button', 'mbt', str(p.submitLabel)); b.type = 'button'; b.addEventListener('click', submit); w.append(b); }
+        if (p.autoFocus) requestAnimationFrame(() => i.focus());
+        return w;
+      }
+      case 'Select': {
+        const w = el('label', 'mlb'), sel = document.createElement('select');
+        sel.className = 'msel';
+        for (const o of Array.isArray(p.options) ? p.options.slice(0, 500) : []) {
+          const v = typeof o === 'object' && o ? o.value : o;
+          sel.append(new Option(str(typeof o === 'object' && o ? o.label ?? o.value : o), str(v)));
+        }
+        if (p.value != null) sel.value = str(p.value);
+        if (p.label) w.append(el('span', null, str(p.label)));
+        w.append(sel);
+        if (n.press) sel.addEventListener('change', () => act.select(n.press, p.key, sel.value)); else sel.disabled = true;
+        if (p.autoFocus) requestAnimationFrame(() => sel.focus());
+        return w;
+      }
+      case 'Link': {
+        const href = str(p.href);
+        const a = el('a', null, textOf(n.children) || str(p.label) || href);
+        if (/^https?:\/\//i.test(href)) { a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+        return a;
+      }
+      case 'Code': {
+        const pre = el('pre', 'mcode'), src = str(p.source ?? p.code ?? textOf(n.children));
+        if (p.format === 'diff') for (const line of src.split('\n')) pre.append(el('div', line.startsWith('@@') ? 'hunk' : line.startsWith('+') ? 'add' : line.startsWith('-') ? 'del' : null, line || ' '));
+        else pre.textContent = src;
+        if (p.wrap === 'wrap') pre.style.whiteSpace = 'pre-wrap';
+        if (p.path) pre.title = str(p.path);
+        return pre;
+      }
+      case 'Markdown': {
+        const m = el('div', 'mmd md');
+        m.append(mdNode(str(p.text)));
+        if (p.dimColor) m.style.opacity = '.6';
+        const pressable = Array.isArray(p.pressableLinks) ? p.pressableLinks.map(String) : null;
+        if (n.press) m.addEventListener('click', async (e) => {
+          const a = e.target.closest('a'), href = a?.getAttribute('href') || '';
+          if (!a || (pressable && !pressable.includes(href))) return;
+          e.preventDefault();
+          const r = await act.press(n.press, p.key, null, href);
+          if (!r?.response?.handled && /^https?:\/\//i.test(href)) window.open(href, '_blank', 'noopener');
+        });
+        return m;
+      }
+      case 'Svg': {
+        const img = document.createElement('img');
+        img.className = 'msvg';
+        img.alt = str(p.alt);
+        const src = str(p.source);
+        if (src.length <= 131072) img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(src);
+        if (Number(p.width) > 0) img.style.width = Number(p.width) + 'px';
+        if (Number(p.height) > 0) img.style.height = Number(p.height) + 'px';
+        return img;
+      }
+      default: {
+        // what this page does not draw (an engine part, a Client module): said so, small, rather than left blank
+        const x = el('span', 'mph', n.type === 'engine' ? '' : '[' + str(n.type) + ']');
+        if (n.children) x.append(kids());
+        return x;
+      }
+    }
+  }
+  // one dialog's mods: asks for drawings, keeps them fresh, passes presses on
+  function modSurface({ s, lp, tabs, body, panels, buttons, show, current, band, stat, form }) {
+    const call = (op, request) => agentCall('/api/agents/ui', { id: s.agentId, op, request });
+    const toasts = el('div', 'modtoasts');
+    form.append(toasts);
+    let status = {}, panes = [], typedAt = 0;
+    const panesOn = new Map();   // pane id → { tab, panel, title }
+    // what the person did on a drawing, back to the mod's handler; the mod asks for a redraw itself (ui_invalidate)
+    const actOn = (component, instance) => {
+      const at = (h, key) => ({ plugin: h.plugin, handle: h.handle, ...(key != null ? { key: String(key) } : {}), component, instance_id: instance });
+      return {
+        async press(h, key, btn, href) {
+          if (btn) btn.disabled = true;
+          const r = await call('press', { ...at(h, key), ...(href ? { href } : {}) });
+          if (btn && btn.isConnected) btn.disabled = false;
+          return r;
+        },
+        input(h, key, value, kind) { call('input', { ...at(h, key), value: String(value).slice(0, 16384), kind }); },
+        select(h, key, value) { call('select', { ...at(h, key), value: String(value) }); },
+      };
+    };
+    // a drawing: asked, then put in place unless a newer ask for the same place went out meanwhile
+    const seq = new Map(), pendingDraw = new Map();
+    // a redraw held while a field was being typed in: done once it is left
+    for (const host of [body, form]) host.addEventListener('focusout', () => setTimeout(() => { for (const [k, f] of [...pendingDraw]) { pendingDraw.delete(k); f(); } }, 0));
+    const colsOf = (node) => Math.max(20, Math.floor(((node.clientWidth || node.parentElement?.clientWidth || 760) - 20) / 7.5));
+    async function draw(component, instance, into, extra = {}) {
+      const n = (seq.get(instance) || 0) + 1;
+      seq.set(instance, n);
+      const columns = colsOf(into), rows = 30;
+      const props = component === 'Pane'
+        ? { title: extra.title || '', isFocused: true, bodyColumns: columns, placement: 'dock', scroll: { offset: 0, bodyRows: rows }, view: {} }
+        : { hasSurvey: false, isWorking, maxRows: 8, bodyColumns: columns, scroll: { offset: 0, bodyRows: 8 }, view: {} };
+      const r = await call('render', { component, instance_id: instance, props, viewport: { columns, rows, isFullscreen: true } });
+      if (seq.get(instance) !== n) return;
+      const tree = r?.ok ? r.response?.tree : null;
+      const empty = !tree || tree.type === 'engine';
+      // typing in a field of the old drawing: kept where it is, rather than lose what is being typed
+      const typing = into.contains(document.activeElement) && document.activeElement.matches('input.min');
+      if (typing && !empty) { pendingDraw.set(instance, () => draw(component, instance, into, extra)); return true; }
+      if (component === 'AbovePrompt') bandHooked = r?.ok ? r.response?.hooked !== false : bandHooked;
+      into.replaceChildren(empty ? document.createTextNode('') : modTree(tree, actOn(component, instance)));
+      return !empty;
+    }
+    let isWorking = false, bandHooked = true;
+    async function drawBand() { band.hidden = !(await draw('AbovePrompt', 'above-prompt', band)); }
+    function drawPane(id) { const x = panesOn.get(id); if (x) draw('Pane', id, x.content, { title: x.title }); }
+    function drawStat() {
+      stat.replaceChildren();
+      for (const [plugin, text] of Object.entries(status)) { const x = el('span'); x.append(el('b', null, plugin), document.createTextNode(text)); x.title = plugin + ': ' + text; stat.append(x); }
+      stat.hidden = !stat.children.length;
+    }
+    function setPanes(list, shownId, focusId) {
+      list = Array.isArray(list) ? list.filter((x) => x && typeof x.id === 'string').slice(0, 12) : [];
+      const ids = new Set(list.map((x) => x.id));
+      for (const [id, x] of panesOn) if (!ids.has(id)) { x.tab.remove(); x.panel.remove(); panesOn.delete(id); delete panels['mod:' + id]; delete buttons['mod:' + id]; if (current() === 'mod:' + id) show('conv'); }
+      for (const pane of list) {
+        let x = panesOn.get(pane.id);
+        const title = str(pane.title) || pane.id;
+        if (!x) {
+          const tab = el('button', 'dtab modtab');
+          tab.type = 'button'; tab.setAttribute('role', 'tab');
+          const name = el('span', null, '🧩 ' + title), close = el('span', 'x', '×');
+          close.title = t('modClose'); close.setAttribute('role', 'button');
+          close.addEventListener('click', (e) => { e.stopPropagation(); call('close', { id: pane.id }); });
+          tab.append(name, close);
+          tab.addEventListener('click', () => { tab.classList.remove('fresh'); show('mod:' + pane.id); drawPane(pane.id); call('pane_show', { id: pane.id }); });
+          const panel = el('div', 'dpanel modpane');
+          const head = el('div', 'mhead'), redraw = el('button', null, t('modRedraw'));
+          redraw.type = 'button';
+          redraw.addEventListener('click', () => drawPane(pane.id));
+          head.append(el('span', null, t('modFrom', { x: str(pane.plugin) })), redraw);
+          const content = el('div', 'mod');
+          panel.append(head, content);
+          panel.hidden = true;
+          body.append(panel);
+          tabs.append(tab);
+          x = { tab, panel, content, name, title };
+          panesOn.set(pane.id, x);
+          panels['mod:' + pane.id] = panel; buttons['mod:' + pane.id] = tab;
+          // opened by a command just typed, or asking for the focus: shown; opened unasked: a dot on its tab
+          if (focusId === pane.id || (shownId === pane.id && Date.now() - typedAt < 15000)) show('mod:' + pane.id); else tab.classList.add('fresh');
+        } else { x.name.textContent = '🧩 ' + title; x.title = title; }
+        if (focusId === pane.id && current() !== 'mod:' + pane.id) show('mod:' + pane.id);
+      }
+      for (const id of panesOn.keys()) if (current() === 'mod:' + id) drawPane(id);
+    }
+    lp.onUi((ev) => {
+      if (ev.ui === 'init' || ev.ui === 'reset') {
+        status = { ...(ev.state?.status || {}) }; drawStat();
+        const pn = ev.state?.panes;
+        setPanes(pn?.panes || [], pn?.shown_id, null);
+        if (ev.ui === 'init' || ev.state) drawBand(); else { band.hidden = true; band.replaceChildren(); }
+        return;
+      }
+      if (ev.ui === 'status') { if (ev.text) status[ev.plugin] = ev.text; else delete status[ev.plugin]; drawStat(); return; }
+      // working or not is one of the band's props: asked again when it changes (no redraw comes for it)
+      if (ev.ui === 'state') { const w = ev.state === 'working'; if (w !== isWorking) { isWorking = w; if (bandHooked) drawBand(); } return; }
+      if (ev.ui === 'toast') {
+        const x = el('div'); x.append(el('b', null, str(ev.plugin)), document.createTextNode(str(ev.text)));
+        toasts.append(x);
+        while (toasts.children.length > 4) toasts.firstChild.remove();
+        setTimeout(() => x.remove(), Number(ev.ms) || 4000);
+        return;
+      }
+      if (ev.ui === 'panes') { setPanes(ev.panes, ev.shown_id, ev.focus_requested_id); return; }
+      // a redraw: the drawings this page asked for that changed
+      if (ev.ui === 'invalidate') {
+        bandHooked = true;
+        // none named: everything this page draws
+        if (!Array.isArray(ev.instances)) { drawBand(); for (const pid of panesOn.keys()) drawPane(pid); return; }
+        for (const x of ev.instances) {
+          if (x?.component === 'AbovePrompt') drawBand();
+          else if (x?.component === 'Pane' && panesOn.has(x.instance_id)) drawPane(x.instance_id);
+        }
+        return;
+      }
+    });
+    // a slash command typed here may open a pane: one that shows up right after it is shown
+    form.addEventListener('submit', () => { typedAt = Date.now(); }, true);
+  }
+
   function showDetail(s, focusMessage, tab) {
     leaveDialog();
     const d = $('detail');
@@ -2499,12 +2829,16 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     }
     ctxWarn(s);
     form.insertBefore(warn, box.box);   // above the message box: always in sight, the conversation scrolls
+    const modBand = el('div', 'modband mod'), modStat = el('div', 'modstat');
+    modBand.hidden = modStat.hidden = true;
+    if (s.managed) { form.insertBefore(modBand, box.box); form.insertBefore(modStat, box.box); }
     // a stopped monitor agent: start claude now, while the message is being written
     if (s.managed && s.running === false) agentCall('/api/agents/warm', { id: s.agentId });
     conv.append(lp);
     const subs = el('div', 'dpanel');
     subsPanel(s, subs);
     const panels = { info, conv, subs };
+    const modTabs = [];   // the mods' panes, as tabs after these
     let pick = tab || kept?.tab || (() => { try { const v = localStorage.getItem('am.dtab'); return v === 'conv' || (v === 'subs' && (s.subagents || []).length) ? v : 'info'; } catch (e2) { return 'info'; } })();
     const buttons = {};
     const show = (k) => {
@@ -2524,9 +2858,12 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       buttons[k] = b;
       tabs.append(b);
     }
+    const body = dbody(info, conv, subs);
+    if (s.managed) modSurface({ s, lp, tabs, body, panels, buttons, show: (k) => show(k), current: () => pick, band: modBand, stat: modStat, form });
+    if (!panels[pick]) pick = 'info';
     show(pick);
     d.classList.remove('narrow');
-    d.replaceChildren(head, tabs, dbody(info, conv, subs), form);   // the box stays at the bottom; the floating stack is re-attached right after
+    d.replaceChildren(head, tabs, body, form);   // the box stays at the bottom; the floating stack is re-attached right after
     if (!d.open) d.showModal();
     current = { name: s.name, tab: () => pick, draft: () => ta.value };
     floatInto(d);
@@ -3540,6 +3877,51 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     acctTimer = setInterval(load, 5000);   // cleared with the dialog, like the account's
   }
 
+  // About → Mods: the mods the agents load (config.json "mods"), each on or off, and the folders they are found in
+  function modsPanel() {
+    const box = el('div', 'about mods');
+    box.append(el('p', null, t('modsWhat')));
+    const list = el('ul'), dirs = el('div', 'dirs'), msg = el('div', 'status');
+    let now = null;
+    const save = async (change) => {
+      const r = await agentCall('/api/mods', change);
+      if (!r) { msg.textContent = t('modsFailed'); msg.className = 'status bad'; return; }
+      msg.textContent = ''; now = r; paint();
+    };
+    function paint() {
+      list.replaceChildren();
+      if (!now.mods.length) list.append(el('li', null, t('modsNone')));
+      for (const m of now.mods) {
+        const li = el('li'), info = el('div', 'mi'), on = el('label', 'mlb'), cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = m.on;
+        cb.addEventListener('change', () => save({ off: now.mods.filter((x) => (x.dir === m.dir ? !cb.checked : !x.on)).map((x) => x.dir) }));
+        on.append(cb, document.createTextNode(t('modsOn')));
+        info.append(el('b', null, str(m.name) + (m.version ? ' ' + str(m.version) : '')));
+        if (m.description) info.append(el('div', null, str(m.description)));
+        info.append(el('div', 'mono', str(m.dir)));
+        li.append(on, info);
+        list.append(li);
+      }
+      dirs.replaceChildren(el('b', null, t('modsDirs')));
+      for (const dir of now.dirs) {
+        const row = el('div'), open = el('button', null, t('modsOpen')), rm = el('button', null, t('modsRemove'));
+        open.type = rm.type = 'button';
+        open.addEventListener('click', () => agentCall('/api/mods', { open: dir }));
+        rm.addEventListener('click', () => save({ dirs: now.dirs.filter((x) => x !== dir) }));
+        row.append(el('code', null, str(dir)), open, rm);
+        dirs.append(row);
+      }
+      const add = el('form', 'add'), inp = document.createElement('input'), go = el('button', null, t('modsAdd'));
+      inp.placeholder = t('modsAddPh'); inp.setAttribute('aria-label', t('modsDirs'));
+      go.type = 'submit';
+      add.addEventListener('submit', (e) => { e.preventDefault(); const v = inp.value.trim(); if (v) save({ dirs: [...now.dirs, v] }); });
+      add.append(inp, go);
+      dirs.append(add);
+    }
+    box.append(list, dirs, msg);
+    agentCall('/api/mods', {}).then((r) => { if (r) { now = r; paint(); } else { msg.textContent = t('modsFailed'); msg.className = 'status bad'; } });
+    return box;
+  }
   function showAbout() {
     stopLive();
     leaveDialog();
@@ -3583,10 +3965,11 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     });
     body.append(top, el('p', null, t('aboutWhat')), el('div', 'priv', t('aboutPrivacy')), dl);
     const keys = shortcutsPanel();
+    const mods = modsPanel();
     const tabs = el('div', 'dtabs');
     tabs.setAttribute('role', 'tablist');
-    const panes = { about: body, keys };
-    for (const [k, label] of [['about', t('aTabAbout')], ['keys', t('aTabKeys')]]) {
+    const panes = { about: body, keys, mods };
+    for (const [k, label] of [['about', t('aTabAbout')], ['keys', t('aTabKeys')], ['mods', t('aTabMods')]]) {
       const b = el('button', 'dtab', label);
       b.type = 'button';
       b.setAttribute('role', 'tab');
@@ -3594,7 +3977,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       tabs.append(b);
     }
     tabs.firstChild.click();
-    d.replaceChildren(head, tabs, dbody(body, keys));
+    d.replaceChildren(head, tabs, dbody(body, keys, mods));
     if (!d.open) d.showModal();
     floatInto(d);
     d.classList.add('narrow');

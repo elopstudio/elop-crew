@@ -47,7 +47,7 @@ export const systemNote = (text) => SYSTEM_NOTES.find(([re]) => re.test(String(t
 export const systemNoteText = (text) => { for (const [re] of SYSTEM_NOTES) { const m = String(text || '').match(re); if (m) return (m[1] || '').replace(/\n\n\(Write to the user in [A-Za-z]+\.\)\s*$/, '').trim().slice(0, 1000) } return '' }
 const assistantLookOf = (v) => (v && v.acc === 'crown' && Number.isInteger(v.c) && v.c >= 0 && v.c < 8 ? { c: v.c, acc: 'crown' } : avatarOf(v))
 
-export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd, langRule, replyIn }) {
+export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd, langRule, replyIn, modDirs }) {
   // what the agent is for, one line written by the user (shown under its name)
   const descOf = (v) => clip(String(v || '').replace(/[\x00-\x1f<>]/g, ' ').replace(/\s+/g, ' ').trim(), 80)
   // its name: one for both languages (a string) or one per language ({ en, ko }); the server reads both shapes
@@ -228,13 +228,53 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     return 'claude'
   }
 
-  function emit(a, ev) {
+  function emit(a, ev, kept = true) {
     ev.at = ev.at || Date.now()
-    a.events.push(ev)
+    if (kept) a.events.push(ev)
     if (a.events.length > HISTORY) a.events.splice(0, a.events.length - HISTORY)
     const line = 'event: e\ndata: ' + JSON.stringify(ev) + '\n\n'
     for (const res of a.streams) { try { res.write(line) } catch {} }
   }
+  // Mods (Claude Code plugins with a hooks module) draw in the agent's dialog: its claude is told this page is a surface
+  // (ui_attach, as Claude Code for VS Code: no Client modules to run), and what the mods show comes as system messages:
+  // a status line, toasts, log lines, the panes they opened, a redraw wanted. They go to the page as they are; the status
+  // and the panes are kept, for a dialog opened later. The page asks for the drawings (ui_render) and passes on presses,
+  // typing and picks through /api/agents/ui.
+  const UI_SURFACE = 'vscode', UI_CLIENT = 'crew'
+  const UI_OPS = new Set(['render', 'press', 'input', 'select', 'close', 'pane_show', 'pane_focus', 'scroll', 'focus', 'panes'])
+  const plainJson = (v, max) => { try { const s = JSON.stringify(v); return s && s.length <= max ? JSON.parse(s) : null } catch { return null } }
+  function onUi(a, o) {
+    const ui = a.ui || (a.ui = { status: {}, panes: null })
+    const plugin = clip(String(o.plugin || ''), 80)
+    if (o.subtype === 'ui_status') {
+      const text = typeof o.text === 'string' && o.text ? mask(clip(o.text, 2000)) : ''
+      if (text) ui.status[plugin] = text; else delete ui.status[plugin]
+      emit(a, { kind: 'ui', ui: 'status', plugin, text }, false)
+      return
+    }
+    if (o.subtype === 'ui_log') {
+      if (/\breloaded\b/.test(String(o.text || ''))) a.modCmds = null   // its commands may have changed
+      emit(a, { kind: 'note', mod: plugin, text: mask(clip2(String(o.text || ''), 4000)) })
+      return
+    }
+    if (o.subtype === 'ui_toast') { emit(a, { kind: 'ui', ui: 'toast', plugin, text: mask(clip(String(o.text || ''), 2000)), ms: Math.min(60000, Math.max(1500, Number(o.timeout_ms) || 4000)) }, false); return }
+    // the rest as they are (the panes, a redraw, focus, a scroll...), without the envelope
+    const { type, uuid, session_id, subtype, ...rest } = o
+    const body = plainJson(rest, 200000)
+    if (!body) return
+    if (subtype === 'ui_panes') ui.panes = body
+    emit(a, { ...body, kind: 'ui', ui: String(subtype).slice(3), at: 0 }, false)
+  }
+  // the mod folders the agents load (config.json "mods"): each a plugin, or a folder of them
+  const modArgs = () => [...new Set(modDirs?.() || [])].slice(0, 40).flatMap((p) => ['--plugin-dir', p])
+  // the mods were changed on the page: each running agent loads them again, at once when free, else after its turn
+  function reloadMods() {
+    for (const a of agents.values()) {
+      if (a.kind === 'assistant' || !a.proc) continue
+      if (a.state === 'working') a.restartAfterTurn = true; else { a.respawn = true; stop(a) }
+    }
+  }
+
   function setState(a, state) {
     if (a.state === state) return
     a.state = state
@@ -255,6 +295,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       if (done) { a.controls.delete(r.request_id); done(r) }
       return
     }
+    if (o.type === 'system' && typeof o.subtype === 'string' && o.subtype.startsWith('ui_')) { if (a.kind !== 'assistant') onUi(a, o); return }
     if (o.type === 'system' && o.subtype === 'init') {
       if (o.session_id && o.session_id !== a.sessionId) { a.sessionId = o.session_id; delete a.forkFrom; save() }
       // the model claude says it runs is written down only when it changed under it (/model): an alias picked
@@ -348,6 +389,17 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // hooks or MCP servers and without a message, so no session is made and no one is billed. Kept a few minutes per folder.
   // The few that only mean something in the terminal (colours, the focus view) are left out, as claude itself does.
   const TERMINAL_ONLY = new Set(['color', 'focus', 'reload-plugins', 'heapdump'])
+  const commandList = (cmds) => (Array.isArray(cmds) ? cmds : []).filter((c) => c && typeof c.name === 'string' && !c.name.startsWith('__') && !TERMINAL_ONLY.has(c.name)).slice(0, 300).map((c) => ({
+    name: clip(c.name, 80), desc: clip(String(c.description || '').replace(/\s+/g, ' '), 240), hint: clip(String(c.argumentHint || ''), 80),
+    aliases: Array.isArray(c.aliases) ? c.aliases.filter((x) => typeof x === 'string').slice(0, 5) : [], builtin: !!c.builtin,
+  }))
+  // the commands its mods register (the claude above runs no hooks, so no mod): asked of the agent's own claude, once
+  // per claude and again after a mod is reloaded. reload_plugins answers with the whole list, and leaves unchanged mods as they are
+  async function modCommands(a) {
+    if (!a.proc || !modArgs().length) return []
+    if (!a.modCmds) a.modCmds = control(a, { subtype: 'reload_plugins' }, 15000).then((r) => r.subtype === 'success' ? commandList(r.response?.commands) : [])
+    return a.modCmds
+  }
   const commandCache = new Map()   // cwd → { at, list | promise }
   function commandsIn(cwd) {
     const hit = commandCache.get(cwd)
@@ -370,11 +422,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
           let o
           try { o = JSON.parse(l) } catch { continue }
           if (o.type !== 'control_response') continue
-          const cmds = (o.response?.response || o.response || {}).commands
-          end((Array.isArray(cmds) ? cmds : []).filter((c) => c && typeof c.name === 'string' && !c.name.startsWith('__') && !TERMINAL_ONLY.has(c.name)).slice(0, 300).map((c) => ({
-            name: clip(c.name, 80), desc: clip(String(c.description || '').replace(/\s+/g, ' '), 240), hint: clip(String(c.argumentHint || ''), 80),
-            aliases: Array.isArray(c.aliases) ? c.aliases.filter((x) => typeof x === 'string').slice(0, 5) : [], builtin: !!c.builtin,
-          })))
+          end(commandList((o.response?.response || o.response || {}).commands))
         }
       })
       try { child.stdin.write(JSON.stringify({ type: 'control_request', request_id: 'cmds', request: { subtype: 'initialize' } }) + '\n') } catch { end([]) }
@@ -406,6 +454,8 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     if (a.effort) args.push('--effort', a.effort)
     // quick start: only the monitor's own tool, none of the user's MCP servers and connectors
     if (a.fast) args.push('--strict-mcp-config')
+    // the mods (not for the assistant, whose chat draws none of it)
+    if (a.kind !== 'assistant') args.push(...modArgs())
     if (a.sessionId) args.push('--resume', a.sessionId)
     // taken over from a VS Code session: a copy of that conversation with an id of its own, so the original can
     // stay open in VS Code without the two writing to one transcript; claude tells the new id on its first turn
@@ -413,9 +463,15 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     else args.push('--session-id', a.newSessionId)
     let child
     // a claudePath that cannot be run at all throws right here, not as an 'error' event
-    try { child = spawn(claudeExecutable(), args, { cwd: a.cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: process.env }) }
+    // a mod edited while it runs is loaded again (each reload says so in a log line)
+    try { child = spawn(claudeExecutable(), args, { cwd: a.cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: a.kind === 'assistant' ? process.env : { ...process.env, CLAUDE_CODE_PLUGIN_DIR_WATCH: '1' } }) }
     catch (e) { emit(a, { kind: 'note', text: 'could not start claude: ' + e.message }); a.proc = null; setState(a, 'stopped'); return }
     a.proc = child
+    a.ui = { status: {}, panes: null }
+    a.modCmds = null
+    emit(a, { kind: 'ui', ui: 'reset' }, false)
+    // this page draws what the mods show
+    if (a.kind !== 'assistant') control(a, { subtype: 'ui_attach', surface: UI_SURFACE, client_id: UI_CLIENT, viewport: { columns: 100, rows: 30, isFullscreen: true } })
     // the session id is kept only once claude has said it (its first output, above): an agent started and then
     // restarted before its first turn has no conversation yet, and resuming one left it with "No conversation found"
     let rest = ''
@@ -432,6 +488,8 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     child.on('exit', (code) => {
       if (a.proc !== child) return
       a.proc = null
+      a.ui = null
+      emit(a, { kind: 'ui', ui: 'reset' }, false)
       for (const done of a.controls?.values() || []) done({ subtype: 'error', error: 'claude exited' })
       a.controls = null
       if (a.respawn) { a.respawn = false; a.stopping = false; spawnAgent(a); setState(a, 'idle'); return }
@@ -447,12 +505,12 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
 
   // a control request to the running claude (a new mode or model without a restart); resolves with its answer
   let controlSeq = 0
-  function control(a, request) {
+  function control(a, request, ms = 5000) {
     return new Promise((resolve) => {
       if (!a.proc) return resolve({ subtype: 'error', error: 'not running' })
       const id = 'm' + (++controlSeq)
       a.controls = a.controls || new Map()
-      const timer = setTimeout(() => { a.controls?.delete(id); resolve({ subtype: 'error', error: 'no answer' }) }, 5000)
+      const timer = setTimeout(() => { a.controls?.delete(id); resolve({ subtype: 'error', error: 'no answer' }) }, ms)
       a.controls.set(id, (r) => { clearTimeout(timer); resolve(r) })
       try { a.proc.stdin.write(JSON.stringify({ type: 'control_request', request_id: id, request }) + '\n') } catch { a.controls.delete(id); clearTimeout(timer); resolve({ subtype: 'error', error: 'write failed' }) }
     })
@@ -652,7 +710,21 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       return send(a, text, files) ? [200, {}] : [500, {}]
     }
     if (url.pathname === '/api/agents/stop') { stop(a); return [200, {}] }
-    if (url.pathname === '/api/agents/commands') return [200, { commands: await commandsIn(a.cwd) }]
+    // the page and the mods: a drawing asked for, a press, typing, a pick, a pane shown or closed (UI_OPS)
+    if (url.pathname === '/api/agents/ui') {
+      const op = String(body.op || '')
+      if (!UI_OPS.has(op) || a.kind === 'assistant') return [400, {}]
+      if (!a.proc) return [200, { ok: false, error: 'not running' }]
+      const fields = plainJson(body.request && typeof body.request === 'object' ? body.request : {}, 100000)
+      if (!fields) return [400, {}]
+      const r = await control(a, { ...fields, subtype: 'ui_' + op, surface: UI_SURFACE, client_id: UI_CLIENT }, op === 'render' ? 15000 : 8000)
+      return [200, r.subtype === 'success' ? { ok: true, response: r.response ?? null } : { ok: false, error: clip(String(r.error || 'failed'), 300) }]
+    }
+    if (url.pathname === '/api/agents/commands') {
+      const [base, mods] = await Promise.all([commandsIn(a.cwd), modCommands(a)])
+      const have = new Set(base.map((c) => c.name))
+      return [200, { commands: [...base, ...mods.filter((c) => !have.has(c.name))] }]
+    }
     // looks stuck: stop it, wait until claude is really gone, then ask it to carry on in the same session
     if (url.pathname === '/api/agents/nudge') {
       const proc = a.proc, text = clip(body.text, 2000)
@@ -702,7 +774,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     const a = agents.get(id)
     if (!a) { res.writeHead(404).end(); return }
     res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive' })
-    res.write('event: init\ndata: ' + JSON.stringify({ events: a.events, state: a.state }) + '\n\n')
+    res.write('event: init\ndata: ' + JSON.stringify({ events: a.events, state: a.state, ui: a.ui || null }) + '\n\n')
     a.streams.add(res)
     const ping = setInterval(() => { try { res.write(': ping\n\n') } catch {} }, 15000)
     req.on('close', () => { clearInterval(ping); a.streams.delete(res) })
@@ -789,5 +861,5 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // a line in the assistant's chat that is not a message: an alert, or something it did on its own
   const noteTo = (id, ev) => { const a = agents.get(id); if (a) emit(a, ev) }
 
-  return { handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
+  return { reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
 }

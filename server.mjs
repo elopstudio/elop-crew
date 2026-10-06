@@ -1713,6 +1713,51 @@ async function transcriptEvents(sessionId) {
   }
   return out.slice(-300)
 }
+// Mods for the monitor's agents (config.json "mods": { dirs, off }): Claude Code plugins with a hooks module, each
+// loaded with --plugin-dir, whose status line, toasts, band above the message box and panes the agent's dialog draws.
+// A folder listed is a plugin or holds them; with none listed, ~/.claude/crew-mods. "off" names the plugin folders left out.
+const MODS_HOME = path.join(os.homedir(), '.claude', 'crew-mods')
+function modsConfig() {
+  const m = loadConfig().mods || {}
+  const dirs = Array.isArray(m.dirs) ? m.dirs.filter((x) => typeof x === 'string' && path.isAbsolute(x)).slice(0, 20) : [MODS_HOME]
+  const off = Array.isArray(m.off) ? m.off.filter((x) => typeof x === 'string').slice(0, 200) : []
+  return { dirs, off }
+}
+function modsFound() {
+  const { dirs, off } = modsConfig()
+  const read = (p) => { try { return JSON.parse(fs.readFileSync(path.join(p, '.claude-plugin', 'plugin.json'), 'utf8')) } catch { return null } }
+  const out = []
+  for (const d of dirs) {
+    const own = read(d)
+    let list = own ? [d] : []
+    if (!own) { try { list = fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path.join(d, e.name)) } catch {} }
+    for (const p of list) {
+      const m = read(p)
+      if (!m || out.some((x) => x.dir === p)) continue
+      out.push({ dir: p, name: clip(String(m.name || path.basename(p)), 80), description: clip(String(m.description || ''), 300), version: clip(String(m.version || ''), 30), on: !off.includes(p) })
+    }
+  }
+  return out.slice(0, 40)
+}
+async function modsApi(body) {
+  if (body.dirs !== undefined || body.off !== undefined) {
+    const cur = modsConfig()
+    const dirs = body.dirs !== undefined ? (Array.isArray(body.dirs) ? body.dirs : []).map((x) => String(x).trim()).filter((x) => x && path.isAbsolute(x) && !/[\x00-\x1f]/.test(x)).slice(0, 20) : cur.dirs
+    const off = body.off !== undefined ? (Array.isArray(body.off) ? body.off : []).map(String).slice(0, 200) : cur.off
+    const code = await editConfig((c) => { c.mods = { dirs: [...new Set(dirs)], off: [...new Set(off)] } })
+    if (code !== 200) return [code, {}]
+    agents.reloadMods()
+  }
+  // the folder, made when asked to open it (where a new mod goes)
+  if (body.open) {
+    const dir = String(body.open)
+    if (!modsConfig().dirs.includes(dir) && !modsFound().some((m) => m.dir === dir)) return [400, {}]
+    if (dir === MODS_HOME) { try { fs.mkdirSync(dir, { recursive: true }) } catch {} }
+    const cmd = process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open'
+    try { spawn(cmd, [dir], { detached: true, stdio: 'ignore' }).unref() } catch {}
+  }
+  return [200, { home: MODS_HOME, dirs: modsConfig().dirs, mods: modsFound() }]
+}
 const agents = createAgents({
   root: ROOT, dataDir: DATA, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, attachedPaths,
   askPage: (input, opts) => hookEvent(input, null, opts),
@@ -1722,6 +1767,7 @@ const agents = createAgents({
   onTurnEnd: (sessionId) => boardTurnEnded(sessionId),
   // the person's language, for a monitor agent's system prompt and the monitor's own messages to it
   langRule, replyIn,
+  modDirs: () => modsFound().filter((m) => m.on).map((m) => m.dir),
 })
 // the monitor's assistant behind the floating chat button (assistant.mjs)
 const assistant = createAssistant({
@@ -1831,6 +1877,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/assistant/settings') { json(await assistant.setOptions(body), {}); return }
       if (url.pathname.startsWith('/api/account/')) { const [code, o] = await account.handle(url); json(code, o); return }
       if (url.pathname.startsWith('/api/cloud/')) { const [code, o] = await cloud.handle(url); json(code, o); return }
+      if (url.pathname === '/api/mods') { const [code, o] = await modsApi(body); json(code, o); return }
       if (url.pathname === '/api/agents/fork') { const [code, o] = await forkSession(body); json(code, o); return }
       if (url.pathname === '/api/agents/past') { const [code, o] = await pastSessions(body); json(code, o); return }
       if (url.pathname === '/api/agents/resume') { const [code, o] = await resumeSession(body); json(code, o); return }
