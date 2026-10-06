@@ -860,6 +860,26 @@ function decide(id, answer, pick, extra) {
   return true
 }
 
+// A request of the monitor's own for the person, as a card among the permission requests (the assistant typing into
+// a terminal): true once they allow it, false when they deny it or let it wait out. Its asker never answers it.
+function askPerson(sessionId, detail, wait = 10 * 60 * 1000) {
+  return new Promise((resolve) => {
+    const id = crypto.randomBytes(8).toString('hex')
+    const done = (d, how) => {
+      const p = pending.get(id)
+      if (!p) return
+      clearTimeout(timer); pending.delete(id); recordOutcome(p, how); notifyPages()
+      resolve(d?.hookSpecificOutput?.decision?.behavior === 'allow')
+    }
+    const timer = setTimeout(() => done({}, 'timeout'), wait)
+    pending.set(id, {
+      id, sessionId, tool: clip(detail.tool || '', 40), what: clip(detail.what || '', 160), code: clip(detail.code || '', 600),
+      input: null, suggestions: [], options: [], at: Date.now(), expiresAt: Date.now() + wait, managed: true, done,
+    })
+    notifyPages()
+  })
+}
+
 function readBody(req, limit = 256 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = []
@@ -1706,6 +1726,8 @@ const assistant = createAssistant({
   agents, dataDir: DATA, state: () => cachedState(), notifyPages,
   decide: (id, answer) => decide(id, answer), sendTo: (session, text) => sendFromAssistant(session, text),
   requestSession: (id) => pending.get(id)?.sessionId,
+  // the desktop app's terminal panel, when this server runs inside the app; masked as conversations are
+  terminals: () => globalThis.agentMonitorTerminals || null, mask, askPerson,
   lang: () => LANGS[pageLang] || '',
   // what the person lets it do (config.json "assistant"): how far it may answer requests, what it is told about
   options: () => loadConfig().assistant,

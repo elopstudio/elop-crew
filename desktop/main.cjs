@@ -340,6 +340,20 @@ function tabMenu(id, s, x, y) {
   ])
   menu.popup({ window: win, x: Math.round(x), y: Math.round(term.getBounds().y + y) })
 }
+// The monitor's assistant (in the server, in this process) sees the terminals: the tabs and their shells, the last of
+// what one printed (as the panel draws it, else from what was kept), and types into one — but only once the person
+// has allowed it, which the server asks them on the page
+globalThis.agentMonitorTerminals = {
+  list: () => terminals.info(),
+  async lines(id, n) {
+    if (!terminals.has(id)) return null
+    if (term && !term.webContents.isDestroyed() && !term.webContents.isLoading()) {
+      try { const l = await term.webContents.executeJavaScript(`window.__crewLines ? window.__crewLines(${id | 0}, ${n | 0}) : null`); if (Array.isArray(l)) return l } catch {}
+    }
+    return terminals.tail(id, n)
+  },
+  type(id, text) { if (!terminals.has(id)) return false; terminals.write(id, text); return true },
+}
 const fromTerm = (e) => !!term && e.sender === term.webContents
 ipcMain.handle('monitor-term', async (e, action, ...a) => {
   if (!fromTerm(e)) return null

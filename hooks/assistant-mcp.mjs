@@ -44,18 +44,35 @@ const TOOLS = [
     description: 'Get the person\'s attention: a highlighted line in your chat, a badge on the chat button, and a desktop notification. For what needs them now (a decision, a problem, something finished they were waiting for). Do not use it for routine updates — just write those in your reply.',
     inputSchema: { type: 'object', properties: { text: { type: 'string' }, level: { type: 'string', enum: ['info', 'warn'] } }, required: ['text'] },
   },
+  {
+    name: 'terminals',
+    description: 'The shells open in the ELOP Crew desktop app\'s terminal panel — the person\'s own terminals, not agents: for each, its id, tab (and pane when the tab is split), shell, the name given to it, the folder it is in now and when it last printed. Only in the desktop app.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'terminal_output',
+    description: 'The last lines one terminal shows, as the person sees them (keys, tokens and e-mail addresses masked). Use it to tell whether a build, test or server there finished, failed or is still going.',
+    inputSchema: { type: 'object', properties: { terminal: { type: 'number', description: 'Its id from terminals' }, lines: { type: 'number', description: 'How many of the last lines (default 60, at most 200)' } }, required: ['terminal'] },
+  },
+  {
+    name: 'terminal_type',
+    description: 'Type into one terminal: a command (Enter pressed after it unless enter is false), or Ctrl+C to stop what runs there. The person is asked on the page every time and it is typed only if they allow it (it waits up to 10 minutes for them); the answer then shows what the terminal printed. Give the reason, shown to the person. Only when they asked for it or it plainly helps them; never secrets.',
+    inputSchema: { type: 'object', properties: { terminal: { type: 'number' }, text: { type: 'string' }, enter: { type: 'boolean' }, ctrl_c: { type: 'boolean', description: 'Send Ctrl+C instead of text' }, reason: { type: 'string' } }, required: ['terminal', 'reason'] },
+  },
 ]
+// typing into a terminal waits for the person to allow it
 
 const send = (o) => process.stdout.write(JSON.stringify(o) + '\n')
 const reply = (id, result) => send({ jsonrpc: '2.0', id, result })
 
+const WAITS = { terminal_type: 11 * 60 * 1000 }
 function call(tool, args) {
   return new Promise((resolve) => {
     let conf
     try { conf = JSON.parse(fs.readFileSync(RUNTIME, 'utf8')) } catch { return resolve('The agent monitor is not running.') }
     const body = JSON.stringify({ agent: AGENT, tool, args })
     const req = http.request({
-      host: '127.0.0.1', port: conf.port, path: '/hook/assistant', method: 'POST', timeout: 30000,
+      host: '127.0.0.1', port: conf.port, path: '/hook/assistant', method: 'POST', timeout: WAITS[tool] || 30000,
       headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), 'x-monitor-token': conf.token },
     }, (res) => {
       const chunks = []

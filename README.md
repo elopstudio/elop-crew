@@ -402,7 +402,11 @@ its folder, and every agent: what it is on, stuck, failed or waiting-for-login o
 a VS Code session's has before it goes back to VS Code; whether Claude Code is logged in; the plan's usage),
 **conversation** (the last of one agent's conversation: what it was asked, said and ran, and what failed),
 **send_message** to an agent, **nudge** a stuck monitor agent, **answer_request** on a waiting permission request, and
-**notify_user**. Anything else it wants to do asks you like any agent.
+**notify_user**. In the desktop app it also sees the **terminal panel**: **terminals** (each shell: its tab, name, the
+folder it is in and when it last printed), **terminal_output** (the last lines one shows, keys, tokens and e-mail
+addresses masked — so it can tell you whether a build, test or server there finished or failed) and **terminal_type**
+(a command, or Ctrl+C, typed into one — each time only after you allow it on a card like a permission request, with its
+reason; it can never allow its own). Anything else it wants to do asks you like any agent.
 
 - **Answering for you.** A permission request reaches it at once — a VS Code session's goes back to VS Code after a
   minute, and it used to hear of one only after two. It allows, without asking, work inside the agent's own project

@@ -437,6 +437,21 @@ function keys(x) {
   x.view.addEventListener('contextmenu', (e) => { e.preventDefault(); if (!copy(x)) paste(x) })
 }
 
+// a shell's screen as the panel draws it, for the monitor's assistant: its last n lines, a wrapped line as one
+window.__crewLines = (id, n) => {
+  const x = terms.get(id)
+  if (!x) return null
+  const b = x.term.buffer.active, lines = []
+  for (let i = 0; i < b.length; i++) {
+    const l = b.getLine(i)
+    if (!l) continue
+    const s = l.translateToString(true)
+    if (l.isWrapped && lines.length) lines[lines.length - 1] += s; else lines.push(s)
+  }
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop()
+  return lines.slice(-Math.max(1, Math.min(400, n | 0 || 60)))
+}
+
 /* ── from the app ── */
 const early = new Map()   // id → output from a shell whose pane is not drawn yet
 api.onData((id, d) => { const x = terms.get(id); if (x) x.term.write(d); else early.set(id, (early.get(id) || '') + d) })

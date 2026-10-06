@@ -21,6 +21,13 @@ Your tools (mcp__assistant__*):
 - answer_request: allow or deny a waiting permission request.
 - nudge: stop a stuck monitor agent and ask it to carry on.
 - notify_user: get the person's attention (desktop notification and a badge).
+- terminals: the shells open in the desktop app's terminal panel — the person's own terminals, not agents: each
+  one's id, tab, shell, name, the folder it is in and when it last printed.
+- terminal_output: the last lines one of them shows (keys, tokens and e-mail addresses masked). Read it to tell the
+  person whether a build, test or server there finished, failed or is still going.
+- terminal_type: type a command into one of them. Each time the person is asked on the page first and it runs only
+  if they allow it; give the reason. Use it only when the person asked for it or it plainly helps them (rerun a
+  failed command, stop a server with Ctrl+C), never to type secrets, and never in place of an agent's own work.
 
 How you work
 - Messages that start with "[Monitor events]" come from the monitor, not the person. For each batch: call status,
@@ -97,7 +104,7 @@ const WAIT_TELL_MS = 2 * 60 * 1000   // a question or plan left this long is pas
 const WORKED_MS = 60 * 1000          // a turn this long, ended, is passed on as finished
 const TICK_MS = 15 * 1000
 
-export function createAssistant({ agents, dataDir, state, decide, sendTo, requestSession, notifyPages, lang, login, conversation, options, saveOptions }) {
+export function createAssistant({ agents, dataDir, state, decide, sendTo, requestSession, notifyPages, lang, login, conversation, options, saveOptions, terminals, mask, askPerson }) {
   const opts = () => optionsOf(options?.())
   async function setOptions(body) {
     const o = optionsOf(body)
@@ -173,10 +180,57 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
     return out.slice(-16).join('\n')
   }
 
+  // the terminal panel: only in the desktop app, with this server in it
+  const NO_TERMINALS = 'The terminal panel is only in the ELOP Crew desktop app, and this monitor is not running inside it.'
+  const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 90 ? s + ' s ago' : mins(s * 1000) + ' min ago' }
+  function terminalsText(list) {
+    if (!list.length) return 'No terminals are open in the app\'s terminal panel.'
+    const lines = ['Terminals in the app\'s terminal panel (the person\'s own shells, not agents):']
+    for (const g of list) {
+      for (const p of g.panes) {
+        lines.push(`- terminal ${p.id} · tab ${g.tab}${g.panes.length > 1 ? ' (split, pane ' + (g.panes.indexOf(p) + 1) + ' of ' + g.panes.length + ')' : ''}${g.pinned ? ' · pinned' : ''}` +
+          ` · ${p.shell}${p.title ? ' "' + p.title + '"' : ''} · in ${p.folder} · last printed ${ago(p.lastAt)}`)
+      }
+    }
+    return lines.join('\n')
+  }
+  const findTerminal = (list, id) => list.flatMap((g) => g.panes.map((p) => ({ ...p, tab: g.tab }))).find((p) => p.id === Number(id))
+  async function terminalTool(name, args) {
+    const T = terminals?.()
+    if (!T) return NO_TERMINALS
+    const list = T.list()
+    if (name === 'terminals') return terminalsText(list)
+    const t = findTerminal(list, args.terminal)
+    if (!t) return `No terminal ${args.terminal}. Use the ids from terminals.`
+    const label = `terminal ${t.id} (${t.title || t.shell}, tab ${t.tab}, in ${t.folder})`
+    if (name === 'terminal_output') {
+      const lines = await T.lines(t.id, Math.max(5, Math.min(200, Number(args.lines) || 60)))
+      if (!lines) return `${label} has closed.`
+      const text = mask(lines.join('\n')).slice(-12000)
+      return text.trim() ? `The last of ${label}:\n${text}` : `${label} shows nothing yet.`
+    }
+    if (name === 'terminal_type') {
+      const text = String(args.text || '').replace(/\r?\n$/, '')
+      if (!text && !args.ctrl_c) return 'Nothing to type.'
+      const enter = args.enter !== false
+      const shown = args.ctrl_c ? 'Ctrl+C' : text + (enter ? '  ⏎' : '')
+      const me = agents.assistantState()
+      // the person says yes or no on the page, every time; the assistant never answers its own request
+      const ok = await askPerson(me?.sessionId || '', { tool: 'Terminal', what: (lang?.() === 'Korean' ? '터미널에 입력: ' : 'Type into ') + `${t.title || t.shell} · ${t.folder}` + (args.reason ? ' — ' + String(args.reason).slice(0, 120) : ''), code: shown })
+      if (!ok) return 'The person did not allow it (denied, or no answer in 10 minutes). Nothing was typed.'
+      if (!T.type(t.id, args.ctrl_c ? '\x03' : text + (enter ? '\r' : ''))) return `${label} has closed; nothing was typed.`
+      await new Promise((r) => setTimeout(r, 2500))
+      const after = await T.lines(t.id, 30)
+      return `Typed into ${label}. What it shows now:\n${after ? mask(after.join('\n')).slice(-6000) : '(closed)'}`
+    }
+    return 'No such tool.'
+  }
+
   // a tool call from the assistant's MCP server
   async function tool(body) {
     if (String(body.agent || '') !== 'assistant') return 'Only the monitor\'s assistant has these tools.'
     const args = body.args || {}
+    if (/^terminal(s|_output|_type)$/.test(String(body.tool || ''))) return terminalTool(String(body.tool), args)
     const data = await state()
     switch (String(body.tool || '')) {
       case 'status': return statusText(data)

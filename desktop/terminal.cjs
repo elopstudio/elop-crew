@@ -180,10 +180,11 @@ function open({ shell, cwd, cols, rows, title, inherit, hid } = {}) {
     ...(WIN && inherit ? { conptyInheritCursor: true } : {}),
   })
   const id = nextId++
-  const t = { p, id, hid, shell: sh.id, name: sh.name, title: String(title || '').trim().slice(0, 40), cwd: dir, dir: '', buf: '' }
+  const t = { p, id, hid, lastAt: Date.now(), shell: sh.id, name: sh.name, title: String(title || '').trim().slice(0, 40), cwd: dir, dir: '', buf: '' }
   terms.set(id, t)
   p.onData((d) => {
     t.buf += d.replace(/\x1b\[6n/g, '')
+    t.lastAt = Date.now()
     if (t.buf.length > KEEP) { const cut = t.buf.indexOf('\n', t.buf.length - KEEP); t.buf = t.buf.slice(cut < 0 ? t.buf.length - KEEP : cut + 1) }
     if (!pending.size) setTimeout(flush, 8)
     pending.set(id, (pending.get(id) || '') + d)
@@ -201,6 +202,22 @@ function open({ shell, cwd, cols, rows, title, inherit, hid } = {}) {
   return { id, shell: t.shell, name: t.name, title: t.title, cwd: t.cwd }
 }
 const list = () => [...terms.values()].map(({ id, shell, name, title, cwd, dir, buf }) => ({ id, shell, name, title, cwd: dir || cwd, buf }))
+// For the monitor's assistant: the tabs and their panes, each shell with its name, folder and when it last printed
+function info() {
+  return groupsNow().map((g, i) => ({
+    tab: i + 1, pinned: g.pinned, panes: g.ids.map((id) => terms.get(id)).map((t) => ({ id: t.id, shell: t.name, title: t.title, folder: t.dir || t.cwd, lastAt: t.lastAt })),
+  }))
+}
+// the last lines a shell printed, from what was kept (the panel's own screen is better: the app asks it first);
+// escape sequences dropped, a line redrawn in place kept as last drawn
+function tail(id, n = 60) {
+  const t = terms.get(id)
+  if (!t) return null
+  const text = t.buf.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '').replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]/g, '').replace(/\x1b[()][0-9A-Za-z]|\x1b[=>]/g, '')
+  const lines = text.split('\n').map((l) => l.split('\r').filter(Boolean).pop() || '').map((l) => l.trimEnd())
+  while (lines.length && !lines[lines.length - 1]) lines.pop()
+  return lines.slice(-n)
+}
 // the panel's output cleared: not drawn again from what was kept either
 function clearBuf(id) { const t = terms.get(id); if (t) { t.buf = ''; save() } }
 function rename(id, title) { const t = terms.get(id); if (t) { t.title = String(title || '').trim().slice(0, 40); save() } }
@@ -211,6 +228,6 @@ function close(id) { const t = terms.get(id); if (t) { try { t.p.kill() } catch 
 function closeAll() { if (stopping) return; save(); stopping = true; for (const t of terms.values()) { try { t.p.kill() } catch {} } terms.clear() }
 
 module.exports = {
-  shells, open, list, write, resize, rename, clearBuf, close, closeAll, saved, setLayout, layout: groupsNow, count: () => terms.size,
+  shells, open, list, write, resize, rename, clearBuf, close, closeAll, saved, setLayout, layout: groupsNow, info, tail, has: (id) => terms.has(id), count: () => terms.size,
   onSend: (fn) => { send = fn }, keepIn: (file) => { keepFile = file; histDir = path.join(path.dirname(file), 'terminal-history') },
 }
