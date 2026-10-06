@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 const call = (action, ...a) => ipcRenderer.invoke('monitor-term', action, ...a)
 contextBridge.exposeInMainWorld('monitorTerm', {
+  // the shells running, and the first time the tabs of the app's last run, to start again
   list: () => call('list'),
   open: (o) => call('open', o),
   write: (id, data) => ipcRenderer.send('monitor-term-write', id, data),

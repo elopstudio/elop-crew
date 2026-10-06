@@ -55,11 +55,11 @@ const qs = new URLSearchParams(location.search), MAC = qs.get('platform') === 'd
 const TEXT = {
   ko: {
     newTerm: '새 터미널 (Ctrl+Shift+`)', pick: '셸 고르기', hide: '패널 숨기기 (Ctrl+`)', close: '닫기', tabs: '터미널',
-    cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ', rename: '더블클릭하거나 F2 를 눌러 이름 바꾸기', renamePh: '비우면 원래 이름',
+    cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ', restored: '앱이 다시 시작되어 여기부터 새 셸입니다', rename: '더블클릭하거나 F2 를 눌러 이름 바꾸기', renamePh: '비우면 원래 이름',
   },
   en: {
     newTerm: 'New terminal (Ctrl+Shift+`)', pick: 'Pick a shell', hide: 'Hide the panel (Ctrl+`)', close: 'Close', tabs: 'Terminals',
-    cmd: 'Command Prompt', failed: 'Could not start the shell: ', rename: 'Double-click or press F2 to rename', renamePh: 'Empty for the usual name',
+    cmd: 'Command Prompt', failed: 'Could not start the shell: ', restored: 'The app restarted — a new shell from here', rename: 'Double-click or press F2 to rename', renamePh: 'Empty for the usual name',
   },
 }
 let lang = TEXT[qs.get('lang')] ? qs.get('lang') : 'en'
@@ -122,6 +122,8 @@ function add(info, buf) {
   term.onResize(({ cols, rows }) => api.resize(info.id, cols, rows))
   keys(x)
   if (buf) term.write(buf)
+  // what it printed before the panel knew it (a restarted shell's question where the cursor is, among it)
+  if (early.has(info.id)) { term.write(early.get(info.id)); early.delete(info.id) }
   select(info.id)
   return x
 }
@@ -175,6 +177,11 @@ function keys(x) {
   x.view.addEventListener('contextmenu', (e) => { e.preventDefault(); if (!copy(x)) paste(x) })
 }
 
+// the size a shell gets before the panel fits it: the panel's own, from the font's cell
+function size() {
+  const v = $('views'), cw = 7.8, ch = 15
+  return { cols: Math.max(20, Math.floor((v.clientWidth - 24) / cw)), rows: Math.max(4, Math.floor((v.clientHeight - 6) / ch)) }
+}
 async function openNew(o) {
   $('msg').textContent = ''
   // as big as the one shown, so the first prompt is drawn at the right width
@@ -182,7 +189,8 @@ async function openNew(o) {
   try { const info = await api.open({ ...o, cols: now?.cols, rows: now?.rows }); if (!terms.has(info.id)) add(info) }
   catch (e) { $('msg').textContent = t('failed') + String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') }
 }
-api.onData((id, d) => terms.get(id)?.term.write(d))
+const early = new Map()   // id → output from a shell whose tab is not drawn yet
+api.onData((id, d) => { const x = terms.get(id); if (x) x.term.write(d); else early.set(id, (early.get(id) || '') + d) })
 api.onExit((id) => {
   const x = terms.get(id)
   if (!x) return
@@ -212,7 +220,16 @@ grip.addEventListener('pointercancel', done)
 
 words()
 // the shells still running from before this view was drawn (the window closed to the tray and opened again)
-const ready = api.list().then((all) => { for (const info of all) add(info, info.buf) }, () => {})
+// and the tabs of the app's last run, their old output drawn and a new shell started under it, in the same folder
+const ready = api.list().then(async ({ running, saved }) => {
+  for (const info of running) add(info, info.buf)
+  for (const s of saved) {
+    try {
+      const info = await api.open({ shell: s.shell, cwd: s.cwd, title: s.title, inherit: true, ...size() })
+      add(info, (typeof s.buf === 'string' ? s.buf : '') + '\x1b[0m\r\n\x1b[2m── ' + t('restored') + ' ──\x1b[0m\r\n')
+    } catch {}
+  }
+}, () => {})
 </script>
 </body>
 </html>

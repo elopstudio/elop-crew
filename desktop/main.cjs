@@ -258,10 +258,13 @@ function termKeys(wc) {
 let termOpen = false, termH = 0, termKeep = null
 const termHeight = () => { const h = Number(readSettings().termHeight); return h >= 140 ? h : 300 }
 terminals.onSend((event, ...a) => { if (term) term.webContents.send('monitor-term-' + event, ...a) })
+terminals.keepIn(path.join(app.getPath('userData'), 'terminals.json'))
 function toggleTerminal(show = !termOpen) {
   if (!win && !show) return
   if (show) showWindow()
   termOpen = show
+  // shown at the next start too, with its tabs, if it was when the app quit
+  if (!!readSettings().termOpen !== show) writeSettings({ ...readSettings(), termOpen: show })
   if (show && !term) {
     term = new WebContentsView({ webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'terminal-preload.cjs') } })
     term.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#0f1116' : '#ffffff')
@@ -311,8 +314,12 @@ async function termMenu(x, y) {
 const fromTerm = (e) => !!term && e.sender === term.webContents
 ipcMain.handle('monitor-term', async (e, action, ...a) => {
   if (!fromTerm(e)) return null
-  if (action === 'list') return terminals.list()
-  if (action === 'open') { const o = a[0] || {}; return terminals.open({ cols: o.cols, rows: o.rows, shell: readSettings().termShell, cwd: (await termFolders()).cur }) }
+  // the shells running; with none, the tabs of the app's last run, to start again
+  if (action === 'list') return { running: terminals.list(), saved: terminals.count() ? [] : terminals.saved() }
+  if (action === 'open') {
+    const o = a[0] || {}
+    return terminals.open({ cols: o.cols, rows: o.rows, title: o.title, inherit: !!o.inherit, shell: o.shell || readSettings().termShell, cwd: o.cwd || (await termFolders()).cur })
+  }
   if (action === 'resize') terminals.resize(a[0], a[1], a[2])
   if (action === 'close') terminals.close(a[0])
   if (action === 'rename') terminals.rename(a[0], a[1])
@@ -390,6 +397,8 @@ function showWindow() {
   // closing the window keeps the monitor running in the tray
   win.on('close', (e) => { keepBounds(); if (quitting) return; if (readSettings().closeToTray === false) { quit(); return } e.preventDefault(); win.hide() })
   win.on('closed', () => { win = page = strip = term = null; termOpen = false })
+  // the terminal panel, open when the app last quit: open again, its tabs started again
+  if (readSettings().termOpen) setImmediate(() => toggleTerminal(true))
   win.on('focus', () => { try { win.flashFrame(false) } catch {} })
   paintBadge()
 }
@@ -667,5 +676,6 @@ else {
     if (!quitting && ownServer && typeof globalThis.agentMonitorShutdown === 'function') globalThis.agentMonitorShutdown()
     quitting = true
   })
-  app.on('will-quit', () => globalShortcut.unregisterAll())
+  // an update installing, Cmd+Q: the terminal tabs written down and their shells ended, as quit() does
+  app.on('will-quit', () => { globalShortcut.unregisterAll(); terminals.closeAll() })
 }

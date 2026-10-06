@@ -1,6 +1,8 @@
 // The terminal panel's shells: the ones installed on this PC, each run in a pseudo-terminal (node-pty) in the app's
 // main process. The panel (terminal.html) draws them; a shell outlives the panel being hidden and the view reloading,
-// with the end of its output kept to show again. Desktop app only — the page in a browser never reaches a shell.
+// with the end of its output kept to show again. A shell cannot outlive the app, so the tabs are kept in a file
+// (shell, folder, name, the end of the output) and started again, fresh, the next time the app opens the panel.
+// Desktop app only — the page in a browser never reaches a shell.
 const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -67,7 +69,34 @@ function flush() {
   pending.clear()
 }
 
-function open({ shell, cwd, cols, rows } = {}) {
+/* ── kept across restarts ── */
+let keepFile = null       // set by the app, in its settings folder
+let stopping = false      // the app quitting: its shells' ends are not tabs closed
+let restored = false
+const SAVED = 64 * 1024   // the end of each one's output kept in the file
+let saveTimer = null
+function save() {
+  clearTimeout(saveTimer); saveTimer = null
+  if (!keepFile) return
+  const tabs = [...terms.values()].map(({ shell, title, cwd, buf }) => ({ shell, title, cwd, buf: buf.slice(-SAVED) }))
+  try { fs.mkdirSync(path.dirname(keepFile), { recursive: true }); fs.writeFileSync(keepFile, JSON.stringify(tabs)) } catch {}
+}
+// output only says the file is due: written every few seconds, so an app killed (an update installing) loses little
+const saveSoon = () => { if (!saveTimer) saveTimer = setTimeout(save, 4000) }
+// The tabs of the last run, handed out once (the first time the panel asks, with nothing running): the panel draws
+// each one's old output and starts its shell again under it (open with inherit). Nothing to hand out after a shell
+// has been started.
+function saved() {
+  if (restored) return []
+  restored = true
+  let tabs = []
+  try { tabs = JSON.parse(fs.readFileSync(keepFile, 'utf8')) } catch {}
+  return Array.isArray(tabs) ? tabs.slice(0, 12).filter((x) => x && typeof x === 'object') : []
+}
+
+// inherit: the shell starts where the panel's cursor is, under the old output drawn there, instead of on a cleared
+// screen (Windows' console asks the panel where its cursor is; elsewhere a shell never clears it)
+function open({ shell, cwd, cols, rows, title, inherit } = {}) {
   const all = shells()
   const sh = all.find((s) => s.id === shell) || all[0]
   if (!sh) throw new Error('No shell found')
@@ -76,24 +105,32 @@ function open({ shell, cwd, cols, rows } = {}) {
   const p = ptyModule().spawn(sh.file, sh.args, {
     name: 'xterm-256color', cols: Math.max(2, cols | 0 || 80), rows: Math.max(1, rows | 0 || 24), cwd: dir,
     env: { ...ENV, TERM_PROGRAM: 'ELOP-Crew', COLORTERM: 'truecolor' },
+    ...(WIN && inherit ? { conptyInheritCursor: true } : {}),
   })
   const id = nextId++
-  const t = { p, id, shell: sh.id, name: sh.name, title: '', cwd: dir, buf: '' }
+  const t = { p, id, shell: sh.id, name: sh.name, title: String(title || '').trim().slice(0, 40), cwd: dir, buf: '' }
   terms.set(id, t)
   p.onData((d) => {
-    t.buf += d
+    t.buf += d.replace(/\x1b\[6n/g, '')
     if (t.buf.length > KEEP) { const cut = t.buf.indexOf('\n', t.buf.length - KEEP); t.buf = t.buf.slice(cut < 0 ? t.buf.length - KEEP : cut + 1) }
     if (!pending.size) setTimeout(flush, 8)
     pending.set(id, (pending.get(id) || '') + d)
+    saveSoon()
   })
-  p.onExit(({ exitCode }) => { flush(); terms.delete(id); send('exit', id, exitCode) })
-  return { id, shell: t.shell, name: t.name, cwd: t.cwd }
+  p.onExit(({ exitCode }) => { flush(); terms.delete(id); send('exit', id, exitCode); if (!stopping) save() })
+  restored = true   // a shell started before any was restored: the old ones are not brought back over it
+  save()
+  return { id, shell: t.shell, name: t.name, title: t.title, cwd: t.cwd }
 }
 const list = () => [...terms.values()].map(({ id, shell, name, title, cwd, buf }) => ({ id, shell, name, title, cwd, buf }))
-function rename(id, title) { const t = terms.get(id); if (t) t.title = String(title || '').trim().slice(0, 40) }
+function rename(id, title) { const t = terms.get(id); if (t) { t.title = String(title || '').trim().slice(0, 40); save() } }
 function write(id, data) { const t = terms.get(id); if (t && typeof data === 'string') t.p.write(data) }
 function resize(id, cols, rows) { const t = terms.get(id); if (t && cols > 1 && rows > 0) { try { t.p.resize(cols | 0, rows | 0) } catch {} } }
 function close(id) { const t = terms.get(id); if (t) { try { t.p.kill() } catch {} } }
-function closeAll() { for (const t of terms.values()) { try { t.p.kill() } catch {} } terms.clear() }
+// the app quitting: the tabs are written down as they are, then the shells end
+function closeAll() { if (stopping) return; save(); stopping = true; for (const t of terms.values()) { try { t.p.kill() } catch {} } terms.clear() }
 
-module.exports = { shells, open, list, write, resize, rename, close, closeAll, count: () => terms.size, onSend: (fn) => { send = fn } }
+module.exports = {
+  shells, open, list, write, resize, rename, close, closeAll, saved, count: () => terms.size,
+  onSend: (fn) => { send = fn }, keepIn: (file) => { keepFile = file },
+}
