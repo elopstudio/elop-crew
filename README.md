@@ -468,7 +468,10 @@ itself. So a new PC needs only **Claude Code**, installed and signed in.
   **Agent commands:** **⌄ → Agent commands** opens a read-only tab for one agent (a monitor agent or a VS Code session):
   each command it ran in a shell (Bash, PowerShell), with when, and what it printed once it is done — from its
   conversation, masked as the conversation view is (a long output shows its start). It follows as the agent works, ⏳
-  on the tab while one runs, and is open again after a restart. Drag the
+  on the tab while one runs, and is open again after a restart. An agent that starts a command gets its tab **by
+  itself**, behind the one in view; such a tab closes again after 30 minutes without a command or a minute after its
+  session ended — unless pinned, renamed or in view. Both are switches at the bottom of the ⌄ menu (on by default); a
+  tab you open yourself stays until you close it. Drag the
   top edge for the height, **Ctrl + C** copies a selection (otherwise it goes to the shell), **Ctrl + V** or a right-click
   pastes. Hiding the panel keeps the shells running. A shell cannot outlive the app: when it starts again (an update, a
   restart), the panel comes back — under a `── ↻ 10:45 ──` line with the time — with the same tabs and panes — shell, name, and the folder each was last in (the shells

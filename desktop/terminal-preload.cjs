@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('monitorTerm', {
   // the commands an agent ran in a shell and what they printed, for its read-only tab; one picked in the app's menu
   runs: (name) => call('runs', name),
   onAgent: (fn) => ipcRenderer.on('monitor-term-agent', (_e, a) => fn(a)),
+  // whether a tab the app opened by itself is closed again after a while
+  prefs: () => call('prefs'),
+  onPrefs: (fn) => ipcRenderer.on('monitor-term-prefs', (_e, p) => fn(p)),
   // a tab's own menu at x, y; what is picked comes back by onCommand
   tabMenu: (id, state, x, y) => call('tabMenu', id, state, x, y),
   onCommand: (fn) => ipcRenderer.on('monitor-term-cmd', (_e, cmd, id) => fn(cmd, id)),

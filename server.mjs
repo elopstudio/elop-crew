@@ -1757,7 +1757,10 @@ function commandOf(input) {
 globalThis.agentMonitorRuns = {
   async agents() {
     const st = await cachedState()
-    return st.projects.flatMap((p) => p.sessions.map((x) => ({ name: x.name, nick: x.nickKo || x.nick || x.short || x.name, nickEn: x.nick || x.short || x.name, project: p.name || p.key, state: x.state, managed: !!x.managed })))
+    return st.projects.flatMap((p) => p.sessions.map((x) => ({
+      name: x.name, nick: x.nickKo || x.nick || x.short || x.name, nickEn: x.nick || x.short || x.name, project: p.name || p.key, state: x.state, managed: !!x.managed,
+      shellAt: x.activity?.kind === 'shell' ? x.activityAt || 0 : 0,   // its last step a shell command: when it began
+    })))
   },
   async runs(name) {
     const t = (await readRegistry()).find((x) => x.name === name) || agents.sessions(Date.now()).find((x) => x.name === name)

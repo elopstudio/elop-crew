@@ -315,19 +315,44 @@ function fitNow(x) {
 // monitor), followed every few seconds. The tabs open are kept in this panel's storage; nothing of what they show is.
 const AGENTS_KEY = 'crew.agentTabs'
 function keepAgents() {
-  try { localStorage.setItem(AGENTS_KEY, JSON.stringify(tabsInOrder().filter((g) => g.agent).map((g) => ({ name: g.agent, label: g.panes[0].label, project: g.panes[0].project, title: g.panes[0].title || '', pinned: !!g.pinned })))) } catch {}
+  try { localStorage.setItem(AGENTS_KEY, JSON.stringify(tabsInOrder().filter((g) => g.agent).map((g) => ({ name: g.agent, label: g.panes[0].label, project: g.panes[0].project, title: g.panes[0].title || '', pinned: !!g.pinned, auto: !!g.auto })))) } catch {}
 }
+// o.auto: opened by the app as the agent started a command — behind the tab in view, and closed again after a while
+// (unless pinned, renamed or in view); one the person opens is theirs to close
 function openAgent(a, o = {}) {
   const had = [...groups.values()].find((g) => g.agent === a.name)
-  if (had) { select(had.gid); return had }
+  if (had) {
+    if (o.auto) { const x = had.panes[0]; x.idleSince = 0; if (had.gid !== active) pollAgent(x) }   // news: looked at now
+    else { had.auto = false; select(had.gid); keepAgents() }
+    return had
+  }
   const g = newGroup({ pinned: o.pinned })
   g.agent = a.name
+  g.auto = !!o.auto
   const x = addPane(g, { id: 'agent:' + a.name, agent: a.name, label: a.label || a.name, project: a.project || '', title: o.title || '', printed: new Map() })
   x.term.write('\x1b[2m── ' + t('agentHead', x.label, x.project) + ' ──\x1b[0m\r\n')
   label(g)
-  if (!o.quiet) { select(g.gid); sync() }
+  if (!o.quiet && !o.auto) { select(g.gid); sync() }
+  else if (o.auto) {
+    // behind the tab in view: shown, but not picked (the first tab ever is picked, as there is nothing else)
+    g.box.hidden = active != null; g.tab.setAttribute('aria-selected', String(active == null))
+    if (active == null) select(g.gid)
+    sync()
+  }
   pollAgent(x)
   return g
+}
+let prefs = { autoAgents: true, autoClose: true }
+api.prefs?.().then((p) => { if (p) prefs = p }).catch(() => {})
+api.onPrefs?.((p) => { if (p) prefs = p })
+const AUTO_IDLE_MS = 30 * 60 * 1000, AUTO_GONE_MS = 60 * 1000
+// a tab the app opened: closed after half an hour without a command, or a minute after its session is gone
+function autoClose(x) {
+  const g = x.g
+  if (!prefs.autoClose || !g.auto || g.pinned || x.title || g.gid === active || x.running) return false
+  const now = Date.now()
+  if ((x.gone && x.goneSince && now - x.goneSince > AUTO_GONE_MS) || (x.lastRunAt && now - x.lastRunAt > AUTO_IDLE_MS)) { closeGroup(g); return true }
+  return false
 }
 const hhmm = (at) => { const d = new Date(at || Date.now()); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') }
 const crlf = (s) => String(s).replace(/\r?\n/g, '\r\n')
@@ -352,19 +377,22 @@ async function pollAgent(x) {
   if (document.hidden) { clearTimeout(x.poll); x.poll = setTimeout(() => pollAgent(x), 3000); return }
   const runs = await api.runs(x.agent).catch(() => null)
   if (terms.get(x.id) !== x) return
-  if (!runs) { if (!x.gone) { x.gone = true; x.term.write('\x1b[2m' + t('agentGone') + '\x1b[0m\r\n') } }
+  if (!runs) { if (!x.gone) { x.gone = true; x.goneSince = Date.now(); x.term.write('\x1b[2m' + t('agentGone') + '\x1b[0m\r\n') } }
   else {
     x.gone = false
+    // when it last ran something (or, with nothing yet, since the tab opened)
+    x.lastRunAt = Math.max(x.openedAt || (x.openedAt = Date.now()), ...runs.map((r) => r.at || 0))
     if (!runs.length && !x.saidNone) { x.saidNone = true; x.term.write('\x1b[2m' + t('agentNone') + '\x1b[0m\r\n') }
     for (const r of runs) printRun(x, r)
     const running = runs.some((r) => !r.done)
     if (running !== !!x.running) { x.running = running; label(x.g) }
   }
+  if (autoClose(x)) return
   // the tab in view every 2.5 s, the others less often (one wait at a time: drawn again in another language, it polls at once)
   clearTimeout(x.poll)
   x.poll = setTimeout(() => pollAgent(x), x.g.gid === active ? 2500 : 8000)
 }
-api.onAgent((a) => openAgent(a))
+api.onAgent((a) => openAgent(a, { auto: !!a.auto }))
 
 /* ── what a tab can do ── */
 function move(g, step) {
@@ -580,7 +608,7 @@ const ready = api.list().then(async ({ running, layout, saved }) => {
     g.focus = g.panes[0]; arrange(g)
     sync()
   }
-  try { for (const a of JSON.parse(localStorage.getItem(AGENTS_KEY) || '[]')) if (a && a.name) openAgent(a, { quiet: true, pinned: a.pinned, title: a.title }) } catch {}
+  try { for (const a of JSON.parse(localStorage.getItem(AGENTS_KEY) || '[]')) if (a && a.name) { const g = openAgent(a, { quiet: true, pinned: a.pinned, title: a.title }); g.auto = !!a.auto } } catch {}
   if (groups.size) { select(tabsInOrder().pop().gid); sync() }
 }, () => {})
 </script>

@@ -49,6 +49,7 @@ const TEXT = {
     tryName: 'ELOP Crew (테스트)', install: '설치', later: '나중에',
     termCmd: '명령 프롬프트', termIn: '프로젝트 폴더에서 열기', termFailed: '셸을 시작하지 못했습니다.',
     termAgents: '에이전트 명령 기록 (읽기 전용)', termNoAgents: '에이전트 없음',
+    termAutoAgents: '에이전트가 명령을 실행하면 그 탭을 자동으로 열기', termAutoClose: '자동으로 연 탭은 30분 동안 명령이 없거나 세션이 끝나면 닫기',
     termRename: '이름 바꾸기', termPin: '고정', termUnpin: '고정 해제', termDup: '복제 — 같은 셸·폴더로 새 터미널', termClear: '출력 지우기',
     termSplitRight: '오른쪽으로 분할', termSplitDown: '아래로 분할',
     termLeft: '왼쪽으로 옮기기', termRight: '오른쪽으로 옮기기', termClose: '탭 닫기', termCloseOthers: '다른 탭 닫기 (고정 탭은 남김)', termCloseRight: '오른쪽 탭 닫기 (고정 탭은 남김)',
@@ -78,6 +79,7 @@ const TEXT = {
     tryName: 'ELOP Crew (test)', install: 'Install', later: 'Later',
     termCmd: 'Command Prompt', termIn: 'Open in a project folder', termFailed: 'Could not start the shell.',
     termAgents: 'Agent commands (read-only)', termNoAgents: 'No agents',
+    termAutoAgents: 'Open an agent\'s tab by itself when it runs a command', termAutoClose: 'Close a tab opened by itself after 30 min without a command, or once its session ends',
     termRename: 'Rename', termPin: 'Pin', termUnpin: 'Unpin', termDup: 'Duplicate — a new terminal, same shell and folder', termClear: 'Clear the output',
     termSplitRight: 'Split right', termSplitDown: 'Split down',
     termLeft: 'Move left', termRight: 'Move right', termClose: 'Close the tab', termCloseOthers: 'Close the others (pinned stay)', termCloseRight: 'Close those to the right (pinned stay)',
@@ -320,7 +322,8 @@ async function termMenu(x, y) {
     label: t('termAgents'),
     submenu: crew.length ? crew.map((a) => ({ label: (lang === 'ko' ? a.nick : a.nickEn) + '   ' + a.project, click: () => { if (term) term.webContents.send('monitor-term-agent', { name: a.name, label: lang === 'ko' ? a.nick : a.nickEn, project: a.project }) } }))
       : [{ label: t('termNoAgents'), enabled: false }],
-  }]
+  }, { label: t('termAutoAgents'), type: 'checkbox', checked: termPrefs().autoAgents, click: (i) => setTermPref('termAutoAgents', i.checked) },
+  { label: t('termAutoClose'), type: 'checkbox', checked: termPrefs().autoClose, enabled: termPrefs().autoAgents, click: (i) => setTermPref('termAutoClose', i.checked) }]
   const menu = Menu.buildFromTemplate([
     ...shells.map((s) => ({ label: s.id === 'cmd' ? t('termCmd') : s.name, type: 'checkbox', checked: s.id === def, click: () => startShell(s.id) })),
     ...(projects.length ? [{ type: 'separator' }, { label: t('termIn'), submenu: projects.map((p) => ({ label: p.name + '   ' + p.root, click: () => startShell(null, p.root) })) }] : []),
@@ -365,6 +368,29 @@ globalThis.agentMonitorTerminals = {
   },
   type(id, text) { if (!terminals.has(id)) return false; terminals.write(id, text); return true },
 }
+// An agent that starts a shell command gets its read-only tab opened by itself, behind the one in view (a setting, on
+// by default); the panel closes such a tab again after a while without commands (another setting, read by the panel)
+const termPrefs = () => { const s = readSettings(); return { autoAgents: s.termAutoAgents !== false, autoClose: s.termAutoClose !== false } }
+function setTermPref(key, on) {
+  writeSettings({ ...readSettings(), [key]: !!on })
+  if (term) term.webContents.send('monitor-term-prefs', termPrefs())
+}
+const shellSeen = new Map()   // agent → when its last shell command began, as last seen
+let shellPrimed = false
+async function autoAgentTabs() {
+  const runs = globalThis.agentMonitorRuns
+  if (!runs || !term || term.webContents.isLoading() || !termPrefs().autoAgents) return
+  const crew = await runs.agents().catch(() => null)
+  if (!crew || !term) return
+  for (const a of crew) {
+    const at = a.shellAt || 0, before = shellSeen.has(a.name) ? shellSeen.get(a.name) : shellPrimed ? 0 : at
+    shellSeen.set(a.name, at)
+    // the first look only learns where each one is (what began before is not news); one that came since starts at none
+    if (at > before) term.webContents.send('monitor-term-agent', { name: a.name, label: lang === 'ko' ? a.nick : a.nickEn, project: a.project, auto: true })
+  }
+  shellPrimed = true
+}
+setInterval(() => { autoAgentTabs().catch(() => {}) }, 3000).unref?.()
 const fromTerm = (e) => !!term && e.sender === term.webContents
 ipcMain.handle('monitor-term', async (e, action, ...a) => {
   if (!fromTerm(e)) return null
@@ -378,6 +404,7 @@ ipcMain.handle('monitor-term', async (e, action, ...a) => {
   if (action === 'close') terminals.close(a[0])
   if (action === 'rename') terminals.rename(a[0], a[1])
   if (action === 'layout') terminals.setLayout(a[0])
+  if (action === 'prefs') return termPrefs()
   // an agent's commands and what they printed (masked), for its read-only tab
   if (action === 'runs') return globalThis.agentMonitorRuns ? globalThis.agentMonitorRuns.runs(String(a[0] || '')).catch(() => null) : null
   if (action === 'clear') terminals.clearBuf(a[0])
