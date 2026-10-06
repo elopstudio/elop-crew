@@ -40,6 +40,15 @@ button.ic:hover{background:var(--hover);color:var(--text)}
 button.ic:disabled{opacity:.35;cursor:default;background:none}
 button.ic svg{width:14px;height:14px}
 #msg{color:var(--bad);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* the panel's keys, from the keyboard button: over the terminals, scrolled if the panel is low */
+#keysPop{position:absolute;right:8px;top:38px;max-height:calc(100% - 46px);width:min(440px,calc(100% - 16px));overflow:auto;z-index:5;background:var(--bar);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:10px 14px;color:var(--text)}
+#keysPop[hidden]{display:none}
+#keysPop h3{margin:0 0 8px;font-size:12px;color:var(--muted)}
+#keysPop dl{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0;font-weight:500}
+#keysPop dt{white-space:nowrap}
+#keysPop kbd{font:600 11px ui-monospace,Consolas,monospace;padding:1px 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--bg);color:var(--text)}
+#keysPop dd{margin:0;color:var(--muted)}
+button.ic.on{background:var(--hover);color:var(--text)}
 .grow{flex:1}
 #views{flex:1;min-height:0;position:relative}
 /* a tab: its panes side by side (row) or stacked (column), a line between them to drag */
@@ -71,15 +80,21 @@ button.ic svg{width:14px;height:14px}
   <button class="ic" id="split" data-tip="split"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.8v10.4" stroke="currentColor" stroke-width="1.5"/></svg></button>
   <span id="msg"></span>
   <span class="grow"></span>
+  <button class="ic" id="keys" data-tip="keys" aria-expanded="false" aria-controls="keysPop"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="4" width="13" height="8.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4 6.6h.01M6.3 6.6h.01M8.6 6.6h.01M10.9 6.6h.01M4.8 9.6h6.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   <button class="ic" id="hide" data-tip="hide"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4.5l4 4 4-4M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 </div>
 <div id="views"></div>
+<div id="keysPop" role="dialog" hidden></div>
 <script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
 <script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
 <script>
 const qs = new URLSearchParams(location.search), MAC = qs.get('platform') === 'darwin'
 const TEXT = {
   ko: {
+    keys: '단축키', keysTitle: '터미널 단축키',
+    kPanel: '패널 보이기·숨기기', kNew: '새 탭', kClose: '창 닫기 (마지막 창이면 탭까지)', kDup: '탭 복제 (같은 셸·폴더)', kSplitR: '오른쪽으로 분할', kSplitD: '아래로 분할',
+    kGrow: '분할 창 크게·작게', kBeside: '옆 창으로', kZoom: '이 창만 크게 보기, 다시 누르면 원래대로', kNext: '다음·이전 탭', kPg: '이전·다음 탭 (Shift 와 함께: 탭 옮기기)',
+    kNth: '그 번호의 탭 (9: 마지막)', kFont: '글자 크기 크게·작게·원래대로', kRename: '탭 이름 바꾸기', kCopy: '선택한 글 복사 (없으면 셸로 Ctrl+C)', kPaste: '붙여넣기', kClear: '출력 지우기',
     newTerm: '새 터미널 (Ctrl+Shift+T)', pick: '셸 고르기', split: '오른쪽으로 분할 (Ctrl+Shift+5)', hide: '패널 숨기기 (Ctrl+`)', close: '닫기', tabs: '터미널',
     closePane: '이 창 닫기 (Ctrl+Shift+W)', panes: (n) => n + '개로 분할됨', zoomed: '한 창만 크게 보는 중 (Ctrl+Shift+Z)',
     agentHead: (who, p) => who + ' (' + p + ') · 에이전트가 실행한 명령 · 읽기 전용', agentTab: '명령', agentGone: '이 에이전트의 대화 기록을 찾을 수 없습니다 (끝났거나 아직 시작 전).',
@@ -87,6 +102,10 @@ const TEXT = {
     cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ', rename: '더블클릭하거나 F2 를 눌러 이름 바꾸기 · 끌어서 옮기기 · 오른쪽 클릭: 고정·분할·복제·닫기', pinned: '고정됨', renamePh: '비우면 원래 이름',
   },
   en: {
+    keys: 'Shortcuts', keysTitle: 'Terminal shortcuts',
+    kPanel: 'Show or hide the panel', kNew: 'A new tab', kClose: 'Close the pane (the tab, with its last)', kDup: 'Duplicate the tab (same shell and folder)', kSplitR: 'Split right', kSplitD: 'Split down',
+    kGrow: 'Make the pane bigger or smaller', kBeside: 'The pane beside', kZoom: 'Show the pane alone, and back', kNext: 'The next / previous tab', kPg: 'The previous / next tab (with Shift: move the tab)',
+    kNth: 'That tab (9: the last)', kFont: 'Text size: bigger / smaller / as it was', kRename: 'Rename the tab', kCopy: 'Copy the selection (none: Ctrl+C goes to the shell)', kPaste: 'Paste', kClear: 'Clear the output',
     newTerm: 'New terminal (Ctrl+Shift+T)', pick: 'Pick a shell', split: 'Split right (Ctrl+Shift+5)', hide: 'Hide the panel (Ctrl+`)', close: 'Close', tabs: 'Terminals',
     closePane: 'Close this pane (Ctrl+Shift+W)', panes: (n) => 'Split in ' + n, zoomed: 'One pane shown alone (Ctrl+Shift+Z)',
     agentHead: (who, p) => who + ' (' + p + ') · commands the agent ran · read-only', agentTab: 'commands', agentGone: 'This agent\'s conversation cannot be found (ended, or not started yet).',
@@ -104,6 +123,7 @@ function words() {
   for (const b of document.querySelectorAll('[data-tip]')) { b.title = t(b.dataset.tip).replace(/Ctrl\+/g, MAC ? '⌃' : 'Ctrl+'); b.setAttribute('aria-label', t(b.dataset.tip).replace(/ \(.*\)$/, '')) }
   $('tabs').setAttribute('aria-label', t('tabs'))
   for (const g of groups.values()) label(g)
+  if ($('keysPop') && !$('keysPop').hidden) keysPop(true)
   for (const x of terms.values()) x.view.querySelector('.px').title = t('closePane')
 }
 
@@ -622,6 +642,34 @@ $('new').addEventListener('click', () => openNew())
 $('pick').addEventListener('click', () => { const r = $('pick').getBoundingClientRect(); api.menu(Math.round(r.left), Math.round(r.bottom)) })
 $('split').addEventListener('click', () => split(groups.get(active), 'row'))
 $('hide').addEventListener('click', () => api.hide())
+
+// the keyboard button: the panel's keys, over the terminals; again, Esc or a click elsewhere closes them
+const KEYS = [
+  ['Ctrl+`', 'kPanel'], ['Ctrl+Shift+T / Ctrl+Shift+`', 'kNew'], ['Ctrl+Shift+W', 'kClose'], ['Ctrl+Shift+D', 'kDup'],
+  ['Alt+Shift+= / Ctrl+Shift+5', 'kSplitR'], ['Alt+Shift+-', 'kSplitD'], ['Alt+Shift+← → ↑ ↓', 'kGrow'], ['Alt+← → ↑ ↓', 'kBeside'],
+  ['Ctrl+Shift+Z', 'kZoom'], ['Ctrl+Tab / Ctrl+Shift+Tab', 'kNext'], ['Ctrl+PgUp / Ctrl+PgDn', 'kPg'], ['Ctrl+Alt+1…9', 'kNth'],
+  ['Ctrl+= / Ctrl+- / Ctrl+0', 'kFont'], ['F2', 'kRename'], [MAC ? 'Cmd+C' : 'Ctrl+C', 'kCopy'], [MAC ? 'Cmd+V' : 'Ctrl+V / Ctrl+Shift+V', 'kPaste'],
+  ...(MAC ? [['Cmd+K', 'kClear']] : []),
+]
+function keysPop(show = $('keysPop').hidden) {
+  const pop = $('keysPop')
+  if (show) {
+    const dl = document.createElement('dl')
+    for (const [combo, what] of KEYS) {
+      const dt = document.createElement('dt')
+      combo.split(' / ').forEach((one, i) => { if (i) dt.append(' / '); const k = document.createElement('kbd'); k.textContent = one; dt.append(k) })
+      dl.append(dt, Object.assign(document.createElement('dd'), { textContent: t(what) }))
+    }
+    pop.replaceChildren(Object.assign(document.createElement('h3'), { textContent: t('keysTitle') }), dl)
+    pop.setAttribute('aria-label', t('keysTitle'))
+  }
+  pop.hidden = !show
+  $('keys').classList.toggle('on', show); $('keys').setAttribute('aria-expanded', String(show))
+  if (!show) groups.get(active)?.focus?.term.focus()
+}
+$('keys').addEventListener('click', () => keysPop())
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('keysPop').hidden) { e.preventDefault(); keysPop(false) } }, true)
+document.addEventListener('mousedown', (e) => { if (!$('keysPop').hidden && !e.target.closest('#keysPop, #keys')) keysPop(false) }, true)
 
 // the top edge, dragged: the app sets the panel's height from where the pointer is
 const grip = $('grip')

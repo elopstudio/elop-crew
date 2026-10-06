@@ -466,7 +466,7 @@ itself. So a new PC needs only **Claude Code**, installed and signed in.
   close the others or those to the right (pinned ones stay). **Split** a tab (the split button, **Ctrl + Shift + 5**, or its
   menu: right or down) into up to four panes, each its own shell in the folder of the one split; drag the line between
   them to resize, **Alt + arrows** to go from one to the next, × on a pane to close it.
-  The keys of Windows Terminal work too: **Ctrl + Shift + W** closes the pane (the tab with its last), **Ctrl + Shift + T**
+  The keyboard button at the top right of the panel lists its keys. The keys of Windows Terminal work too: **Ctrl + Shift + W** closes the pane (the tab with its last), **Ctrl + Shift + T**
   a new tab, **Ctrl + Shift + D** duplicates it, **Alt + Shift + = / -** splits right / down, **Alt + Shift + arrows** makes
   the pane bigger or smaller, **Ctrl + Shift + Z** shows it alone (and back), **Ctrl + Tab** / **Ctrl + Shift + Tab** and
   **Ctrl + Alt + 1…9** go to a tab, **Ctrl + = / - / 0** set the text size (kept). The app's stock menu is gone on Windows,
