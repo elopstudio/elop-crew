@@ -33,6 +33,7 @@ const SYSTEM_NOTES = [
   [/^The agent monitor restarted \(an update or a restart of the app\)/, 'restart'],
   [/^Claude Code was logged out while you were working/, 'login'],
   [/^Your Claude usage limit was reached while you were working/, 'limit'],
+  [/^Your Claude usage limit stopped your last turn, and Claude Code is now logged in as another account/, 'relimit'],
   [/^It looked like you were stuck, so you were stopped/, 'nudge'],
   // the board's auto-run: a note with the task's title, and with the person's answer to what blocked one
   [/^Next task from the project board \(auto-run is on\): (.*)/, 'task'],
@@ -76,6 +77,8 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // asked to carry on just after the time the message gave (without one: after half an hour, then longer each time).
   const LIMIT_HIT = /hit your (session |weekly |opus |sonnet |usage )?limit|usage limit reached|limit reached\|\d{10}/i
   const LIMIT_BACK = 'Your Claude usage limit was reached while you were working, so your last turn failed. The limit has reset now. Please carry on where you left off, and keep replying in the language you have been using with the user.'
+  // the limit is the account's: logged in as another one, it may well have usage left — carried on at once
+  const LIMIT_ACCOUNT = 'Your Claude usage limit stopped your last turn, and Claude Code is now logged in as another account, which has its own limits. Please carry on where you left off, and keep replying in the language you have been using with the user.'
   const LIMIT_GRACE_MS = 90 * 1000, LIMIT_RETRY_MS = 30 * 60 * 1000
   // when it resets, from its words: "resets 4:50pm", "resets Oct 4, 9am", or the older "…limit reached|1759377600"
   // (a time of day is taken as this PC's, the zone the message names being the account's, usually the same)
@@ -501,7 +504,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // limit is the account's, not the process's)
   function limitReached(a, why) {
     const now = Date.now()
-    a.limitHit = { at: now, until: resetOf(why, now) || 0 }
+    a.limitHit = { at: now, until: resetOf(why, now) || 0, who: loginNow().who }
     a.limitTries = (a.limitTries || 0) + 1
     save()
     const at = a.limitHit.until ? new Date(a.limitHit.until).toTimeString().slice(0, 5) : ''
@@ -516,7 +519,10 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     try { cred = JSON.parse(fs.readFileSync(credFile, 'utf8')); at = fs.statSync(credFile).mtimeMs } catch {}
     // on macOS the token is in the keychain: the account in .claude.json is all there is to see
     try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); if (process.platform === 'darwin') at = Math.max(at, fs.statSync(stateFile).mtimeMs) } catch {}
-    return { ok: !!process.env.ANTHROPIC_API_KEY || !!(state?.oauthAccount && (cred?.claudeAiOauth?.accessToken || process.platform === 'darwin')), at }
+    // the account, only as a hash: enough to tell another login from the same one
+    const acct = state?.oauthAccount?.accountUuid || state?.oauthAccount?.emailAddress || ''
+    const who = acct ? crypto.createHash('sha256').update('crew-limit:' + acct).digest('hex').slice(0, 12) : ''
+    return { ok: !!process.env.ANTHROPIC_API_KEY || !!(state?.oauthAccount && (cred?.claudeAiOauth?.accessToken || process.platform === 'darwin')), at, who }
   }
   // every 15 s while an agent waits for the login. It is tried again once logged in — at once if the login was
   // written since it failed, else once (it may have failed on a login it held from before) — and then not again
@@ -525,13 +531,16 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     if (shuttingDown) return
     const now = Date.now()
     // stopped at the usage limit: carried on just after it resets (a minute and a half late, to be on the safe side);
-    // with no time to go by, after half an hour, then an hour, up to two
+    // with no time to go by, after half an hour, then an hour, up to two. Logged in as another account meanwhile (the
+    // limits are each account's): carried on at once — not on the same account logged in again, whose limit stays
+    let seen = null   // the login, read once and only if needed
     for (const a of agents.values()) {
       const l = a.limitHit
       if (!l || a.loginLost || a.state === 'working') continue
       const due = l.until ? l.until + LIMIT_GRACE_MS : l.at + LIMIT_RETRY_MS * Math.min(4, a.limitTries || 1)
-      if (now < due) continue
-      send(a, LIMIT_BACK, [])
+      if (now >= due) { send(a, LIMIT_BACK, []); continue }
+      seen = seen || loginNow()
+      if (seen.ok && seen.who && l.who && seen.who !== l.who && now - l.at > 5000) send(a, LIMIT_ACCOUNT, [])
     }
     const waiting = [...agents.values()].filter((a) => a.loginLost)
     if (!waiting.length) return
