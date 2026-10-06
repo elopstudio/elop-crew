@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('monitorTerm', {
   write: (id, data) => ipcRenderer.send('monitor-term-write', id, data),
   resize: (id, cols, rows) => call('resize', id, cols, rows),
   close: (id) => call('close', id),
+  // a name the person gave the tab, kept while the shell runs
+  rename: (id, title) => call('rename', id, title),
   // the shells to start, as a menu under the button at x, y
   menu: (x, y) => call('menu', x, y),
   hide: () => call('hide'),

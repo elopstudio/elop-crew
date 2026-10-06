@@ -14,10 +14,14 @@ body{display:flex;flex-direction:column;font:600 12px system-ui,"Segoe UI","Noto
 #grip{position:absolute;left:0;right:0;top:0;height:5px;cursor:ns-resize;z-index:2}
 #grip:hover,#grip.on{background:var(--accent)}
 #bar{display:flex;align-items:center;gap:4px;height:32px;flex:none;padding:0 6px;background:var(--bar);border-top:1px solid var(--line);border-bottom:1px solid var(--line);user-select:none}
-#tabs{display:flex;align-items:center;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:none}
-.tab{display:inline-flex;align-items:center;flex:none;border-radius:7px;color:var(--muted)}
+#bar{align-items:stretch}
+#bar>button.ic,#bar>#msg{align-self:center}
+#tabs{display:flex;align-items:stretch;min-width:0;overflow-x:auto;scrollbar-width:none;margin-left:-6px}
+.tab{position:relative;display:inline-flex;align-items:center;flex:none;color:var(--muted);border-right:1px solid var(--line)}
 .tab:hover{background:var(--hover)}
-.tab[aria-selected="true"]{background:var(--bg);color:var(--text);box-shadow:inset 0 -2px 0 var(--accent)}
+.tab[aria-selected="true"]{background:var(--bg);color:var(--text)}
+.tab[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--accent)}
+.tab input{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--accent);border-radius:4px;padding:2px 6px;margin:0 4px 0 6px;width:150px;outline:none}
 .tab .go{appearance:none;border:0;background:none;color:inherit;font:inherit;padding:5px 4px 5px 10px;cursor:pointer;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .tab .go small{font-weight:500;opacity:.75}
 .tab .x{appearance:none;border:0;background:none;color:inherit;font:15px/1 system-ui,sans-serif;padding:3px 8px 4px 4px;cursor:pointer;opacity:.6}
@@ -51,11 +55,11 @@ const qs = new URLSearchParams(location.search), MAC = qs.get('platform') === 'd
 const TEXT = {
   ko: {
     newTerm: '새 터미널 (Ctrl+Shift+`)', pick: '셸 고르기', hide: '패널 숨기기 (Ctrl+`)', close: '닫기', tabs: '터미널',
-    cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ',
+    cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ', rename: '더블클릭하거나 F2 를 눌러 이름 바꾸기', renamePh: '비우면 원래 이름',
   },
   en: {
     newTerm: 'New terminal (Ctrl+Shift+`)', pick: 'Pick a shell', hide: 'Hide the panel (Ctrl+`)', close: 'Close', tabs: 'Terminals',
-    cmd: 'Command Prompt', failed: 'Could not start the shell: ',
+    cmd: 'Command Prompt', failed: 'Could not start the shell: ', rename: 'Double-click or press F2 to rename', renamePh: 'Empty for the usual name',
   },
 }
 let lang = TEXT[qs.get('lang')] ? qs.get('lang') : 'en'
@@ -79,13 +83,14 @@ const theme = () => THEMES[dark.matches ? 'dark' : 'light']
 dark.addEventListener('change', () => { for (const x of terms.values()) x.term.options.theme = theme() })
 
 /* ── the shells, one tab each ── */
-const terms = new Map()   // id → { id, term, fit, view, tab, name, cwd }
+const terms = new Map()   // id → { id, term, fit, view, tab, name, title, cwd } (title: a name given to it, kept by the app)
 let active = null
 const base = (p) => String(p || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p
 function label(x) {
   const go = x.tab.querySelector('.go')
-  go.replaceChildren(document.createTextNode((x.shell === 'cmd' ? t('cmd') : x.name) + ' '), Object.assign(document.createElement('small'), { textContent: base(x.cwd) }))
-  go.title = x.cwd
+  if (x.title) go.replaceChildren(x.title)
+  else go.replaceChildren(document.createTextNode((x.shell === 'cmd' ? t('cmd') : x.name) + ' '), Object.assign(document.createElement('small'), { textContent: base(x.cwd) }))
+  go.title = x.cwd + '\n' + t('rename')
   x.tab.querySelector('.x').title = t('close')
   x.tab.querySelector('.x').setAttribute('aria-label', t('close'))
 }
@@ -109,6 +114,8 @@ function add(info, buf) {
   terms.set(info.id, x)
   label(x)
   tab.querySelector('.go').addEventListener('click', () => select(info.id))
+  tab.querySelector('.go').addEventListener('dblclick', () => rename(x))
+  tab.querySelector('.go').addEventListener('keydown', (e) => { if (e.key === 'F2') { e.preventDefault(); rename(x) } })
   tab.querySelector('.x').addEventListener('click', () => api.close(info.id))
   tab.addEventListener('auxclick', (e) => { if (e.button === 1) api.close(info.id) })
   term.onData((d) => api.write(info.id, d))
@@ -127,6 +134,29 @@ function select(id) {
   }
   const x = terms.get(id)
   if (x) { fitNow(x); x.term.focus(); x.tab.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }
+}
+// the tab's name, typed in its place: Enter or leaving the box keeps it, Esc does not; empty is the usual name again
+function rename(x) {
+  const go = x.tab.querySelector('.go')
+  if (go.hidden) return
+  const box = document.createElement('input')
+  box.value = x.title || ''
+  box.placeholder = t('renamePh')
+  box.maxLength = 40
+  box.setAttribute('aria-label', t('rename'))
+  go.hidden = true
+  go.after(box)
+  box.focus(); box.select()
+  let done = false
+  const end = (keep) => {
+    if (done) return
+    done = true
+    if (keep) { x.title = box.value.trim(); api.rename(x.id, x.title); label(x) }
+    box.remove(); go.hidden = false
+    if (active === x.id) x.term.focus()
+  }
+  box.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') end(true); if (e.key === 'Escape') end(false) })
+  box.addEventListener('blur', () => end(true))
 }
 function fitNow(x) { if (x && !x.view.hidden && x.view.clientWidth > 20 && x.view.clientHeight > 10) { try { x.fit.fit() } catch {} } }
 new ResizeObserver(() => fitNow(terms.get(active))).observe($('views'))

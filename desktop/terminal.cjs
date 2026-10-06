@@ -78,7 +78,7 @@ function open({ shell, cwd, cols, rows } = {}) {
     env: { ...ENV, TERM_PROGRAM: 'ELOP-Crew', COLORTERM: 'truecolor' },
   })
   const id = nextId++
-  const t = { p, id, shell: sh.id, name: sh.name, cwd: dir, buf: '' }
+  const t = { p, id, shell: sh.id, name: sh.name, title: '', cwd: dir, buf: '' }
   terms.set(id, t)
   p.onData((d) => {
     t.buf += d
@@ -89,10 +89,11 @@ function open({ shell, cwd, cols, rows } = {}) {
   p.onExit(({ exitCode }) => { flush(); terms.delete(id); send('exit', id, exitCode) })
   return { id, shell: t.shell, name: t.name, cwd: t.cwd }
 }
-const list = () => [...terms.values()].map(({ id, shell, name, cwd, buf }) => ({ id, shell, name, cwd, buf }))
+const list = () => [...terms.values()].map(({ id, shell, name, title, cwd, buf }) => ({ id, shell, name, title, cwd, buf }))
+function rename(id, title) { const t = terms.get(id); if (t) t.title = String(title || '').trim().slice(0, 40) }
 function write(id, data) { const t = terms.get(id); if (t && typeof data === 'string') t.p.write(data) }
 function resize(id, cols, rows) { const t = terms.get(id); if (t && cols > 1 && rows > 0) { try { t.p.resize(cols | 0, rows | 0) } catch {} } }
 function close(id) { const t = terms.get(id); if (t) { try { t.p.kill() } catch {} } }
 function closeAll() { for (const t of terms.values()) { try { t.p.kill() } catch {} } terms.clear() }
 
-module.exports = { shells, open, list, write, resize, close, closeAll, count: () => terms.size, onSend: (fn) => { send = fn } }
+module.exports = { shells, open, list, write, resize, rename, close, closeAll, count: () => terms.size, onSend: (fn) => { send = fn } }
