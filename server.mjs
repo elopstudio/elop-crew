@@ -724,15 +724,24 @@ async function teamContext(sessionId) {
 }
 const describeActivity = (a) => [a.key, a.arg].filter(Boolean).join(' ')
 
-// The language the person reads the monitor in (the page's EN / 한국어 switch), told to every session once and again
-// when it changes, so replies to them come in that language. The page reports it with each poll; kept in memory.
+// The language the person reads the monitor in (the page's EN / 한국어 switch). Told once was not enough: the agents
+// drifted into English in their updates between tool calls, where all they had just read (tool output, code, the
+// monitor's own English messages) was English, and after a compaction the one line telling them was gone. So: the
+// full rule the first time and when it changes, a short reminder with every prompt after; a monitor agent has the rule
+// in its system prompt (agents.mjs), which every step sees; and the monitor's own messages end with it (tellSession).
+// The page reports it with each poll; kept in config.json, so it holds from the start after a restart.
 const LANGS = { en: 'English', ko: 'Korean' }
-let pageLang = ''
-const toldLang = new Map()   // sessionId → the language last told
+let pageLang = LANGS[loadConfig().pageLang] ? loadConfig().pageLang : ''
+const langRule = () => (pageLang ? 'The user reads ' + LANGS[pageLang] + ': write everything meant for them in ' + LANGS[pageLang] +
+  ' — replies, questions, and the short updates between tool calls — even when tools, files, code and messages from the monitor or other agents are in ' +
+  'another language, unless the user asks for another one. Code, commands and names stay as they are.' : '')
+const replyIn = () => (pageLang ? '(Write to the user in ' + LANGS[pageLang] + '.)' : '')
+const toldLang = new Map()   // sessionId → the language last told in full
 function langContext(sessionId) {
-  if (!pageLang || toldLang.get(sessionId) === pageLang) return ''
+  if (!pageLang) return ''
+  if (toldLang.get(sessionId) === pageLang) return 'Agent monitor: ' + replyIn()
   toldLang.set(sessionId, pageLang)
-  return 'Agent monitor: the user has the monitor set to ' + LANGS[pageLang] + '. Write to the user in ' + LANGS[pageLang] + ' unless they ask for another language.'
+  return 'Agent monitor: ' + langRule()
 }
 // The shared browser (the browser panel's): every session is told once while it runs, so it looks at pages there,
 // where the person can watch, rather than in a browser of its own
@@ -1629,7 +1638,8 @@ async function tellSession(key, who, text, sessionId) {
   if (s.managed) return agents.sendText(s.agentId, text)
   const sid = sessionId || await sessionIdOf(s.name)
   if (!sid || !waiters.has(sid)) return false
-  queueText(sid, text, 'board')
+  // reaches it through its hook, where no prompt context is added: the language goes with it
+  queueText(sid, text + (replyIn() ? '\n\n' + replyIn() : ''), 'board')
   return true
 }
 
@@ -1681,6 +1691,8 @@ const agents = createAgents({
   // an agent brought back after a restart shows its conversation from the transcript
   historyOf: transcriptEvents,
   onTurnEnd: (sessionId) => boardTurnEnded(sessionId),
+  // the person's language, for a monitor agent's system prompt and the monitor's own messages to it
+  langRule, replyIn,
 })
 // the monitor's assistant behind the floating chat button (assistant.mjs)
 const assistant = createAssistant({
@@ -1851,7 +1863,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/state') {
       if (url.searchParams.get('visible') === '1') lastViewAt = Date.now()
-      if (LANGS[url.searchParams.get('lang')]) pageLang = url.searchParams.get('lang')
+      const asked = url.searchParams.get('lang')
+      if (LANGS[asked] && asked !== pageLang) { pageLang = asked; editConfig((c) => { c.pageLang = asked }).catch(() => {}) }
       json(200, await cachedState())
       return
     }

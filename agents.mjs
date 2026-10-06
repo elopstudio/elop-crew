@@ -42,7 +42,7 @@ export const systemNote = (text) => SYSTEM_NOTES.find(([re]) => re.test(String(t
 export const systemNoteText = (text) => { for (const [re] of SYSTEM_NOTES) { const m = String(text || '').match(re); if (m) return (m[1] || '').trim().slice(0, 300) } return '' }
 const assistantLookOf = (v) => (v && v.acc === 'crown' && Number.isInteger(v.c) && v.c >= 0 && v.c < 8 ? { c: v.c, acc: 'crown' } : avatarOf(v))
 
-export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd }) {
+export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd, langRule, replyIn }) {
   // what the agent is for, one line written by the user (shown under its name)
   const descOf = (v) => clip(String(v || '').replace(/[\x00-\x1f<>]/g, ' ').replace(/\s+/g, ' ').trim(), 80)
   // its name: one for both languages (a string) or one per language ({ en, ko }); the server reads both shapes
@@ -392,6 +392,8 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     // its own tools never ask, with or without its role; the role itself once the assistant module has given it
     if (a.kind === 'assistant') args.push('--allowedTools', 'mcp__assistant')
     if (a.kind === 'assistant' && a.system) args.push('--append-system-prompt', a.system)
+    // the person's language where every step sees it (a line in the conversation drifts out of view, or a compaction drops it)
+    else if (a.kind !== 'assistant' && langRule?.()) args.push('--append-system-prompt', langRule())
     a.procHasRole = a.kind === 'assistant' && !!a.system
     if (a.model) args.push('--model', a.model)
     if (a.effort) args.push('--effort', a.effort)
@@ -470,7 +472,9 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     if (a.limitHit) { a.limitHit = null; save() }
     if (!a.proc) spawnAgent(a)
     if (!a.proc) return false
-    const msg = userMessage(text, files)
+    // the monitor's own words (carry on, a board task…) are English: they say which language to answer in
+    const own = a.kind !== 'assistant' && !!systemNote(text) && replyIn?.()
+    const msg = userMessage(own ? text + '\n\n' + replyIn() : text, files)
     try { a.proc.stdin.write(JSON.stringify(msg) + '\n') } catch { return false }
     // the files' names for the chips, and their place in the uploads folder ("<dir>/<stored name>") for the preview
     // the monitor's own words to it: a note (the assistant's chat has its own way of showing them)
