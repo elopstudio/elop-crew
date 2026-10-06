@@ -217,11 +217,18 @@ function open({ shell, cwd, cols, rows, title, inherit, hid, prior } = {}) {
     if (now && now !== t.dir) { t.dir = now; send('cwd', id, now) }
     saveSoon()
   })
+  // Closed in the panel, or ended by itself (exit): its tab goes now, and its history with it. Killed from outside (an
+  // installer or Windows ending the app ends the shells first, while the app still runs): it waits a few seconds, so an
+  // app on its way out leaves its tabs as they were for the next start
   p.onExit(({ exitCode }) => {
-    flush(); terms.delete(id); send('exit', id, exitCode)
-    if (stopping) return
-    save()
-    if (hist) setTimeout(() => fs.rm(hist, { force: true }, () => {}), 1500)   // closed for good: its history goes too
+    t.ended = true
+    const gone = () => {
+      if (stopping || terms.get(id) !== t) return
+      flush(); terms.delete(id); send('exit', id, exitCode)
+      save()
+      if (hist) setTimeout(() => fs.rm(hist, { force: true }, () => {}), 1500)
+    }
+    if (t.closing || exitCode === 0) gone(); else setTimeout(gone, 4000)
   })
   restored = true   // a shell started before any was restored: the old ones are not brought back over it
   return { id, shell: t.shell, name: t.name, title: t.title, cwd: t.cwd, buf: t.buf }
@@ -246,9 +253,9 @@ function tail(id, n = 60) {
 // the panel's output cleared: not drawn again from what was kept either
 function clearBuf(id) { const t = terms.get(id); if (t) { t.buf = ''; save() } }
 function rename(id, title) { const t = terms.get(id); if (t) { t.title = String(title || '').trim().slice(0, 40); save() } }
-function write(id, data) { const t = terms.get(id); if (t && typeof data === 'string') t.p.write(data) }
+function write(id, data) { const t = terms.get(id); if (t && !t.ended && typeof data === 'string') { try { t.p.write(data) } catch {} } }
 function resize(id, cols, rows) { const t = terms.get(id); if (t && cols > 1 && rows > 0) { try { t.p.resize(cols | 0, rows | 0) } catch {} } }
-function close(id) { const t = terms.get(id); if (t) { try { t.p.kill() } catch {} } }
+function close(id) { const t = terms.get(id); if (t) { t.closing = true; try { t.p.kill() } catch {} } }
 // the app quitting: the tabs are written down as they are, then the shells end
 function closeAll() { if (stopping) return; save(); stopping = true; for (const t of terms.values()) { try { t.p.kill() } catch {} } terms.clear() }
 
