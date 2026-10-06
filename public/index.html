@@ -331,6 +331,7 @@ form.inline button.ok{background:var(--run);border-color:var(--run);color:var(--
 /* a long conversation: read again on every step, so it is pointed out with a way to shorten it */
 .detail .ctxwarn{display:flex;gap:10px;align-items:center;margin:0 0 8px;padding:8px 10px;border:1px solid var(--wait);background:var(--wait-soft);color:var(--text);border-radius:10px;font-size:12.5px;line-height:1.45}
 .detail .ctxwarn span{flex:1;min-width:0}
+.detail .ctxwarn[hidden]{display:none}
 .detail .ctxwarn button{appearance:none;flex:none;border:1px solid var(--wait);background:var(--surface);color:var(--text);border-radius:8px;padding:4px 10px;font:700 12px var(--sans);cursor:pointer}
 .detail .ctxwarn button:disabled{opacity:.6;cursor:default}
 .info .when .errs{color:var(--block);font-weight:700}
@@ -2401,7 +2402,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     ta.addEventListener('input', ready);
     const meter = ctxMeter(s);
     meter.set(s);
-    meterNow = { name: s.name, set: meter.set };
+    meterNow = { name: s.name, set: (x) => { meter.set(x); ctxWarn(x); } };
     const box = composer(ta, chips, [attachBtn, ...(s.managed ? agentSettings(s) : [])], send, [meter.node]);
     box.box.append(meter.pop);
     // a monitor agent runs claude here, so its slash commands work; a VS Code session only gets the text
@@ -2480,17 +2481,24 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     if (s.managed) conv.append(agentControls(s, lp));
     else conv.append(takeOverBar(s));
     // a long conversation costs on every step it takes (the whole of it is read again): said so, with /compact to hand
-    if (s.context >= CTX_LONG) {
-      const warn = el('div', 'ctxwarn');
-      warn.append(el('span', null, t(s.managed ? 'ctxLong' : 'ctxLongVs', { n: tokens(s.context) })));
-      if (s.managed) {
-        const b = el('button', null, t('ctxCompact'));
-        b.type = 'button';
-        b.addEventListener('click', async () => { b.disabled = true; b.textContent = t('ctxCompacting'); const r = await agentCall('/api/agents/send', { id: s.agentId, text: '/compact' }); if (!r) { b.disabled = false; b.textContent = t('ctxCompact'); } });
-        warn.append(b);
-      }
-      form.insertBefore(warn, box.box);   // above the message box: always in sight, the conversation scrolls
+    // kept up to date while the dialog is open: gone once it has been compacted, there once it grows long
+    const warn = el('div', 'ctxwarn'), warnText = el('span');
+    warn.append(warnText);
+    let warnBtn = null;
+    if (s.managed) {
+      const b = warnBtn = el('button', null, t('ctxCompact'));
+      b.type = 'button';
+      b.addEventListener('click', async () => { b.disabled = true; b.textContent = t('ctxCompacting'); const r = await agentCall('/api/agents/send', { id: s.agentId, text: '/compact' }); if (!r) { b.disabled = false; b.textContent = t('ctxCompact'); } });
+      warn.append(b);
     }
+    function ctxWarn(x) {
+      const long = (x.context || 0) >= CTX_LONG;
+      if (!long && !warn.hidden && warnBtn) { warnBtn.disabled = false; warnBtn.textContent = t('ctxCompact'); }
+      warn.hidden = !long;
+      if (long) warnText.textContent = t(s.managed ? 'ctxLong' : 'ctxLongVs', { n: tokens(x.context) });
+    }
+    ctxWarn(s);
+    form.insertBefore(warn, box.box);   // above the message box: always in sight, the conversation scrolls
     // a stopped monitor agent: start claude now, while the message is being written
     if (s.managed && s.running === false) agentCall('/api/agents/warm', { id: s.agentId });
     conv.append(lp);

@@ -277,6 +277,8 @@ function applyLine(info, o) {
   const ts = o.timestamp ? Date.parse(o.timestamp) : 0
   if (ts) info.lastEventAt = ts
   if (o.type === 'ai-title' && o.aiTitle) info.title = clip(o.aiTitle, 200)
+  // compacted: what it holds now, before the next reply says so (else the meter and the "long" notice stay as they were)
+  if (o.type === 'system' && o.subtype === 'compact_boundary' && !o.isSidechain) info.context = Number(o.compactMetadata?.postTokens) || 0
   // tool results: only whether each one failed, never what it said
   if (o.type === 'user' && !o.isSidechain && Array.isArray(o.message?.content)) {
     for (const c of o.message.content) if (c?.type === 'tool_result') info.recent.push({ e: !!c.is_error, ts })
