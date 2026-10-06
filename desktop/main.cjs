@@ -335,7 +335,7 @@ function tabMenu(id, s, x, y) {
   const menu = Menu.buildFromTemplate([
     { label: t('termRename'), accelerator: 'F2', registerAccelerator: false, click: run('rename') },
     { label: t(s.pinned ? 'termUnpin' : 'termPin'), click: run(s.pinned ? 'unpin' : 'pin') },
-    { label: t('termDup'), click: run('dup') },
+    { label: t('termDup'), enabled: s.dup !== false, click: run('dup') },
     { type: 'separator' },
     { label: t('termSplitRight'), accelerator: 'Ctrl+Shift+5', registerAccelerator: false, enabled: !!s.splitRight, click: run('splitRight') },
     { label: t('termSplitDown'), enabled: !!s.splitDown, click: run('splitDown') },

@@ -420,7 +420,7 @@ function tabMenu(g, e) {
   e.preventDefault()
   const all = tabsInOrder(), i = all.indexOf(g), same = (y) => y && !!y.pinned === !!g.pinned
   api.tabMenu(g.gid, {
-    pinned: !!g.pinned, left: same(all[i - 1]), right: same(all[i + 1]), splitRight: canSplit(g, 'row'), splitDown: canSplit(g, 'column'),
+    pinned: !!g.pinned, dup: !g.agent, left: same(all[i - 1]), right: same(all[i + 1]), splitRight: canSplit(g, 'row'), splitDown: canSplit(g, 'column'),
     others: all.some((y) => y !== g && !y.pinned), toRight: all.slice(i + 1).some((y) => !y.pinned),
   }, e.clientX, e.clientY)
 }
