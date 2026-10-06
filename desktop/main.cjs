@@ -1,6 +1,6 @@
 // ELOP Crew (AI Agent Monitor) as a desktop app: runs the monitor server inside the app, shows it in its own window,
 // and lives in the tray — so it no longer depends on a terminal or on VS Code staying open.
-const { app, BaseWindow, BrowserWindow, WebContentsView, Tray, Menu, shell, dialog, nativeImage, nativeTheme, ipcMain, Notification, globalShortcut, screen, clipboard } = require('electron')
+const { app, BaseWindow, BrowserWindow, WebContentsView, Tray, Menu, shell, dialog, nativeImage, nativeTheme, ipcMain, Notification, globalShortcut, screen, clipboard, powerMonitor } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const http = require('node:http')
@@ -456,6 +456,7 @@ function showWindow() {
   // closing the window keeps the monitor running in the tray
   win.on('close', (e) => { keepBounds(); if (quitting) return; if (readSettings().closeToTray === false) { quit(); return } e.preventDefault(); win.hide() })
   win.on('closed', () => { win = page = strip = term = null; termOpen = false })
+  win.on('session-end', () => terminals.closeAll())   // Windows: shutting down or logging off
   // the terminal panel, open when the app last quit: open again, its tabs started again
   if (readSettings().termOpen) setImmediate(() => toggleTerminal(true))
   win.on('focus', () => { try { win.flashFrame(false) } catch {} })
@@ -737,4 +738,6 @@ else {
   })
   // an update installing, Cmd+Q: the terminal tabs written down and their shells ended, as quit() does
   app.on('will-quit', () => { globalShortcut.unregisterAll(); terminals.closeAll() })
+  // the PC shutting down or logging off may end the shells before the app quits: their tabs written down first
+  powerMonitor.on('shutdown', () => terminals.closeAll())
 }

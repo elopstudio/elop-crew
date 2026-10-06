@@ -104,7 +104,7 @@ const WAIT_TELL_MS = 2 * 60 * 1000   // a question or plan left this long is pas
 const WORKED_MS = 60 * 1000          // a turn this long, ended, is passed on as finished
 const TICK_MS = 15 * 1000
 
-export function createAssistant({ agents, dataDir, state, decide, sendTo, requestSession, notifyPages, lang, login, conversation, options, saveOptions, terminals, mask, askPerson }) {
+export function createAssistant({ agents, dataDir, state, decide, sendTo, requestSession, personOnly, notifyPages, lang, login, conversation, options, saveOptions, terminals, mask, askPerson }) {
   const opts = () => optionsOf(options?.())
   async function setOptions(body) {
     const o = optionsOf(body)
@@ -113,7 +113,7 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
     return code
   }
   // a request the assistant itself is waiting on (its own tool calls): never for it to answer
-  const ownRequest = (id) => { const me = agents.assistantState(); return !!me?.sessionId && requestSession(id) === me.sessionId }
+  const ownRequest = (id) => { const me = agents.assistantState(); return !!personOnly?.(id) || (!!me?.sessionId && requestSession(id) === me.sessionId) }
   let on = false
   const cwd = path.join(dataDir, '.runtime', 'assistant')
 
@@ -210,13 +210,16 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
       return text.trim() ? `The last of ${label}:\n${text}` : `${label} shows nothing yet.`
     }
     if (name === 'terminal_type') {
-      const text = String(args.text || '').replace(/\r?\n$/, '')
+      const text = args.ctrl_c ? '' : String(args.text || '').replace(/\r?\n$/, '')
       if (!text && !args.ctrl_c) return 'Nothing to type.'
+      // everything typed is shown on the person's card: one line, short, nothing that acts unseen
+      if (text.length > 300) return 'Too long to show the person in full (300 characters at most): type less at a time.'
+      if (/[\x00-\x1f\x7f]/.test(text)) return 'One line of plain text only: no line breaks, tabs or control keys (use ctrl_c to stop what runs).'
       const enter = args.enter !== false
       const shown = args.ctrl_c ? 'Ctrl+C' : text + (enter ? '  ⏎' : '')
       const me = agents.assistantState()
       // the person says yes or no on the page, every time; the assistant never answers its own request
-      const ok = await askPerson(me?.sessionId || '', { tool: 'Terminal', what: (lang?.() === 'Korean' ? '터미널에 입력: ' : 'Type into ') + `${t.title || t.shell} · ${t.folder}` + (args.reason ? ' — ' + String(args.reason).slice(0, 120) : ''), code: shown })
+      const ok = await askPerson(me?.sessionId || '', { tool: 'Terminal', what: (lang?.() === 'Korean' ? '터미널에 입력: ' : 'Type into ') + `#${t.id} ${t.title || t.shell} · ${t.folder}` + (args.reason ? ' — ' + String(args.reason).slice(0, 120) : ''), code: shown })
       if (!ok) return 'The person did not allow it (denied, or no answer in 10 minutes). Nothing was typed.'
       if (!T.type(t.id, args.ctrl_c ? '\x03' : text + (enter ? '\r' : ''))) return `${label} has closed; nothing was typed.`
       await new Promise((r) => setTimeout(r, 2500))
@@ -228,7 +231,7 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
 
   // a tool call from the assistant's MCP server
   async function tool(body) {
-    if (String(body.agent || '') !== 'assistant') return 'Only the monitor\'s assistant has these tools.'
+    if (String(body.agent || '') !== 'assistant' || String(body.key || '') !== agents.assistantKey()) return 'Only the monitor\'s assistant has these tools.'
     const args = body.args || {}
     if (/^terminal(s|_output|_type)$/.test(String(body.tool || ''))) return terminalTool(String(body.tool), args)
     const data = await state()

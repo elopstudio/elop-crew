@@ -261,6 +261,7 @@ function select(gid) {
 // a pane whose shell ended: its share goes to the one beside it; the last one gone, the tab goes
 function removePane(x) {
   const g = x.g, i = g.panes.indexOf(x)
+  clearTimeout(x.poll)
   x.term.dispose(); x.view.remove(); terms.delete(x.id)
   if (i < 0) return
   const share = g.sizes[i] || 1
@@ -346,9 +347,11 @@ function printRun(x, r) {
   x.printed.set(r.id, r.done ? 'done' : 'start')
 }
 async function pollAgent(x) {
-  if (!terms.has(x.id)) return
+  if (terms.get(x.id) !== x) return
+  // the panel hidden: looked at again once it shows
+  if (document.hidden) { clearTimeout(x.poll); x.poll = setTimeout(() => pollAgent(x), 3000); return }
   const runs = await api.runs(x.agent).catch(() => null)
-  if (!terms.has(x.id)) return
+  if (terms.get(x.id) !== x) return
   if (!runs) { if (!x.gone) { x.gone = true; x.term.write('\x1b[2m' + t('agentGone') + '\x1b[0m\r\n') } }
   else {
     x.gone = false
@@ -575,6 +578,7 @@ const ready = api.list().then(async ({ running, layout, saved }) => {
     if (!g.panes.length) { g.box.remove(); g.tab.remove(); groups.delete(g.gid); continue }
     if (s.sizes?.length === g.panes.length) g.sizes = s.sizes.map(Number)
     g.focus = g.panes[0]; arrange(g)
+    sync()
   }
   try { for (const a of JSON.parse(localStorage.getItem(AGENTS_KEY) || '[]')) if (a && a.name) openAgent(a, { quiet: true, pinned: a.pinned, title: a.title }) } catch {}
   if (groups.size) { select(tabsInOrder().pop().gid); sync() }

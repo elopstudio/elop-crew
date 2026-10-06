@@ -13,6 +13,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
+// what only the assistant's own tools server is given (an agent knows the monitor's token, never this): its calls are its
+const ASSISTANT_KEY = crypto.randomBytes(16).toString('hex')
 import { spawn, execFileSync } from 'node:child_process'
 
 const HISTORY = 600                 // normalised events kept per agent for a dialog opened later
@@ -384,7 +386,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     const nodeEnv = { MONITOR_AGENT: a.id, ...(process.env.MONITOR_LINK ? { MONITOR_LINK: process.env.MONITOR_LINK } : {}), ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}) }
     const servers = { monitor: { command: process.execPath, args: [path.join(root, 'hooks', 'permission-mcp.mjs')], env: nodeEnv } }
     // the assistant (see assistant.mjs) also gets the monitor's own tools: look at every agent, message, answer, alert
-    if (a.kind === 'assistant') servers.assistant = { command: process.execPath, args: [path.join(root, 'hooks', 'assistant-mcp.mjs')], env: nodeEnv }
+    if (a.kind === 'assistant') servers.assistant = { command: process.execPath, args: [path.join(root, 'hooks', 'assistant-mcp.mjs')], env: { ...nodeEnv, MONITOR_ASSISTANT_KEY: ASSISTANT_KEY } }
     const mcp = JSON.stringify({ mcpServers: servers })
     const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--include-partial-messages', '--verbose',
       '--permission-mode', a.mode, '--mcp-config', mcp, '--permission-prompt-tool', 'mcp__monitor__approve',
@@ -778,5 +780,5 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // a line in the assistant's chat that is not a message: an alert, or something it did on its own
   const noteTo = (id, ev) => { const a = agents.get(id); if (a) emit(a, ev) }
 
-  return { handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, noteTo, loaded }
+  return { handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
 }

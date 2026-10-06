@@ -2446,6 +2446,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       if (send.disabled) return;
       if (text.startsWith('!')) { runCmd(text.slice(1).trim()); return; }
       send.disabled = true;
+      drafts.delete(s.name);   // on its way: a dialog redrawn meanwhile does not get it back to send again
       const post = () => s.managed
         ? fetch('/api/agents/send', { method: 'POST', headers: { 'content-type': 'application/json', 'x-monitor-token': token }, body: JSON.stringify({ id: s.agentId, text, files: files.map((x) => x.path) }) })
         : fetch('/api/message', { method: 'POST', headers: { 'content-type': 'application/json', 'x-monitor-token': token }, body: JSON.stringify({ session: s.name, text, files: files.map((x) => x.path) }) });
@@ -2461,7 +2462,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
         status.textContent = stuck ? t('msgQueued') : ''; status.className = 'status' + (stuck ? ' bad' : '');
         clearTimeout(timer); tick();
       }
-      else { status.textContent = t('failed'); status.className = 'status bad'; }
+      else { keepDraft(); status.textContent = t('failed'); status.className = 'status bad'; }
     });
     enterSends(ta, form);
     requestAnimationFrame(ready);

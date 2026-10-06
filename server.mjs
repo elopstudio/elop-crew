@@ -874,7 +874,7 @@ function askPerson(sessionId, detail, wait = 10 * 60 * 1000) {
     const timer = setTimeout(() => done({}, 'timeout'), wait)
     pending.set(id, {
       id, sessionId, tool: clip(detail.tool || '', 40), what: clip(detail.what || '', 160), code: clip(detail.code || '', 600),
-      input: null, suggestions: [], options: [], at: Date.now(), expiresAt: Date.now() + wait, managed: true, done,
+      input: null, suggestions: [], options: [], at: Date.now(), expiresAt: Date.now() + wait, managed: true, personOnly: true, done,
     })
     notifyPages()
   })
@@ -1726,6 +1726,8 @@ const assistant = createAssistant({
   agents, dataDir: DATA, state: () => cachedState(), notifyPages,
   decide: (id, answer) => decide(id, answer), sendTo: (session, text) => sendFromAssistant(session, text),
   requestSession: (id) => pending.get(id)?.sessionId,
+  // a request the monitor asks the person itself (the assistant typing into a terminal): never the assistant's to answer
+  personOnly: (id) => !!pending.get(id)?.personOnly,
   // the desktop app's terminal panel, when this server runs inside the app; masked as conversations are
   terminals: () => globalThis.agentMonitorTerminals || null, mask, askPerson,
   lang: () => LANGS[pageLang] || '',

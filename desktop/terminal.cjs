@@ -156,12 +156,14 @@ const SAVED = 64 * 1024   // the end of each one's output kept in the file
 let saveTimer = null
 function save() {
   clearTimeout(saveTimer); saveTimer = null
-  if (!keepFile) return
+  // not before the last run's tabs were handed out: a run that never opened the panel would write them over with none
+  if (!keepFile || !restored) return
   const tabs = groupsNow().map((g) => ({
     dir: g.dir, sizes: g.sizes, pinned: g.pinned,
     panes: g.ids.map((id) => terms.get(id)).map(({ hid, shell, title, cwd, dir, buf }) => ({ hid, shell, title, cwd: dir || cwd, buf: buf.slice(-SAVED) })),
   }))
-  try { fs.mkdirSync(path.dirname(keepFile), { recursive: true }); fs.writeFileSync(keepFile, JSON.stringify({ v: 2, tabs })) } catch {}
+  // whole or not at all: an app killed while it writes keeps the last good file
+  try { fs.mkdirSync(path.dirname(keepFile), { recursive: true }); fs.writeFileSync(keepFile + '.tmp', JSON.stringify({ v: 2, tabs })); fs.renameSync(keepFile + '.tmp', keepFile) } catch {}
 }
 // output only says the file is due: written every few seconds, so an app killed (an update installing) loses little
 const saveSoon = () => { if (!saveTimer) saveTimer = setTimeout(() => probeDirs().then(save), 4000) }

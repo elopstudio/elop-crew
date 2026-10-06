@@ -70,7 +70,7 @@ function call(tool, args) {
   return new Promise((resolve) => {
     let conf
     try { conf = JSON.parse(fs.readFileSync(RUNTIME, 'utf8')) } catch { return resolve('The agent monitor is not running.') }
-    const body = JSON.stringify({ agent: AGENT, tool, args })
+    const body = JSON.stringify({ agent: AGENT, key: process.env.MONITOR_ASSISTANT_KEY || '', tool, args })
     const req = http.request({
       host: '127.0.0.1', port: conf.port, path: '/hook/assistant', method: 'POST', timeout: WAITS[tool] || 30000,
       headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), 'x-monitor-token': conf.token },
