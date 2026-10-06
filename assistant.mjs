@@ -28,6 +28,8 @@ Your tools (mcp__assistant__*):
 - terminal_type: type a command into one of them. Each time the person is asked on the page first and it runs only
   if they allow it; give the reason. Use it only when the person asked for it or it plainly helps them (rerun a
   failed command, stop a server with Ctrl+C), never to type secrets, and never in place of an agent's own work.
+- terminal_open: open new tabs there, each a shell in a folder with a command run in it (a dev server the person asked
+  for). The person is asked on the page first, as with terminal_type. The monitor's agents have it too, with the others.
 
 How you work
 - Messages that start with "[Monitor events]" come from the monitor, not the person. For each batch: call status,
@@ -185,7 +187,7 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
   const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 90 ? s + ' s ago' : mins(s * 1000) + ' min ago' }
   function terminalsText(list) {
     if (!list.length) return 'No terminals are open in the app\'s terminal panel.'
-    const lines = ['Terminals in the app\'s terminal panel (the person\'s own shells, not agents):']
+    const lines = ['Terminals in the app\'s terminal panel (shells the person or an agent opened there, not agents):']
     for (const g of list) {
       for (const p of g.panes) {
         lines.push(`- terminal ${p.id} · tab ${g.tab}${g.panes.length > 1 ? ' (split, pane ' + (g.panes.indexOf(p) + 1) + ' of ' + g.panes.length + ')' : ''}${g.pinned ? ' · pinned' : ''}` +
@@ -195,9 +197,11 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
     return lines.join('\n')
   }
   const findTerminal = (list, id) => list.flatMap((g) => g.panes.map((p) => ({ ...p, tab: g.tab }))).find((p) => p.id === Number(id))
-  async function terminalTool(name, args) {
+  // caller: who asks, the assistant or one of the monitor's agents (the request goes on its card)
+  async function terminalTool(name, args, caller = { sessionId: agents.assistantState()?.sessionId || '', cwd: '' }) {
     const T = terminals?.()
     if (!T) return NO_TERMINALS
+    if (name === 'terminal_open') return openTerminals(T, args, caller)
     const list = T.list()
     if (name === 'terminals') return terminalsText(list)
     const t = findTerminal(list, args.terminal)
@@ -217,9 +221,8 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
       if (/[\x00-\x1f\x7f]/.test(text)) return 'One line of plain text only: no line breaks, tabs or control keys (use ctrl_c to stop what runs).'
       const enter = args.enter !== false
       const shown = args.ctrl_c ? 'Ctrl+C' : text + (enter ? '  ⏎' : '')
-      const me = agents.assistantState()
-      // the person says yes or no on the page, every time; the assistant never answers its own request
-      const ok = await askPerson(me?.sessionId || '', { tool: 'Terminal', what: (lang?.() === 'Korean' ? '터미널에 입력: ' : 'Type into ') + `#${t.id} ${t.title || t.shell} · ${t.folder}` + (args.reason ? ' — ' + String(args.reason).slice(0, 120) : ''), code: shown })
+      // the person says yes or no on the page, every time; the assistant never answers this request
+      const ok = await askPerson(caller.sessionId, { tool: 'Terminal', what: (lang?.() === 'Korean' ? '터미널에 입력: ' : 'Type into ') + `#${t.id} ${t.title || t.shell} · ${t.folder}` + (args.reason ? ' — ' + String(args.reason).slice(0, 120) : ''), code: shown })
       if (!ok) return 'The person did not allow it (denied, or no answer in 10 minutes). Nothing was typed.'
       if (!T.type(t.id, args.ctrl_c ? '\x03' : text + (enter ? '\r' : ''))) return `${label} has closed; nothing was typed.`
       await new Promise((r) => setTimeout(r, 2500))
@@ -229,11 +232,53 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
     return 'No such tool.'
   }
 
+  // New tabs, each a shell in a folder with one command typed into it (a dev server, a worker): all of them shown to
+  // the person at once and opened only if they allow it; the answer has each one's id and what it printed so far
+  async function openTerminals(T, args, caller) {
+    if (!T.open) return 'This version of the app cannot open terminals.'
+    const asked = Array.isArray(args.tabs) && args.tabs.length ? args.tabs : [args]
+    if (asked.length > 6) return 'At most 6 tabs at a time.'
+    const tabs = []
+    for (const o of asked) {
+      const command = String(o?.command || '').replace(/\r?\n$/, '')
+      if (command.length > 300) return 'A command is too long to show the person in full (300 characters at most).'
+      if (/[\x00-\x1f\x7f]/.test(command)) return 'One line of plain text per command: no line breaks, tabs or control keys.'
+      tabs.push({ cwd: String(o?.cwd || caller.cwd || ''), title: String(o?.title || '').trim().slice(0, 40), command })
+    }
+    const shown = tabs.map((o) => (o.title ? '[' + o.title + '] ' : '') + (o.cwd || '~') + (o.command ? '\n  > ' + o.command : '')).join('\n')
+    if (shown.length > 600) return 'Too much to show the person at once: open fewer tabs, or shorter commands.'
+    const ko = lang?.() === 'Korean'
+    const what = (ko ? `새 터미널 탭 ${tabs.length}개` : `${tabs.length} new terminal tab${tabs.length > 1 ? 's' : ''}`) + (args.reason ? ' — ' + String(args.reason).slice(0, 120) : '')
+    const ok = await askPerson(caller.sessionId, { tool: 'Terminal', what, code: shown })
+    if (!ok) return 'The person did not allow it (denied, or no answer in 10 minutes). Nothing was opened.'
+    const opened = []
+    for (const o of tabs) {
+      try { opened.push(await T.open(o)) } catch (e) { opened.push({ error: String(e?.message || e) }) }
+    }
+    await new Promise((r) => setTimeout(r, 3000))
+    const out = []
+    for (const [i, r] of opened.entries()) {
+      const head = `Tab ${i + 1}${tabs[i].title ? ' "' + tabs[i].title + '"' : ''}`
+      if (r.error) { out.push(`${head}: could not open (${r.error}).`); continue }
+      const lines = await T.lines(r.id, 15)
+      out.push(`${head}: terminal ${r.id} · ${r.shell} · in ${r.folder}${tabs[i].command && !r.typed ? ' · the command was NOT typed (the shell did not start in time)' : ''}\n` + (lines ? mask(lines.join('\n')).slice(-3000) || '(nothing printed yet)' : '(closed)'))
+    }
+    return out.join('\n\n') + '\n\nRead more later with terminal_output; stop one with terminal_type ctrl_c.'
+  }
+  // a tool call from one of the monitor's agents (its terminal MCP server): only the terminal tools
+  async function agentTool(body) {
+    const a = agents.agentOf(String(body.agent || ''))
+    if (!a) return 'Only the monitor\'s agents have these tools.'
+    const name = String(body.tool || '')
+    if (!/^terminal(s|_output|_type|_open)$/.test(name)) return 'No such tool.'
+    return terminalTool(name, body.args || {}, { sessionId: a.sessionId, cwd: a.cwd })
+  }
+
   // a tool call from the assistant's MCP server
   async function tool(body) {
     if (String(body.agent || '') !== 'assistant' || String(body.key || '') !== agents.assistantKey()) return 'Only the monitor\'s assistant has these tools.'
     const args = body.args || {}
-    if (/^terminal(s|_output|_type)$/.test(String(body.tool || ''))) return terminalTool(String(body.tool), args)
+    if (/^terminal(s|_output|_type|_open)$/.test(String(body.tool || ''))) return terminalTool(String(body.tool), args)
     const data = await state()
     switch (String(body.tool || '')) {
       case 'status': return statusText(data)
@@ -382,5 +427,5 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
   const timer = setInterval(() => { watch().catch(() => {}) }, TICK_MS)
   timer.unref?.()
 
-  return { start, tool, setOptions, info: () => { const s = agents.assistantState(); return s ? { ...s, options: opts() } : null } }
+  return { start, tool, agentTool, setOptions, info: () => { const s = agents.assistantState(); return s ? { ...s, options: opts() } : null } }
 }

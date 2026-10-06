@@ -417,7 +417,14 @@ a VS Code session's has before it goes back to VS Code; whether Claude Code is l
 folder it is in and when it last printed), **terminal_output** (the last lines one shows, keys, tokens and e-mail
 addresses masked — so it can tell you whether a build, test or server there finished or failed) and **terminal_type**
 (a command, or Ctrl+C, typed into one — each time only after you allow it on a card like a permission request, with its
-reason; it can never allow its own). Anything else it wants to do asks you like any agent.
+reason; it can never allow its own) and **terminal_open** (new tabs, each a shell in a folder with one command run in
+it, asked the same way). Anything else it wants to do asks you like any agent.
+
+The monitor's agents have the same four terminal tools (`hooks/terminal-mcp.mjs`), so an agent asked to start your app
+opens it in a tab of the panel — several at once, say backend, frontend and worker — where you watch it and type into
+it, instead of a separate window or a background job of its own. Opening a tab and typing into one ask you on the
+agent's card every time; reading never does. Neither the tabs nor the agents get the monitor's own `PORT` (a dev
+server such as Nuxt or Vite takes `PORT` over its own setting).
 
 - **Answering for you.** A permission request reaches it at once — a VS Code session's goes back to VS Code after a
   minute, and it used to hear of one only after two. It allows, without asking, work inside the agent's own project

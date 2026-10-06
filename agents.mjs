@@ -432,11 +432,15 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     return list
   }
 
+  // the monitor's own PORT is not the agents': a dev server one starts (Nuxt, Vite…) takes PORT over its own setting
+  const agentEnv = () => { const env = { ...process.env }; delete env.PORT; return env }
   function spawnAgent(a) {
     // MONITOR_LINK: a second monitor (the test app) has its own link file, and its agents' tools must reach it, not the installed one
     const nodeEnv = { MONITOR_AGENT: a.id, ...(process.env.MONITOR_LINK ? { MONITOR_LINK: process.env.MONITOR_LINK } : {}), ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}) }
     const servers = { monitor: { command: process.execPath, args: [path.join(root, 'hooks', 'permission-mcp.mjs')], env: nodeEnv } }
     // the assistant (see assistant.mjs) also gets the monitor's own tools: look at every agent, message, answer, alert
+    // the desktop app's terminal panel for the others: open a tab for a dev server, read one, type into one (each asks the person)
+    if (a.kind !== 'assistant') servers.terminal = { command: process.execPath, args: [path.join(root, 'hooks', 'terminal-mcp.mjs')], env: nodeEnv }
     if (a.kind === 'assistant') servers.assistant = { command: process.execPath, args: [path.join(root, 'hooks', 'assistant-mcp.mjs')], env: { ...nodeEnv, MONITOR_ASSISTANT_KEY: ASSISTANT_KEY } }
     const mcp = JSON.stringify({ mcpServers: servers })
     const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--include-partial-messages', '--verbose',
@@ -446,6 +450,8 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     // the assistant: its role, and its monitor tools used without a prompt (anything else still asks the person)
     // its own tools never ask, with or without its role; the role itself once the assistant module has given it
     if (a.kind === 'assistant') args.push('--allowedTools', 'mcp__assistant')
+    // the terminal tools ask the person themselves (opening, typing), so Claude Code does not ask again
+    else args.push('--allowedTools', 'mcp__terminal')
     if (a.kind === 'assistant' && a.system) args.push('--append-system-prompt', a.system)
     // the person's language where every step sees it (a line in the conversation drifts out of view, or a compaction drops it)
     else if (a.kind !== 'assistant' && langRule?.()) args.push('--append-system-prompt', langRule())
@@ -464,7 +470,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     let child
     // a claudePath that cannot be run at all throws right here, not as an 'error' event
     // a mod edited while it runs is loaded again (each reload says so in a log line)
-    try { child = spawn(claudeExecutable(), args, { cwd: a.cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: a.kind === 'assistant' ? process.env : { ...process.env, CLAUDE_CODE_PLUGIN_DIR_WATCH: '1' } }) }
+    try { child = spawn(claudeExecutable(), args, { cwd: a.cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: a.kind === 'assistant' ? agentEnv() : { ...agentEnv(), CLAUDE_CODE_PLUGIN_DIR_WATCH: '1' } }) }
     catch (e) { emit(a, { kind: 'note', text: 'could not start claude: ' + e.message }); a.proc = null; setState(a, 'stopped'); return }
     a.proc = child
     a.ui = { status: {}, panes: null }
@@ -827,6 +833,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
 
   // for a command run from the page: where the agent works, and handing it the result as a message
   const cwdOf = (id) => agents.get(String(id))?.cwd || null
+  const agentOf = (id) => { const a = agents.get(String(id)); return a && a.kind !== 'assistant' ? { sessionId: a.sessionId || a.newSessionId, cwd: a.cwd } : null }
   const sendText = (id, text) => { const a = agents.get(String(id)); return !!a && send(a, text, []) }
 
   const loaded = load()   // the saved list is read before anything asks for an agent by id
@@ -861,5 +868,5 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // a line in the assistant's chat that is not a message: an alert, or something it did on its own
   const noteTo = (id, ev) => { const a = agents.get(id); if (a) emit(a, ev) }
 
-  return { reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
+  return { reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, agentOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
 }

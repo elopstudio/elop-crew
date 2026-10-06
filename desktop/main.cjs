@@ -371,6 +371,22 @@ globalThis.agentMonitorTerminals = {
     return terminals.tail(id, n)
   },
   type(id, text) { if (!terminals.has(id)) return false; terminals.write(id, text); return true },
+  // a new tab an agent or the assistant opens (the person allowed it on the page): shown in the panel, and its command
+  // typed once the shell has printed its prompt
+  async open({ cwd, title, command }) {
+    const info = terminals.open({ shell: readSettings().termShell, cwd, title })
+    const tell = () => { if (term && !term.webContents.isDestroyed()) term.webContents.send('monitor-term-opened', info) }
+    if (term && term.webContents.isLoading()) term.webContents.once('did-finish-load', tell)
+    else tell()   // none yet: the panel shown below starts with the shells running
+    if (!termOpen) toggleTerminal(true)
+    let typed = false
+    if (command) {
+      for (let i = 0; i < 80 && terminals.has(info.id) && !(terminals.tail(info.id, 1) || []).length; i++) await new Promise((r) => setTimeout(r, 100))
+      await new Promise((r) => setTimeout(r, 500))
+      if (terminals.has(info.id)) { terminals.write(info.id, command + '\r'); typed = true }
+    }
+    return { id: info.id, shell: info.name, folder: info.cwd, typed }
+  },
 }
 // An agent that starts a shell command gets its read-only tab opened by itself, behind the one in view (a setting, on
 // by default); the panel closes such a tab again after a while without commands (another setting, read by the panel)

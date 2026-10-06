@@ -55,6 +55,11 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { terminal: { type: 'number', description: 'Its id from terminals' }, lines: { type: 'number', description: 'How many of the last lines (default 60, at most 200)' } }, required: ['terminal'] },
   },
   {
+    name: 'terminal_open',
+    description: 'Open new tabs in the terminal panel, each a shell in a folder with one command run in it (a dev server or app the person asked to start), where they see it and can type. Several at once with tabs. The person is asked on the page first and it opens only if they allow it; give the reason. The answer gives each tab\'s terminal id and what it printed so far.',
+    inputSchema: { type: 'object', properties: { cwd: { type: 'string' }, title: { type: 'string' }, command: { type: 'string' }, tabs: { type: 'array', items: { type: 'object', properties: { cwd: { type: 'string' }, title: { type: 'string' }, command: { type: 'string' } } }, description: 'Several tabs at once (at most 6)' }, reason: { type: 'string' } }, required: ['reason'] },
+  },
+  {
     name: 'terminal_type',
     description: 'Type into one terminal: a command (Enter pressed after it unless enter is false), or Ctrl+C to stop what runs there. The person is asked on the page every time and it is typed only if they allow it (it waits up to 10 minutes for them); the answer then shows what the terminal printed. Give the reason, shown to the person. Only when they asked for it or it plainly helps them; never secrets.',
     inputSchema: { type: 'object', properties: { terminal: { type: 'number' }, text: { type: 'string' }, enter: { type: 'boolean' }, ctrl_c: { type: 'boolean', description: 'Send Ctrl+C instead of text' }, reason: { type: 'string' } }, required: ['terminal', 'reason'] },
@@ -65,7 +70,7 @@ const TOOLS = [
 const send = (o) => process.stdout.write(JSON.stringify(o) + '\n')
 const reply = (id, result) => send({ jsonrpc: '2.0', id, result })
 
-const WAITS = { terminal_type: 11 * 60 * 1000 }
+const WAITS = { terminal_type: 11 * 60 * 1000, terminal_open: 11 * 60 * 1000 }
 function call(tool, args) {
   return new Promise((resolve) => {
     let conf

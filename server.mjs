@@ -1873,6 +1873,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req)
       if (url.pathname === '/hook/prompt') { json(200, await agents.prompt(body)); return }
       if (url.pathname === '/hook/assistant') { json(200, { text: await assistant.tool(body) }); return }
+      if (url.pathname === '/hook/terminal') { json(200, { text: await assistant.agentTool(body) }); return }
       if (url.pathname === '/api/assistant/start') { json(200, await assistant.start()); return }
       if (url.pathname === '/api/assistant/settings') { json(await assistant.setOptions(body), {}); return }
       if (url.pathname.startsWith('/api/account/')) { const [code, o] = await account.handle(url); json(code, o); return }
