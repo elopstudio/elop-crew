@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>ELOP Crew — walkthrough</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0b0d12;color:#e8eaef;font-family:"Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif}
+#bg{position:absolute;inset:0;background:radial-gradient(1200px 800px at 85% 0%,#1d2741 0%,transparent 70%),radial-gradient(1100px 900px at 0% 100%,#2a2140 0%,transparent 70%)}
+/* the app window, maximized: 1536×864 CSS pixels shown at 1.25 — the camera moves and zooms it */
+#cam{position:absolute;left:0;top:0;width:1536px;height:864px;transform-origin:0 0;transform:scale(1.25);transition:transform 1s cubic-bezier(.65,0,.35,1),opacity .6s ease;opacity:0}
+#cam.on{opacity:1}
+#win{position:absolute;inset:0;background:#0f1116;overflow:hidden}
+#strip{position:absolute;left:0;top:0;width:100%;height:36px;border:0;display:block}
+#ctrls{position:absolute;right:0;top:0;height:36px;display:flex;color:#a3abb8;font:400 13px "Segoe UI",system-ui}
+#ctrls span{width:46px;display:grid;place-items:center}
+#page{position:absolute;left:0;top:36px;width:100%;height:828px;border:0;display:block;background:#0f1116;transition:height .35s ease}
+#term{position:absolute;left:0;bottom:0;width:100%;height:0;border:0;display:block;transition:height .35s ease;border-top:1px solid #2a303b}
+/* the settings window, over the app */
+#setwin{position:absolute;left:880px;top:70px;width:560px;height:740px;border-radius:10px;overflow:hidden;border:1px solid #3a4150;box-shadow:0 30px 80px rgba(0,0,0,.6);opacity:0;transform:scale(.96);transition:opacity .35s,transform .35s;pointer-events:none;background:#171b22}
+#setwin.on{opacity:1;transform:none}
+#setwin iframe{width:100%;height:100%;border:0;display:block}
+/* the pointer */
+#ptr{position:absolute;left:0;top:0;width:22px;height:22px;z-index:50;pointer-events:none;transition:transform .7s cubic-bezier(.4,0,.2,1),opacity .3s;opacity:0;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))}
+#ptr.on{opacity:1}
+#ptr i{position:absolute;left:-14px;top:-14px;width:28px;height:28px;border-radius:50%;background:rgba(255,209,102,.55);transform:scale(0);opacity:0}
+#ptr i.hit{animation:hit .45s ease-out}
+@keyframes hit{0%{transform:scale(.2);opacity:1}100%{transform:scale(1.6);opacity:0}}
+/* captions: a lower third */
+#cap{position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;pointer-events:none;z-index:60}
+#cap .c{position:absolute;bottom:0;max-width:1500px;padding:20px 40px;border-radius:18px;background:rgba(10,12,18,.86);border:1px solid rgba(255,255,255,.08);box-shadow:0 14px 40px rgba(0,0,0,.45);
+  font-weight:700;font-size:40px;line-height:1.38;letter-spacing:-.01em;text-align:center;opacity:0;transform:translateY(18px);transition:opacity .4s ease,transform .4s ease}
+#cap .c.on{opacity:1;transform:none}
+#cap .c.out{opacity:0;transform:translateY(-10px);transition-duration:.25s}
+#cap em{font-style:normal;color:#ffd166}
+#cap small{display:block;font-size:28px;font-weight:600;color:#a3abb8;margin-top:6px}
+/* the chapter, top left */
+#chap{position:absolute;left:40px;top:34px;z-index:60;display:flex;align-items:center;gap:14px;padding:12px 24px 12px 14px;border-radius:999px;background:rgba(10,12,18,.84);border:1px solid rgba(255,255,255,.1);
+  font-weight:800;font-size:28px;opacity:0;transform:translateX(-20px);transition:opacity .4s,transform .4s}
+#chap.on{opacity:1;transform:none}
+#chap b{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#ffd166;color:#0b0d12;font-size:24px}
+/* title and end cards */
+.card{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;opacity:0;transition:opacity .8s ease;z-index:70;pointer-events:none}
+.card.on{opacity:1}
+.card.dim{background:rgba(9,11,16,.9)}
+.card .robot{width:240px;height:240px}
+.card h1{margin:0;font-size:120px;font-weight:900;letter-spacing:-.03em}
+.card h1 span{color:#ffd166}
+.card p{margin:0;font-size:46px;color:#c3c9d4;font-weight:700}
+.card .s{font-size:32px;color:#8d95a3;font-weight:600}
+.card .go{margin-top:26px;font-size:42px;font-weight:800;color:#0b0d12;background:#ffd166;border-radius:999px;padding:18px 46px}
+.card ul{margin:10px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(3,auto);gap:14px 40px;font-size:30px;color:#c3c9d4;font-weight:700}
+.card li::before{content:'✓ ';color:#6fcf97}
+/* the thumbnail: the dashboard on the right, the words on the left */
+#thumb{position:absolute;inset:0;z-index:80;display:none;background:linear-gradient(90deg,#0b0d12 0%,#0b0d12 34%,rgba(11,13,18,.7) 46%,rgba(11,13,18,0) 58%)}
+#thumb.on{display:block}
+#thumb .t{position:absolute;left:84px;top:150px;width:900px}
+#thumb .k{display:inline-block;font-size:40px;font-weight:800;color:#0b0d12;background:#ffd166;border-radius:12px;padding:8px 22px;margin-bottom:34px}
+#thumb h2{margin:0;font-size:112px;line-height:1.12;font-weight:900;letter-spacing:-.035em}
+#thumb h2 em{font-style:normal;color:#ffd166}
+#thumb p{margin:34px 0 0;font-size:46px;font-weight:700;color:#c3c9d4}
+#thumb .brand{position:absolute;left:84px;bottom:90px;display:flex;align-items:center;gap:18px;font-size:54px;font-weight:900}
+#thumb .brand .robot{width:96px;height:96px}
+#thumb .brand span{color:#ffd166}
+/* many Claude windows */
+#chaos{position:absolute;inset:0;z-index:40}
+.cw{position:absolute;width:620px;height:300px;border-radius:16px;background:#1b1f27;border:2px solid #313846;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden;opacity:0;transform:scale(.85) rotate(var(--r));transition:opacity .35s ease,transform .45s cubic-bezier(.2,.8,.2,1)}
+.cw.on{opacity:1;transform:scale(1) rotate(var(--r))}
+.cw.gone{opacity:0;transform:scale(.4) rotate(0deg);transition:opacity .45s ease,transform .5s ease-in}
+.cw .bar{height:44px;display:flex;align-items:center;gap:9px;padding:0 16px;background:#232833;font:600 20px system-ui,sans-serif;color:#a3abb8}
+.cw .bar i{width:12px;height:12px;border-radius:50%;background:#4a5261;display:inline-block}
+.cw .body{padding:14px 18px;font:500 21px/1.55 "Cascadia Mono",Consolas,monospace;color:#c9d0db}
+.cw .body div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cw .ok{color:#6fcf97}.cw .tool{color:#86a6f5}.cw .warn{color:#ffd166;font-weight:700}.cw .dim{color:#737c8a}
+.cw .ask{margin-top:6px;border:2px solid #e0bc5e;border-radius:10px;padding:4px 12px;color:#ffd98a;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{border-color:transparent}}
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<div id="cam">
+  <div id="win">
+    <iframe id="strip" src="/desktop/strip.html?lang=ko"></iframe>
+    <div id="ctrls"><span>─</span><span>☐</span><span>✕</span></div>
+    <iframe id="page" src="/?app=1&lang=ko"></iframe>
+    <iframe id="term"></iframe>
+  </div>
+  <div id="setwin"><iframe id="settings" src="about:blank"></iframe></div>
+  <div id="ptr"><i></i><svg viewBox="0 0 22 22"><path d="M3 2l15 9-6.5 1.6L8.6 19z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg></div>
+</div>
+<div id="chaos"></div>
+<div id="thumb"><div class="t"><div class="k">Claude Code</div><h2>에이전트 팀,<br><em>한 화면</em>에서</h2><p>승인 · 대화 · 터미널까지</p></div><div class="brand"><span class="botbox2"></span>ELOP <span>Crew</span></div></div>
+<div id="chap"><b></b><span></span></div>
+<div id="cap"></div>
+<div class="card dim" id="title"><div class="botbox"></div><h1>ELOP <span>Crew</span></h1><p>Claude Code 에이전트 팀을 한 화면에서</p><div class="s">Windows · macOS 데스크톱 앱 사용 안내</div></div>
+<div class="card dim" id="end"><div class="botbox"></div><h1>ELOP <span>Crew</span></h1><p>에이전트는 일하고, 나는 한눈에 봅니다</p>
+  <ul><li>프로젝트별 조직도</li><li>화면에서 승인</li><li>에이전트 창과 비서</li><li>터미널 패널</li><li>프로세스·사용량</li><li>자동 압축 설정</li></ul>
+  <div class="go">crew.elopstudio.com</div></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const page = () => $('page').contentDocument, pw = () => $('page').contentWindow;
+const log = (...a) => console.log('[stage]', ...a);
+const post = (u, b) => fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b || {}) });
+const demo = (b) => post('/demo/set', b);
+
+/* ── the desktop app's bridges, for the views in the frames ── */
+const appState = { zoom: 1, canBack: false, canForward: false, term: false, browsers: { on: false, n: 0 } };
+const appFns = [];
+window.STUB = {
+  app(win) {
+    const on = (fn) => { appFns.push(fn); };
+    let usageFn = null;
+    fetch('/api/state').then((r) => r.json()).then((s) => { if (usageFn) usageFn(s.usage); });
+    setInterval(() => fetch('/api/state').then((r) => r.json()).then((s) => usageFn && usageFn(s.usage)), 5000);
+    return {
+      back: async () => {}, forward: async () => {}, reload: async () => {}, zoomIn: async () => {}, zoomOut: async () => {}, zoomReset: async () => {},
+      state: async () => appState, settings: async () => showSettings(true), terminal: async () => showTerm(!appState.term), account: async () => {},
+      browsers: async () => {}, panel: async () => {}, theme: async () => {}, setLang: async () => {}, onLang: () => {}, onChange: on,
+      onUsage: (fn) => { usageFn = fn; },
+    };
+  },
+  term: () => TERM,
+  settings: () => ({
+    get: async () => SETTINGS, set: async (k, v) => { if (k === 'compactWindow') SETTINGS.compact.window = v; else if (k === 'compactVsCode') SETTINGS.compact.vscode = v; else SETTINGS[k] = v; },
+    do: async () => {}, onChange: () => {},
+  }),
+};
+const SETTINGS = { lang: 'ko', openAtLogin: true, closeToTray: true, dataDir: 'C:\\Users\\demo\\.claude-agent-monitor', ownServer: true, hooks: 'ok', try: false, node: true,
+  version: '0.2.27', url: 'http://127.0.0.1:4777', hotkeys: ['Control+Alt+J', 'Control+Alt+K', 'Control+Shift+Space', 'off'], hotkey: 'Control+Alt+J', hotkeyOk: true,
+  update: { status: 'latest', version: '0.2.27' }, compact: { window: 300000, vscode: false } };
+function tellApp() { for (const fn of appFns) try { fn({ ...appState }); } catch (e) {} }
+
+/* ── a pretend shell for the terminal panel ── */
+const ESC = '\x1b[';
+const SHELLS = new Map();
+let nextShell = 1;
+const tcb = { data: [], exit: [], cwd: [], opened: [], shown: [] };
+const each = (k, ...a) => tcb[k].forEach((fn) => { try { fn(...a); } catch (e) {} });
+const prompt = (s) => `${ESC}32mPS${ESC}0m ${ESC}36m${s.cwd}${ESC}0m> `;
+const OUTPUTS = {
+  'git status': ['On branch feature/checkout-redesign', 'Your branch is up to date with \'origin/feature/checkout-redesign\'.', '', 'Changes not staged for commit:', `  ${ESC}31mmodified:   src/payments/coupon.ts${ESC}0m`, `  ${ESC}31mmodified:   src/pages/CheckoutPage.tsx${ESC}0m`, ''],
+  'npm run dev@api': ['', '> shop-api@2.4.0 dev', '> tsx watch src/server.ts', '', `${ESC}32m✔${ESC}0m Database connected ${ESC}2m(postgres, 12 ms)${ESC}0m`, `${ESC}32m✔${ESC}0m Server listening on ${ESC}36mhttp://localhost:4000${ESC}0m`],
+  'npm run dev@web': ['', '> shop-web@2.4.0 dev', '> nuxt dev --port 3000', '', `${ESC}32mNuxt 3.15.4${ESC}0m with Nitro 2.10`, '', `  ➜ Local:    ${ESC}36mhttp://localhost:3000/${ESC}0m`, `  ➜ Network:  use --host to expose`, '', `${ESC}32m✔${ESC}0m Vite client built in 412ms`, `${ESC}32m✔${ESC}0m Vite server built in 538ms`],
+  'npm run worker@worker': ['', '> shop-worker@2.4.0 worker', '> node worker/index.js', '', `[worker] queue ${ESC}33mreceipts${ESC}0m ready (concurrency 4)`, '[worker] waiting for jobs…', `[worker] ${ESC}32m✓${ESC}0m receipt #10482 sent ${ESC}2m(212 ms)${ESC}0m`],
+};
+const TERM = {
+  list: async () => ({ running: [], layout: [], saved: [] }),
+  open: async (o) => newShell(o),
+  write: (id, data) => typeInto(id, data),
+  resize: async () => {}, close: async (id) => { SHELLS.delete(id); each('exit', id, 0); }, rename: async () => {}, layout: async () => {}, clear: async () => {},
+  runs: async () => [], onAgent: () => {}, prefs: async () => ({ autoAgents: true, autoClose: true }), onPrefs: () => {},
+  tabMenu: async () => {}, onCommand: () => {}, menu: async () => {}, hide: async () => showTerm(false), drag: () => {}, copy: async () => {}, paste: async () => '',
+  onData: (fn) => tcb.data.push(fn), onCwd: (fn) => tcb.cwd.push(fn), onExit: (fn) => tcb.exit.push(fn), onOpened: (fn) => tcb.opened.push(fn), onShown: (fn) => tcb.shown.push(fn), onLang: () => {},
+};
+function newShell(o = {}) {
+  const id = nextShell++;
+  const s = { id, shell: 'pwsh', name: 'PowerShell', title: o.title || '', cwd: o.cwd || 'C:\\work\\shop-web', line: '', key: o.key || '' };
+  SHELLS.set(id, s);
+  setTimeout(() => each('data', id, `PowerShell 7.5.2\r\n\r\n${prompt(s)}`), 250);
+  return { id, shell: s.shell, name: s.name, title: s.title, cwd: s.cwd, buf: '', ...(o.beside != null ? { beside: o.beside, dir: o.dir || 'row' } : {}) };
+}
+async function typeInto(id, data) {
+  const s = SHELLS.get(id);
+  if (!s) return;
+  for (const ch of data) {
+    if (ch === '\r') {
+      each('data', id, '\r\n');
+      const lines = OUTPUTS[s.line + '@' + s.key] || OUTPUTS[s.line] || [];
+      for (const l of lines) { await sleep(140); each('data', id, l + '\r\n'); }
+      const keeps = /^npm run (dev|worker)/.test(s.line);
+      s.line = '';
+      if (!keeps) each('data', id, prompt(s));
+    } else { s.line += ch; each('data', id, ch); }
+  }
+}
+// the person types into the panel's pane in view, a key at a time
+async function typeShell(id, text, ms = 70) { for (const ch of text) { await typeInto(id, ch); await sleep(ms); } await sleep(300); await typeInto(id, '\r'); }
+function showTerm(on) {
+  appState.term = on; tellApp();
+  $('term').style.height = on ? '330px' : '0px';
+  $('page').style.height = on ? (828 - 330) + 'px' : '828px';
+  if (on) setTimeout(() => each('shown'), 380);
+}
+async function showSettings(on) {
+  if (on && $('settings').src === 'about:blank') { $('settings').src = '/desktop/settings.html?lang=ko'; await new Promise((r) => $('settings').addEventListener('load', r, { once: true })); }
+  $('setwin').classList.toggle('on', on);
+}
+
+/* ── the camera, the pointer, the captions ── */
+const BASE = 1.25, VW = 1920, VH = 1080;
+let camNow = { s: BASE, x: 0, y: 0 };
+// show a box of the window (its CSS pixels) as big as fits, centred, room left for the caption below
+function look(r, { pad = 24, max = 2.4, ms = 1000, capRoom = 170 } = {}) {
+  const s = Math.max(BASE, Math.min(max, VW / (r.w + pad * 2), (VH - capRoom) / (r.h + pad * 2)));
+  let x = VW / 2 - s * (r.x + r.w / 2), y = (VH - capRoom) / 2 - s * (r.y + r.h / 2);
+  x = Math.min(0, Math.max(VW - 1536 * s, x)); y = Math.min(0, Math.max(VH - (s > BASE ? capRoom : 0) - 864 * s, y));
+  camNow = { s, x, y };
+  $('cam').style.transitionDuration = ms + 'ms';
+  $('cam').style.transform = `translate(${x}px,${y}px) scale(${s})`;
+}
+const talk = (sel, ms = 900, h = 470) => { const d = rectOf(q(sel)); look({ x: d.x, y: d.y + d.h - h, w: d.w, h }, { pad: 8, ms, max: 2 }); };
+const wide = (ms = 900) => look({ x: 0, y: 0, w: 1536, h: 864 }, { pad: 0, ms, max: BASE, capRoom: 0 });
+// where an element of a frame is, in the window's CSS pixels
+function rectOf(elm, frame = $('page')) {
+  if (!elm) return null;
+  const r = elm.getBoundingClientRect(), f = frame.getBoundingClientRect(), w = $('win').getBoundingClientRect();
+  const k = 1536 / w.width;   // the camera's scale undone
+  return { x: (f.left - w.left) * k + r.left, y: (f.top - w.top) * k + r.top, w: r.width, h: r.height };
+}
+const boxOf = (...rs) => { rs = rs.filter(Boolean); const x = Math.min(...rs.map((r) => r.x)), y = Math.min(...rs.map((r) => r.y)); return { x, y, w: Math.max(...rs.map((r) => r.x + r.w)) - x, h: Math.max(...rs.map((r) => r.y + r.h)) - y }; };
+const ptr = { x: 900, y: 500 };
+async function point(r, ms = 700) {
+  if (!r) return;
+  $('ptr').classList.add('on');
+  ptr.x = r.x + Math.min(r.w / 2, 40); ptr.y = r.y + r.h / 2;
+  $('ptr').style.transitionDuration = ms + 'ms';
+  $('ptr').style.transform = `translate(${ptr.x}px,${ptr.y}px)`;
+  await sleep(ms + 80);
+}
+async function click(elm, frame = $('page'), { ms = 700, real = true } = {}) {
+  if (!elm) { log('nothing to click'); return; }
+  await point(rectOf(elm, frame), ms);
+  const i = $('ptr').querySelector('i'); i.classList.remove('hit'); void i.offsetWidth; i.classList.add('hit');
+  if (real) { for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) elm.dispatchEvent(new (frame.contentWindow[t.startsWith('pointer') ? 'PointerEvent' : 'MouseEvent'])(t, { bubbles: true, button: 0 })); elm.click(); }
+  await sleep(250);
+}
+const hidePtr = () => $('ptr').classList.remove('on');
+async function typeText(input, text, ms = 55) {
+  if (!input) return;
+  input.focus();
+  const proto = Object.getPrototypeOf(input), setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+  for (let i = 1; i <= text.length; i++) { setter.call(input, text.slice(0, i)); input.dispatchEvent(new (input.ownerDocument.defaultView.InputEvent)('input', { bubbles: true })); await sleep(ms); }
+}
+function caption(html) {
+  const old = $('cap').querySelector('.c');
+  if (old) { old.classList.add('out'); setTimeout(() => old.remove(), 300); }
+  if (!html) return;
+  const c = document.createElement('div');
+  c.className = 'c'; c.innerHTML = html;
+  $('cap').append(c);
+  setTimeout(() => c.classList.add('on'), old ? 230 : 30);
+}
+function chapter(n, text) {
+  const c = $('chap');
+  c.classList.remove('on');
+  if (!text) return;
+  setTimeout(() => { c.querySelector('b').textContent = n; c.querySelector('span').textContent = text; c.classList.add('on'); }, 300);
+  clearTimeout(chapter.t); chapter.t = setTimeout(() => c.classList.remove('on'), 5200);
+}
+
+/* ── the page's parts ── */
+const q = (sel) => page().querySelector(sel), qa = (sel) => [...page().querySelectorAll(sel)];
+const card = (name) => qa('.bot-card').find((c) => c.querySelector('.botname')?.textContent === name);
+const tab = (key) => qa('#tabs .tab').find((t) => t.dataset.key === key);
+const byText = (sel, re, doc = page()) => [...doc.querySelectorAll(sel)].find((e) => re.test(e.textContent));
+
+/* ── 1: many Claude windows ── */
+const WINS = [
+  { x: 60, y: 60, r: '-3deg', t: 'Claude Code · shop-web', l: [['tool', '⏺ Bash(npm test)'], ['dim', '  … 42 passed, 1 failed'], ['', '● 쿠폰 계산을 고쳐 볼게요'], ['tool', '⏺ Edit(coupon.ts)']] },
+  { x: 660, y: 40, r: '2deg', t: 'Claude Code · api-server', l: [['', '● 주문 API 인덱스를 추가합니다'], ['tool', '⏺ Read(orders.sql)'], ['tool', '⏺ Grep("created_at")'], ['dim', '  12 matches']] },
+  { x: 1240, y: 90, r: '-2deg', t: 'Claude Code · shop-web', l: [['', '● 스테이징에 배포할까요?'], ['tool', '⏺ Bash(./scripts/deploy.sh)'], ['ask', '허락이 필요합니다  1) 예  2) 아니오']] },
+  { x: 110, y: 400, r: '2deg', t: 'Claude Code · mobile-app', l: [['', '● 푸시 알림 문구를 정리했어요'], ['ok', '✓ push.ts 수정 완료'], ['dim', '  다음 지시를 기다리는 중…']] },
+  { x: 700, y: 380, r: '-4deg', t: 'Claude Code · shop-web', l: [['tool', '⏺ Read(design-tokens.css)'], ['', '● 버튼 모서리를 어떻게 할까요?'], ['ask', '질문에 답해 주세요']] },
+  { x: 1260, y: 430, r: '3deg', t: 'Claude Code · api-server', l: [['tool', '⏺ Bash(k6 run load.js)'], ['dim', '  p95 182ms'], ['warn', '⚠ 느린 쿼리 3개']] },
+  { x: 380, y: 700, r: '-1deg', t: 'PowerShell · shop-web', l: [['dim', 'PS> npm run dev'], ['', '  ➜ Local: http://localhost:3000/'], ['dim', '  …']] },
+  { x: 1000, y: 720, r: '2deg', t: 'Claude Code · shop-web', l: [['', '● CHANGELOG 를 정리했어요'], ['dim', '  대기 중']] },
+];
+function buildChaos() {
+  for (const w of WINS) {
+    const n = document.createElement('div');
+    n.className = 'cw';
+    n.style.left = w.x + 'px'; n.style.top = w.y + 'px'; n.style.setProperty('--r', w.r);
+    n.innerHTML = `<div class="bar"><i></i><i></i><i></i>&nbsp;${w.t}</div><div class="body"></div>`;
+    $('chaos').append(n);
+    w.node = n;
+  }
+}
+async function typeLines(w, delay) {
+  await sleep(delay);
+  w.node.classList.add('on');
+  for (const [cls, text] of w.l) { await sleep(300); const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; w.node.querySelector('.body').append(d); }
+}
+
+/* ── the scenes: [seconds, what happens] ── */
+const SCENES = [
+  [9, async (at) => {
+    $('title').classList.add('on');
+    await at(7.6); $('title').classList.remove('on');
+  }],
+  [13, async (at) => {
+    WINS.forEach((w, i) => typeLines(w, i * 260));
+    await at(0.6); caption('Claude Code 를 여러 개 띄워 일을 맡기면…');
+    await at(4.6); caption('누가 무엇을 하는지, 누가 <em>허락을 기다리는지</em><br>창을 하나하나 열어 봐야 합니다');
+    await at(10.6); caption(''); WINS.forEach((w) => w.node.classList.add('gone'));
+    await at(11.4); $('cam').classList.add('on');
+  }],
+  // the dashboard
+  [34, async (at) => {
+    chapter(1, '대시보드 — 프로젝트별 조직도');
+    await at(0.5); caption('ELOP Crew 는 이 PC 의 모든 Claude Code 세션을<br><em>프로젝트 → 리더 → 에이전트</em> 순으로 묶어 보여 줍니다');
+    await at(2.5); await click(tab('shop-web')); hidePtr();
+    await at(5.5); look(boxOf(rectOf(q('#tabs'))), { pad: 16, ms: 900, max: 2.2 });
+    caption('프로젝트마다 탭 하나 — 리더 로봇과 <em>작업 중 ▶ · 대기 ○</em> 수');
+    await at(10); wide(800);
+    await at(10.8); look(boxOf(rectOf(card('민준')), rectOf(card('서연')), rectOf(card('지호'))), { pad: 30, ms: 1000 });
+    caption('왕관 쓴 리더 아래로 팀원이 달리고,<br>카드마다 <em>지금 하는 일</em>과 상태가 나옵니다');
+    await at(16.5); look(boxOf(rectOf(card('서연'))), { pad: 24, ms: 900, max: 2.6 });
+    caption('일하는 로봇은 <em>타닥타닥 타이핑</em>하고…');
+    await at(20.5); look(boxOf(rectOf(card('지호'))), { pad: 24, ms: 900, max: 2.6 });
+    caption('기다리는 로봇은 <em>꾸벅꾸벅 졸아요</em>');
+    await at(24.5); wide(800);
+    await at(25.2); look(boxOf(rectOf(q('#totals'))), { pad: 20, ms: 900, max: 2.2 });
+    caption('헤더 숫자를 누르면 <em>그 상태인 에이전트만</em> 모아 봅니다');
+    await at(27.5); { const b = qa('#totals .pill').find((e) => /^.?대기/.test(e.textContent)); await click(b); } wide(700);
+    await at(31); { const b = qa('#totals .pill').find((e) => /^.?대기/.test(e.textContent)); await click(b); } hidePtr();
+    await at(33); wide(700);
+  }],
+  // team chat and the board
+  [24, async (at) => {
+    chapter(2, '팀 대화와 작업판');
+    await at(0.4); look(boxOf(rectOf(q('.side'))), { pad: 20, ms: 1000, max: 2 });
+    caption('<em>팀 대화</em> — 누가 누구에게 무엇을 보냈는지 한 줄씩');
+    await at(5); fetch('/demo/set', { method: 'POST', body: JSON.stringify({ extraMsgs: [{ from: 'monitor-d9haeun', to: 'monitor-a1minjun', summary: '스테이징 빌드 끝, 배포 스크립트 실행 허락을 구했어요', at: Date.now(), fromNick: '하은', fromNickKo: '하은', toNick: '민준', toNickKo: '민준' }] }) });
+    await at(8.6); wide(600); pw().scrollTo({ top: 99999, behavior: 'smooth' });
+    await at(9.6); look(boxOf(rectOf(q('section.kanban'))), { pad: 16, ms: 1000, max: 2 });
+    caption('<em>작업판</em> — 진행 중·대기·끝난 일, 그리고 사람이 정할 일');
+    await at(15); caption('<em>자동 진행</em>을 켜면 턴을 마친 에이전트가<br>다음 대기 작업을 넘겨받습니다');
+    await at(21); caption(''); wide(800); pw().scrollTo({ top: 0, behavior: 'smooth' });
+  }],
+  // approvals
+  [30, async (at) => {
+    chapter(3, '화면에서 승인하기');
+    await at(0.4); demo({ asking: true });
+    caption('에이전트가 허락을 구하면 요청이 <em>화면 맨 위</em>에 뜹니다');
+    await at(2.5); look(boxOf(rectOf(q('#approvals .approval') || q('#approvals'))), { pad: 18, ms: 1000, max: 2.3 });
+    await at(5.5); caption('허용 · <em>항상 허용</em> · 거부 — 숫자 키로도 바로 답합니다<small>VS Code 를 열지 않아도 됩니다</small>');
+    await at(10); await click(q('#approvals .approval[data-id="ask-d9haeun"] button.allow'));
+    await at(11.5); hidePtr(); wide(700);
+    await at(12.5); demo({ asked: true });
+    caption('에이전트의 <em>질문</em>에도 선택지를 골라 답합니다');
+    await at(14.5); look(boxOf(rectOf(q('#approvals .approval') || q('#approvals'))), { pad: 18, ms: 1000, max: 2.3 });
+    await at(18); await click(byText('#approvals .opt', /8px/));
+    await at(20); await click(q('#approvals .approval[data-id="ask-c7jiho"] button.allow'));
+    await at(22); hidePtr(); caption('계획 승인(Plan 모드)도 같은 자리에서 합니다'); wide(800);
+    await at(27); caption('');
+  }],
+  // an agent's window
+  [44, async (at) => {
+    chapter(4, '에이전트 창');
+    await at(0.4); caption('카드를 누르면 그 에이전트의 <em>대화가 실시간으로</em> 열립니다');
+    await click(card('서연')?.querySelector('.bubble'));
+    await at(2.2); hidePtr(); { const d = q('#detail'); look(boxOf(rectOf(d)), { pad: 10, ms: 1000, max: 1.8 }); }
+    caption('<em>정보</em> 탭 — 역할, 상태, 컨텍스트 크기, 오늘 쓴 토큰. 이름과 모습도 바꿉니다');
+    await at(5.5); await click(byText('#detail .dtab', /^대화$/)); hidePtr();
+    await at(6.5); caption('명령, 읽은 파일, <em>고친 내용(diff)</em>까지 VS Code 처럼'); talk('#detail');
+    { const t = qa('#detail details.tool').pop(); if (t) t.open = true; }
+    await at(12); caption('여기서 바로 <em>메시지를 보냅니다</em>');
+    { const box = q('#detail textarea'); if (box) { look(boxOf(rectOf(box)), { pad: 60, ms: 900, max: 2 }); await sleep(900); await typeText(box, '좋아. 다시 돌려 보고 민준한테 알려 줘'); } }
+    await at(18); await click(q('#detail .csend')); hidePtr(); talk('#detail');
+    caption('에이전트가 일하는 모습이 <em>그대로 따라옵니다</em>');
+    await at(30); look(boxOf(rectOf(q('#detail .composer'))), { pad: 30, ms: 900, max: 2.2 });
+    caption('모드 · 모델 · 노력 · <em>자동 압축</em>을 에이전트마다 고릅니다<small>자동 압축: 대화가 정한 크기를 넘으면 Claude Code 가 스스로 줄여 비용을 아낍니다</small>');
+    await at(38); caption('도넛은 대화가 <em>컨텍스트를 얼마나 채웠는지</em> 보여 줍니다');
+    await at(42.5); caption(''); await click(qa('#detail button.close').find((b) => b.title === '닫기' || b.getAttribute('aria-label') === '닫기'), $('page'), { ms: 500 }); hidePtr(); wide(700);
+  }],
+  // the assistant
+  [26, async (at) => {
+    chapter(5, '비서');
+    await at(0.4); caption('<em>비서</em>에게 물으면 팀 전체를 살펴 답합니다');
+    await click(q('#fab'));
+    await at(2.4); hidePtr(); look(boxOf(rectOf(q('#assist'))), { pad: 16, ms: 900, max: 2 });
+    { const box = q('#assist textarea'); await typeText(box, '지금 팀 상황 요약해 줘', 70); }
+    await at(5.6); await click(q('#assist .csend')); hidePtr();
+    await at(9); caption('누가 막혔는지, <em>무엇부터 답하면 되는지</em>까지'); talk('#assist', 900, 420);
+    await at(18); caption('비서는 에이전트를 깨우고, 메시지를 전하고, 승인 요청을 대신 정리합니다<small>스스로 허락하지는 않습니다 — 결정은 언제나 사람이</small>');
+    await at(24.5); caption(''); await click(q('#fab'), $('page'), { ms: 500 }); hidePtr(); wide(700);
+  }],
+  // the terminal panel
+  [40, async (at) => {
+    chapter(6, '터미널 패널');
+    await at(0.4); caption('제목줄의 터미널 버튼(<em>Ctrl + `</em>)으로 앱 아래에 <em>터미널</em>을 엽니다');
+    await click($('strip').contentDocument.getElementById('term'), $('strip'));
+    await at(2.4); hidePtr(); look({ x: 0, y: 864 - 334, w: 860, h: 334 }, { pad: 0, ms: 900, max: 2.2 });
+    await at(3.6); typeShell(1, 'git status');
+    await at(8); caption('PowerShell · Git Bash · WSL — <em>탭과 분할</em>, VS Code 처럼');
+    await at(12.5); wide(700); caption('에이전트가 개발 서버를 띄울 때도 <em>여기 탭으로</em> 엽니다');
+    await at(13.5); demo({ termAsk: true });
+    await at(15); look(boxOf(rectOf(q('#approvals .approval') || q('#approvals'))), { pad: 18, ms: 900, max: 2.2 });
+    caption('먼저 <em>무엇을 어디서 실행할지</em> 보여 주고 허락을 받습니다');
+    await at(20); await click(byText('#approvals button', /허용/)); hidePtr(); demo({ termAsk: false });
+    await at(21); look({ x: 0, y: 864 - 334, w: 1536, h: 334 }, { pad: 0, ms: 900, max: 2.2 });
+    { const a = newShell({ cwd: 'C:\\work\\shop-web\\api', title: 'api', key: 'api' }); each('opened', a);
+      await sleep(600); const b = newShell({ cwd: 'C:\\work\\shop-web\\web', title: 'web', key: 'web', beside: a.id, dir: 'row' }); each('opened', b);
+      await sleep(600); const c = newShell({ cwd: 'C:\\work\\shop-web\\worker', title: 'worker', key: 'worker', beside: b.id, dir: 'row' }); each('opened', c);
+      await sleep(900); typeShell(a.id, 'npm run dev', 20); typeShell(b.id, 'npm run dev', 20); typeShell(c.id, 'npm run worker', 20); }
+    await at(25); caption('백엔드 · 프론트 · 워커를 <em>한 탭에 나란히</em> — 보면서 직접 입력도 합니다'); look({ x: 0, y: 864 - 334, w: 1030, h: 334 }, { pad: 0, ms: 1400, max: 2.2 });
+    await at(29.5); look({ x: 506, y: 864 - 334, w: 1030, h: 334 }, { pad: 0, ms: 1800, max: 2.2 });
+    await at(33); caption('에이전트는 출력을 읽어 서버가 떴는지 확인하고,<br>입력할 때는 <em>매번 묻습니다</em>');
+    await at(38.5); caption(''); showTerm(false); wide(700);
+  }],
+  // processes
+  [20, async (at) => {
+    chapter(7, '프로세스');
+    await at(0.4); caption('<em>프로세스</em> — 에이전트가 띄운 셸 · 개발 서버 · 테스트를 에이전트별로');
+    await click(q('#proc-btn'));
+    await at(2.4); hidePtr(); { const d = q('dialog[open]') || q('#detail'); look(boxOf(rectOf(d)), { pad: 10, ms: 900, max: 1.8 }); }
+    await at(8); caption('최근 15분 CPU·메모리 차트, 무거운 순 정렬,<br>멈춘 서버는 <em>확인 후 끄기</em>');
+    await at(18); caption(''); { const x = byText('dialog[open] button', /✕/); if (x) await click(x, $('page'), { ms: 500 }); else page().querySelector('dialog[open]')?.close(); } hidePtr(); wide(700);
+  }],
+  // usage and settings
+  [28, async (at) => {
+    chapter(8, '사용량과 설정');
+    await at(0.4); look(boxOf(rectOf($('strip').contentDocument.getElementById('usage'), $('strip'))), { pad: 60, ms: 900, max: 2.6 });
+    caption('제목줄에 Claude 플랜의 <em>세션 · 주간 사용량</em> — 80%·95% 를 넘으면 알립니다');
+    await at(7); wide(700);
+    await at(7.5); await click($('strip').contentDocument.getElementById('settings'), $('strip'));
+    await at(9); hidePtr(); look({ x: 880, y: 70, w: 560, h: 740 }, { pad: 20, ms: 900, max: 1.5 });
+    caption('<em>설정</em> — 자동 시작, 창 불러오기 단축키, hook, 업데이트');
+    await at(14.4); $('settings').contentDocument.getElementById('compactBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await at(15.2); { const r = rectOf($('settings').contentDocument.getElementById('compactBox'), $('settings')); look(r, { pad: 30, ms: 900, max: 2.2 }); }
+    caption('<em>자동 압축</em> 기본값 — 에이전트 대화가 30만 토큰을 넘으면 스스로 줄입니다<small>긴 대화를 매 단계 다시 읽는 비용이 크게 줄어듭니다</small>');
+    await at(25); caption(''); showSettings(false); wide(800);
+  }],
+  // the end
+  [14, async (at) => {
+    chapter(0, '');
+    await at(0.6); $('end').classList.add('on');
+    await at(13);
+  }],
+];
+// the thumbnail: the shop-web leader and two of the team on the right
+async function stageThumb() {
+  $('cam').classList.add('on');
+  tab('shop-web')?.click();
+  await sleep(1500);
+  const r = boxOf(rectOf(card('민준')), rectOf(card('서연')), rectOf(card('지호')));
+  const s = Math.min(1.25, 1000 / r.w);
+  $('cam').style.transitionDuration = '0ms';
+  $('cam').style.transform = `translate(${1920 - 60 - s * (r.x + r.w)}px,${570 - s * (r.y + r.h / 2)}px) scale(${s})`;
+  $('thumb').querySelector('.botbox2').innerHTML = page().querySelector('#logo svg').outerHTML.replace('class="robot"', 'class="robot" style="width:96px;height:96px"');
+  $('thumb').classList.add('on');
+  await sleep(800);
+}
+window.stageThumb = stageThumb;
+const stageLength = (from = 0) => SCENES.slice(from).reduce((a, [s]) => a + s, 0);
+async function play(from = 0) {
+  if (from > 1) { $('cam').classList.add('on'); }
+  for (const [i, [len, fn]] of SCENES.entries()) {
+    if (i < from) continue;
+    const t0 = performance.now();
+    const at = (s) => sleep(Math.max(0, t0 + s * 1000 - performance.now()));
+    log('scene', i, 'at', Math.round((performance.now() - start0) / 100) / 10);
+    try { await fn(at); } catch (e) { log('scene', i, 'failed', e.message); }
+    await at(len);
+  }
+}
+let start0 = performance.now();
+window.stageLength = stageLength;
+window.stageStart = (from) => { start0 = performance.now(); return play(from); };
+window.stageReady = () => new Promise((resolve) => {
+  const check = () => {
+    const bot = page()?.querySelector('#logo svg');
+    if (bot && card('서연') && card('지호') && $('term').contentWindow?.document.readyState === 'complete') {
+      for (const b of document.querySelectorAll('.botbox')) b.innerHTML = bot.outerHTML.replace('class="robot"', 'class="robot" style="width:240px;height:240px"');
+      resolve(true);
+    } else setTimeout(check, 100);
+  };
+  check();
+});
+buildChaos();
+try { localStorage.setItem("crew.termFont", '17'); } catch (e) {}
+$('term').src = '/desktop/terminal.html?lang=ko';
+</script>
+</body>
+</html>

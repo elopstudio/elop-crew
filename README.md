@@ -589,6 +589,19 @@ npm run record       # out/reel.mp4, and a few stills in out/stills/ to check it
 
 The scenes, captions and timing are in `reel.html`; the demo projects and agents in `demo-server.js`.
 
+The same folder records the YouTube walkthrough (1920×1080, about 4 min 40 s, Korean captions): the whole desktop app —
+its title strip, the page, the terminal panel and the settings window, each the app's own file with its bridge stood in
+for — driven scene by scene with a pointer: the dashboard, team chat and board, approvals and questions, an agent's
+window, the assistant, the terminal panel with an agent's split tab, processes, usage and settings. Made-up data again.
+
+```bash
+npm run record:youtube              # out/youtube.mp4, a still every 3 s in out/yt-stills/
+npm run record:youtube -- --thumb   # out/youtube-thumb.png, 1280×720
+npm run record:youtube -- --from=7 --len=40 --stills-only   # one scene, stills only, to check it
+```
+
+Scenes, captions and the pretend shell are in `youtube.html`; the demo team, conversations and processes in `yt-demo.js`.
+
 ## Board format
 
 See `boards/example.json`.
