@@ -5,6 +5,7 @@
 <title>ELOP Crew — walkthrough</title>
 <style>
 *{box-sizing:border-box}
+body.en{font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif}
 html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0b0d12;color:#e8eaef;font-family:"Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif}
 #bg{position:absolute;inset:0;background:radial-gradient(1200px 800px at 85% 0%,#1d2741 0%,transparent 70%),radial-gradient(1100px 900px at 0% 100%,#2a2140 0%,transparent 70%)}
 /* the app window, maximized: 1536×864 CSS pixels shown at 1.25 — the camera moves and zooms it */
@@ -57,6 +58,7 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0b0d12
 #thumb .t{position:absolute;left:84px;top:150px;width:900px}
 #thumb .k{display:inline-block;font-size:40px;font-weight:800;color:#0b0d12;background:#ffd166;border-radius:12px;padding:8px 22px;margin-bottom:34px}
 #thumb h2{margin:0;font-size:112px;line-height:1.12;font-weight:900;letter-spacing:-.035em}
+body.en #thumb h2{font-size:98px}
 #thumb h2 em{font-style:normal;color:#ffd166}
 #thumb p{margin:34px 0 0;font-size:46px;font-weight:700;color:#c3c9d4}
 #thumb .brand{position:absolute;left:84px;bottom:90px;display:flex;align-items:center;gap:18px;font-size:54px;font-weight:900}
@@ -80,9 +82,9 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0b0d12
 <div id="bg"></div>
 <div id="cam">
   <div id="win">
-    <iframe id="strip" src="/desktop/strip.html?lang=ko"></iframe>
+    <iframe id="strip"></iframe>
     <div id="ctrls"><span>─</span><span>☐</span><span>✕</span></div>
-    <iframe id="page" src="/?app=1&lang=ko"></iframe>
+    <iframe id="page"></iframe>
     <iframe id="term"></iframe>
   </div>
   <div id="setwin"><iframe id="settings" src="about:blank"></iframe></div>
@@ -92,12 +94,17 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0b0d12
 <div id="thumb"><div class="t"><div class="k">Claude Code</div><h2>에이전트 팀,<br><em>한 화면</em>에서</h2><p>승인 · 대화 · 터미널까지</p></div><div class="brand"><span class="botbox2"></span>ELOP <span>Crew</span></div></div>
 <div id="chap"><b></b><span></span></div>
 <div id="cap"></div>
+<script src="/yt-en.js"></script>
 <div class="card dim" id="title"><div class="botbox"></div><h1>ELOP <span>Crew</span></h1><p>Claude Code 에이전트 팀을 한 화면에서</p><div class="s">Windows · macOS 데스크톱 앱 사용 안내</div></div>
 <div class="card dim" id="end"><div class="botbox"></div><h1>ELOP <span>Crew</span></h1><p>에이전트는 일하고, 나는 한눈에 봅니다</p>
   <ul><li>프로젝트별 조직도</li><li>화면에서 승인</li><li>에이전트 창과 비서</li><li>터미널 패널</li><li>프로세스·사용량</li><li>자동 압축 설정</li></ul>
   <div class="go">crew.elopstudio.com</div></div>
 <script>
 const $ = (id) => document.getElementById(id);
+// ?lang=en: the English walkthrough — the app's views in English, the captions and names through yt-en.js
+const LANG = new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'ko';
+const tr = (x) => (LANG === 'en' && x && window.YT_EN[x] != null ? window.YT_EN[x] : x);
+if (LANG === 'en') { document.documentElement.lang = 'en'; document.body.classList.add('en'); }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const page = () => $('page').contentDocument, pw = () => $('page').contentWindow;
 const log = (...a) => console.log('[stage]', ...a);
@@ -126,7 +133,7 @@ window.STUB = {
     do: async () => {}, onChange: () => {},
   }),
 };
-const SETTINGS = { lang: 'ko', openAtLogin: true, closeToTray: true, dataDir: 'C:\\Users\\demo\\.claude-agent-monitor', ownServer: true, hooks: 'ok', try: false, node: true,
+const SETTINGS = { lang: LANG, openAtLogin: true, closeToTray: true, dataDir: 'C:\\Users\\demo\\.claude-agent-monitor', ownServer: true, hooks: 'ok', try: false, node: true,
   version: '0.2.27', url: 'http://127.0.0.1:4777', hotkeys: ['Control+Alt+J', 'Control+Alt+K', 'Control+Shift+Space', 'off'], hotkey: 'Control+Alt+J', hotkeyOk: true,
   update: { status: 'latest', version: '0.2.27' }, compact: { window: 300000, vscode: false } };
 function tellApp() { for (const fn of appFns) try { fn({ ...appState }); } catch (e) {} }
@@ -183,7 +190,7 @@ function showTerm(on) {
   if (on) setTimeout(() => each('shown'), 380);
 }
 async function showSettings(on) {
-  if (on && $('settings').src === 'about:blank') { $('settings').src = '/desktop/settings.html?lang=ko'; await new Promise((r) => $('settings').addEventListener('load', r, { once: true })); }
+  if (on && $('settings').src === 'about:blank') { $('settings').src = '/desktop/settings.html?lang=' + LANG; await new Promise((r) => $('settings').addEventListener('load', r, { once: true })); }
   $('setwin').classList.toggle('on', on);
 }
 
@@ -228,11 +235,13 @@ async function click(elm, frame = $('page'), { ms = 700, real = true } = {}) {
 const hidePtr = () => $('ptr').classList.remove('on');
 async function typeText(input, text, ms = 55) {
   if (!input) return;
+  text = tr(text);
   input.focus();
   const proto = Object.getPrototypeOf(input), setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
   for (let i = 1; i <= text.length; i++) { setter.call(input, text.slice(0, i)); input.dispatchEvent(new (input.ownerDocument.defaultView.InputEvent)('input', { bubbles: true })); await sleep(ms); }
 }
 function caption(html) {
+  html = tr(html);
   const old = $('cap').querySelector('.c');
   if (old) { old.classList.add('out'); setTimeout(() => old.remove(), 300); }
   if (!html) return;
@@ -245,13 +254,13 @@ function chapter(n, text) {
   const c = $('chap');
   c.classList.remove('on');
   if (!text) return;
-  setTimeout(() => { c.querySelector('b').textContent = n; c.querySelector('span').textContent = text; c.classList.add('on'); }, 300);
+  setTimeout(() => { c.querySelector('b').textContent = n; c.querySelector('span').textContent = tr(text); c.classList.add('on'); }, 300);
   clearTimeout(chapter.t); chapter.t = setTimeout(() => c.classList.remove('on'), 5200);
 }
 
 /* ── the page's parts ── */
 const q = (sel) => page().querySelector(sel), qa = (sel) => [...page().querySelectorAll(sel)];
-const card = (name) => qa('.bot-card').find((c) => c.querySelector('.botname')?.textContent === name);
+const card = (name) => qa('.bot-card').find((c) => c.querySelector('.botname')?.textContent === tr(name));
 const tab = (key) => qa('#tabs .tab').find((t) => t.dataset.key === key);
 const byText = (sel, re, doc = page()) => [...doc.querySelectorAll(sel)].find((e) => re.test(e.textContent));
 
@@ -279,7 +288,7 @@ function buildChaos() {
 async function typeLines(w, delay) {
   await sleep(delay);
   w.node.classList.add('on');
-  for (const [cls, text] of w.l) { await sleep(300); const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; w.node.querySelector('.body').append(d); }
+  for (const [cls, text] of w.l) { await sleep(300); const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = tr(text); w.node.querySelector('.body').append(d); }
 }
 
 /* ── the scenes: [seconds, what happens] ── */
@@ -312,8 +321,8 @@ const SCENES = [
     await at(24.5); wide(800);
     await at(25.2); look(boxOf(rectOf(q('#totals'))), { pad: 20, ms: 900, max: 2.2 });
     caption('헤더 숫자를 누르면 <em>그 상태인 에이전트만</em> 모아 봅니다');
-    await at(27.5); { const b = qa('#totals .pill').find((e) => /^.?대기/.test(e.textContent)); await click(b); } wide(700);
-    await at(31); { const b = qa('#totals .pill').find((e) => /^.?대기/.test(e.textContent)); await click(b); } hidePtr();
+    await at(27.5); { const b = qa('#totals .pill')[3]; await click(b); } wide(700);
+    await at(31); { const b = qa('#totals .pill')[3]; await click(b); } hidePtr();
     await at(33); wide(700);
   }],
   // team chat and the board
@@ -340,7 +349,7 @@ const SCENES = [
     await at(12.5); demo({ asked: true });
     caption('에이전트의 <em>질문</em>에도 선택지를 골라 답합니다');
     await at(14.5); look(boxOf(rectOf(q('#approvals .approval') || q('#approvals'))), { pad: 18, ms: 1000, max: 2.3 });
-    await at(18); await click(byText('#approvals .opt', /8px/));
+    await at(18); await click(q('#approvals .opt'));
     await at(20); await click(q('#approvals .approval[data-id="ask-c7jiho"] button.allow'));
     await at(22); hidePtr(); caption('계획 승인(Plan 모드)도 같은 자리에서 합니다'); wide(800);
     await at(27); caption('');
@@ -352,7 +361,7 @@ const SCENES = [
     await click(card('서연')?.querySelector('.bubble'));
     await at(2.2); hidePtr(); { const d = q('#detail'); look(boxOf(rectOf(d)), { pad: 10, ms: 1000, max: 1.8 }); }
     caption('<em>정보</em> 탭 — 역할, 상태, 컨텍스트 크기, 오늘 쓴 토큰. 이름과 모습도 바꿉니다');
-    await at(5.5); await click(byText('#detail .dtab', /^대화$/)); hidePtr();
+    await at(5.5); await click(qa('#detail .dtab')[1]); hidePtr();
     await at(6.5); caption('명령, 읽은 파일, <em>고친 내용(diff)</em>까지 VS Code 처럼'); talk('#detail');
     { const t = qa('#detail details.tool').pop(); if (t) t.open = true; }
     await at(12); caption('여기서 바로 <em>메시지를 보냅니다</em>');
@@ -362,7 +371,7 @@ const SCENES = [
     await at(30); look(boxOf(rectOf(q('#detail .composer'))), { pad: 30, ms: 900, max: 2.2 });
     caption('모드 · 모델 · 노력 · <em>자동 압축</em>을 에이전트마다 고릅니다<small>자동 압축: 대화가 정한 크기를 넘으면 Claude Code 가 스스로 줄여 비용을 아낍니다</small>');
     await at(38); caption('도넛은 대화가 <em>컨텍스트를 얼마나 채웠는지</em> 보여 줍니다');
-    await at(42.5); caption(''); await click(qa('#detail button.close').find((b) => b.title === '닫기' || b.getAttribute('aria-label') === '닫기'), $('page'), { ms: 500 }); hidePtr(); wide(700);
+    await at(42.5); caption(''); await click(qa('#detail button.close').pop(), $('page'), { ms: 500 }); hidePtr(); wide(700);
   }],
   // the assistant
   [26, async (at) => {
@@ -388,7 +397,7 @@ const SCENES = [
     await at(13.5); demo({ termAsk: true });
     await at(15); look(boxOf(rectOf(q('#approvals .approval') || q('#approvals'))), { pad: 18, ms: 900, max: 2.2 });
     caption('먼저 <em>무엇을 어디서 실행할지</em> 보여 주고 허락을 받습니다');
-    await at(20); await click(byText('#approvals button', /허용/)); hidePtr(); demo({ termAsk: false });
+    await at(20); await click(q('#approvals button.allow')); hidePtr(); demo({ termAsk: false });
     await at(21); look({ x: 0, y: 864 - 334, w: 1536, h: 334 }, { pad: 0, ms: 900, max: 2.2 });
     { const a = newShell({ cwd: 'C:\\work\\shop-web\\api', title: 'api', key: 'api' }); each('opened', a);
       await sleep(600); const b = newShell({ cwd: 'C:\\work\\shop-web\\web', title: 'web', key: 'web', beside: a.id, dir: 'row' }); each('opened', b);
@@ -470,7 +479,17 @@ window.stageReady = () => new Promise((resolve) => {
 });
 buildChaos();
 try { localStorage.setItem("crew.termFont", '17'); } catch (e) {}
-$('term').src = '/desktop/terminal.html?lang=ko';
+$('term').src = '/desktop/terminal.html?lang=' + LANG;
+$('strip').src = '/desktop/strip.html?lang=' + LANG;
+$('page').src = '/?app=1&lang=' + LANG;
+// the title, end and thumbnail cards
+if (LANG === 'en') {
+  for (const root of ['title', 'end', 'thumb']) {
+    const walk = document.createTreeWalker($(root), NodeFilter.SHOW_TEXT);
+    for (let n; (n = walk.nextNode());) { const k = n.textContent.trim(); if (k && window.YT_EN[k] != null) n.textContent = n.textContent.replace(k, window.YT_EN[k]); }
+  }
+  $('thumb').querySelector('h2').innerHTML = 'Your agent team,<br>on <em>one screen</em>';
+}
 </script>
 </body>
 </html>

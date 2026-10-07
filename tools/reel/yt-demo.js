@@ -8,6 +8,11 @@ const T0 = Date.now();
 const min = (n) => Date.now() - n * 60000;
 const streams = new Set();
 const changed = () => { for (const s of streams) s.write('event: changed\ndata: {}\n\n'); };
+// the English walkthrough (YT_LANG=en): everything the page gets, put into English on its way out
+const EN = process.env.YT_LANG === 'en', DICT = require('./yt-en.js');
+const KEYS = Object.keys(DICT).sort((a, b) => b.length - a.length);
+const tr = (s) => { if (!EN || typeof s !== 'string' || !/[가-힣]/.test(s)) return s; if (DICT[s] != null) return DICT[s]; for (const k of KEYS) s = s.split(k).join(DICT[k]); return s; };
+const out = (o) => (!EN ? o : typeof o === 'string' ? tr(o) : Array.isArray(o) ? o.map(out) : o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, out(v)])) : o);
 
 /* ── the bridges the desktop app's preloads give each view, stood in for by the stage ── */
 const STUB = {
@@ -124,9 +129,10 @@ const LOGS = {
   ],
 };
 const agentStreams = new Map();   // agent id → set of open responses
-function emit(id, e) { for (const r of agentStreams.get(id) || []) r.write('event: e\ndata: ' + JSON.stringify(e) + '\n\n'); }
+function emit(id, e) { for (const r of agentStreams.get(id) || []) r.write('event: e\ndata: ' + JSON.stringify(out(e)) + '\n\n'); }
 // the agent's reply, typed out piece by piece as Claude Code streams it
 async function stream(id, text, { msgId = 'm' + ++seq, step = 3, ms = 28 } = {}) {
+  text = tr(text);   // whole, before it is cut into pieces
   for (let i = step; i < text.length + step; i += step) {
     emit(id, { kind: 'block', type: 'text', msg: msgId, index: 0, text: text.slice(0, i), done: false, at: Date.now() });
     await new Promise((r) => setTimeout(r, ms));
@@ -202,9 +208,10 @@ const body = (q) => new Promise((r) => { let b = ''; q.on('data', (c) => (b += c
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml' };
 http.createServer(async (q, r) => {
   const url = new URL(q.url, 'http://x'), u = url.pathname;
-  const json = (o) => { r.writeHead(200, { 'content-type': 'application/json' }); r.end(JSON.stringify(o)); };
+  const json = (o) => { r.writeHead(200, { 'content-type': 'application/json' }); r.end(JSON.stringify(out(o))); };
   const sse = () => { r.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' }); r.write('retry: 2000\n\n'); };
   if (u === '/') { r.writeHead(200, { 'content-type': MIME['.html'] }); return r.end(html(path.join(ROOT, 'public', 'index.html'), 'index.html')); }
+  if (u === '/yt-en.js') { r.writeHead(200, { 'content-type': MIME['.js'] }); return r.end(fs.readFileSync(path.join(__dirname, 'yt-en.js'))); }
   if (u === '/youtube.html') { r.writeHead(200, { 'content-type': MIME['.html'] }); return r.end(fs.readFileSync(path.join(__dirname, 'youtube.html'))); }
   if (u.startsWith('/desktop/')) {
     const f = path.join(ROOT, 'desktop', path.normalize(u.slice(9)).replace(/^(\.\.[\\/])+/, ''));
@@ -221,7 +228,7 @@ http.createServer(async (q, r) => {
     agentStreams.get(id).add(r);
     q.on('close', () => agentStreams.get(id).delete(r));
     const a = Object.values(S).find((s) => s.agentId === id);
-    r.write('event: init\ndata: ' + JSON.stringify({ events: (LOGS[id] || (() => []))(), state: id === 'assistant' ? 'idle' : a?.state === 'working' ? 'working' : 'idle', ui: null }) + '\n\n');
+    r.write('event: init\ndata: ' + JSON.stringify(out({ events: (LOGS[id] || (() => []))(), state: id === 'assistant' ? 'idle' : a?.state === 'working' ? 'working' : 'idle', ui: null })) + '\n\n');
     return;
   }
   if (u === '/api/live') { sse(); r.write('event: init\ndata: []\n\n'); return; }

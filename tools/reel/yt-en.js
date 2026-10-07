@@ -1,0 +1,87 @@
+// The English walkthrough: every Korean line of the demo (yt-demo.js) and the stage (youtube.html), in English.
+// The demo server puts its answers through it; the stage, its captions, names and cards. Made-up data, as in Korean.
+(function () {
+  const D = {
+    /* the team */
+    '민준': 'Mike', '서연': 'Sarah', '지호': 'Jake', '하은': 'Hannah', '도윤': 'Doug', '수아': 'Sue', '예준': 'Evan', '하린': 'Harper', '시우': 'Simon', '채원': 'Chloe', '준서': 'Noah',
+    '리더 · 결제 화면 개편': 'Lead · checkout redesign', '결제 테스트': 'Payment tests', '결제 모듈 테스트 실행': 'Running the payment tests', '디자인 QA': 'Design QA',
+    '배포 준비': 'Release prep', '스테이징 빌드': 'Staging build', '문서 정리': 'Docs cleanup', '리더 · 주문 API': 'Lead · orders API', 'DB 마이그레이션': 'DB migration',
+    '성능 점검': 'Performance check', '부하 테스트 실행': 'Running the load test', '리더 · 푸시 알림': 'Lead · push notifications', '스토어 설명 번역': 'Store listing copy',
+    '영수증 메일': 'Receipt email',
+    /* projects, board, chat */
+    '쇼핑몰': 'Storefront', '주문 API': 'Orders API', '앱': 'Mobile app',
+    '결제 화면 새 디자인 적용': 'Ship the new checkout design', '결제 모듈 테스트': 'Payment module tests', '스테이징 배포': 'Deploy to staging', '영수증 메일 문구 정리': 'Polish the receipt email',
+    '다크 모드 색 점검': 'Dark mode color check', '장바구니 쿠폰 계산 수정': 'Fix cart coupon math', '쿠폰 중복 적용을 허용할까요?': 'Should coupons stack?',
+    '결제 테스트 42개 통과, 쿠폰 계산 1개 실패': 'Payment tests: 42 pass, 1 coupon test fails', '쿠폰 계산 고쳤어요, 다시 돌려 주세요': 'Fixed the coupon math, please run it again',
+    '테스트 통과하면 스테이징에 올려 주세요': 'Once tests pass, push it to staging', '버튼 색 대비 확인 끝 — 4.8:1': 'Button contrast checked — 4.8:1',
+    'CHANGELOG 에 결제 개편 항목 추가 부탁해요': 'Please add the checkout redesign to the CHANGELOG', '인덱스 추가하고 알려 주세요': 'Add the index and let me know',
+    'p95 182ms, 느린 쿼리 3개': 'p95 182 ms, 3 slow queries', '스테이징 빌드 끝, 배포 스크립트 실행 허락을 구했어요': 'Staging build done — asked to run the deploy script',
+    '결제 테스트 43개 모두 통과했어요': 'All 43 payment tests pass now',
+    /* requests */
+    '스테이징 배포 스크립트 실행': 'Run the staging deploy script', '버튼 모서리를 어떻게 할까요?': 'How round should the buttons be?', '디자인': 'Design',
+    '8px 둥글게': '8px rounded', '지금 카드와 같은 반경': 'Same radius as the cards', '완전히 둥글게': 'Fully rounded', '알약 모양': 'Pill shape', '각지게': 'Square', '반경 0': 'No radius',
+    '새 터미널 탭 1개 — 개발 서버와 워커를 띄워 확인': '1 new terminal tab — start the dev servers and the worker to check them',
+    /* conversations */
+    '결제 모듈 테스트 돌리고 실패하는 거 있으면 고쳐 줘': 'Run the payment tests and fix anything that fails',
+    '결제 모듈 테스트부터 돌려 볼게요.': "I'll start by running the payment tests.",
+    '**42개 통과, 1개 실패**입니다. 쿠폰 두 장을 겹쳐 쓸 때 할인이 두 번 들어가요. `applyCoupons` 를 볼게요.': '**42 pass, 1 fails.** With two coupons, the discount is taken twice. Let me look at `applyCoupons`.',
+    '고친 걸로 다시 돌려 볼게요.': "Running them again with the fix.", '결제 모듈 테스트 다시 실행': 'Running the payment tests again',
+    '**43개 모두 통과**했어요. 쿠폰은 이제 가장 큰 할인 한 장만 적용됩니다. 민준에게도 알렸어요.': '**All 43 pass.** Only the biggest coupon applies now. I let Mike know too.',
+    '대화를 요약해 줄이기': 'Summarize the conversation to shrink it', '모델 바꾸기': 'Switch the model', '변경 사항 검토': 'Review the changes',
+    '좋아. 다시 돌려 보고 민준한테 알려 줘': 'Nice. Run them again and tell Mike',
+    '지금 팀 상황 요약해 줘': "How's the team doing right now?",
+    '지금 **10명** 중 6명이 일하고 있어요.\n\n- **쇼핑몰**: 서연이 결제 테스트를 모두 통과시켰고, 하은이 스테이징 배포 허락을 기다려요.\n- **주문 API**: 예준이 DB 마이그레이션 검토를 기다리는 중이에요.\n- **앱**: 시우가 푸시 알림 문구 확인을 기다려요.\n\n먼저 **하은의 배포 요청**에 답해 주시면 쇼핑몰 작업이 이어집니다.':
+      '**6 of 10** agents are working right now.\n\n- **Storefront**: Sarah got all payment tests passing; Hannah is waiting for your OK to deploy to staging.\n- **Orders API**: Evan is waiting for a review of the DB migration.\n- **Mobile app**: Simon is waiting for you to check the push notification copy.\n\nAnswer **Hannah\'s deploy request** first and the Storefront work keeps moving.',
+    /* the many Claude windows */
+    '● 쿠폰 계산을 고쳐 볼게요': '● Let me fix the coupon math', '● 주문 API 인덱스를 추가합니다': '● Adding an index to the orders API', '● 스테이징에 배포할까요?': '● Deploy to staging?',
+    '허락이 필요합니다  1) 예  2) 아니오': 'Permission needed  1) Yes  2) No', '● 푸시 알림 문구를 정리했어요': '● Push notification copy is done', '✓ push.ts 수정 완료': '✓ push.ts updated',
+    '  다음 지시를 기다리는 중…': '  waiting for the next task…', '● 버튼 모서리를 어떻게 할까요?': '● How round should the buttons be?', '질문에 답해 주세요': 'Please answer the question',
+    '⚠ 느린 쿼리 3개': '⚠ 3 slow queries', '● CHANGELOG 를 정리했어요': '● CHANGELOG is tidied up', '  대기 중': '  idle',
+    /* chapters */
+    '대시보드 — 프로젝트별 조직도': 'Dashboard — an org chart per project', '팀 대화와 작업판': 'Team chat & task board', '화면에서 승인하기': 'Approve from one screen',
+    '에이전트 창': 'Agent window', '비서': 'Assistant', '터미널 패널': 'Terminal panel', '프로세스': 'Processes', '사용량과 설정': 'Usage & settings',
+    /* captions */
+    'Claude Code 를 여러 개 띄워 일을 맡기면…': 'Running several Claude Code agents at once?',
+    '누가 무엇을 하는지, 누가 <em>허락을 기다리는지</em><br>창을 하나하나 열어 봐야 합니다': 'To see who is doing what — and who is <em>waiting on you</em> —<br>you end up clicking through window after window',
+    'ELOP Crew 는 이 PC 의 모든 Claude Code 세션을<br><em>프로젝트 → 리더 → 에이전트</em> 순으로 묶어 보여 줍니다': 'ELOP Crew shows every Claude Code session on your machine,<br>grouped by <em>project → lead → agent</em>',
+    '프로젝트마다 탭 하나 — 리더 로봇과 <em>작업 중 ▶ · 대기 ○</em> 수': 'One tab per project, with its lead and how many are <em>working ▶ · waiting ○</em>',
+    '왕관 쓴 리더 아래로 팀원이 달리고,<br>카드마다 <em>지금 하는 일</em>과 상태가 나옵니다': 'The team hangs under the lead with the crown,<br>and every card shows <em>what it is doing right now</em>',
+    '일하는 로봇은 <em>타닥타닥 타이핑</em>하고…': 'A robot at work <em>types away</em>…',
+    '기다리는 로봇은 <em>꾸벅꾸벅 졸아요</em>': '…and a robot waiting on you <em>dozes off</em>',
+    '헤더 숫자를 누르면 <em>그 상태인 에이전트만</em> 모아 봅니다': 'Click a number in the header to see <em>only the agents in that state</em>',
+    '<em>팀 대화</em> — 누가 누구에게 무엇을 보냈는지 한 줄씩': '<em>Team chat</em> — who told whom what, one line each',
+    '<em>작업판</em> — 진행 중·대기·끝난 일, 그리고 사람이 정할 일': '<em>Task board</em> — running, queued and done, plus the calls only you can make',
+    '<em>자동 진행</em>을 켜면 턴을 마친 에이전트가<br>다음 대기 작업을 넘겨받습니다': 'Turn on <em>auto-run</em> and an agent that finishes its turn<br>picks up the next queued task',
+    '에이전트가 허락을 구하면 요청이 <em>화면 맨 위</em>에 뜹니다': 'When an agent asks for permission, the request pops up <em>right at the top</em>',
+    '허용 · <em>항상 허용</em> · 거부 — 숫자 키로도 바로 답합니다<small>VS Code 를 열지 않아도 됩니다</small>': 'Allow · <em>always allow</em> · deny — or just press a number key<small>No need to switch to VS Code</small>',
+    '에이전트의 <em>질문</em>에도 선택지를 골라 답합니다': 'Answer an agent\'s <em>questions</em> by picking an option',
+    '계획 승인(Plan 모드)도 같은 자리에서 합니다': 'Plans from Plan mode get approved in the same place',
+    '카드를 누르면 그 에이전트의 <em>대화가 실시간으로</em> 열립니다': 'Click a card to open that agent\'s <em>conversation, live</em>',
+    '<em>정보</em> 탭 — 역할, 상태, 컨텍스트 크기, 오늘 쓴 토큰. 이름과 모습도 바꿉니다': 'The <em>Info</em> tab — role, state, context size, tokens used today. Rename it, restyle its robot',
+    '명령, 읽은 파일, <em>고친 내용(diff)</em>까지 VS Code 처럼': 'Commands, files read and <em>every edit as a diff</em> — just like in VS Code',
+    '여기서 바로 <em>메시지를 보냅니다</em>': '<em>Send it a message</em> right here',
+    '에이전트가 일하는 모습이 <em>그대로 따라옵니다</em>': 'Then <em>watch it work</em> as it happens',
+    '모드 · 모델 · 노력 · <em>자동 압축</em>을 에이전트마다 고릅니다<small>자동 압축: 대화가 정한 크기를 넘으면 Claude Code 가 스스로 줄여 비용을 아낍니다</small>': 'Pick mode · model · effort · <em>auto-compact</em> per agent<small>Auto-compact: past the size you set, Claude Code shrinks the conversation itself and saves tokens</small>',
+    '도넛은 대화가 <em>컨텍스트를 얼마나 채웠는지</em> 보여 줍니다': 'The ring shows <em>how full the context window is</em>',
+    '<em>비서</em>에게 물으면 팀 전체를 살펴 답합니다': 'Ask the <em>Assistant</em> — it looks across the whole team',
+    '누가 막혔는지, <em>무엇부터 답하면 되는지</em>까지': 'Who is stuck, and <em>what to answer first</em>',
+    '비서는 에이전트를 깨우고, 메시지를 전하고, 승인 요청을 대신 정리합니다<small>스스로 허락하지는 않습니다 — 결정은 언제나 사람이</small>': 'It wakes agents up, passes messages on and sorts out requests for you<small>It never approves on its own — you always make the call</small>',
+    '제목줄의 터미널 버튼(<em>Ctrl + `</em>)으로 앱 아래에 <em>터미널</em>을 엽니다': 'The terminal button in the title bar (<em>Ctrl + `</em>) opens a <em>terminal</em> under the app',
+    'PowerShell · Git Bash · WSL — <em>탭과 분할</em>, VS Code 처럼': 'PowerShell · Git Bash · WSL — <em>tabs and split panes</em>, like VS Code',
+    '에이전트가 개발 서버를 띄울 때도 <em>여기 탭으로</em> 엽니다': 'When an agent starts a dev server, it opens <em>a tab right here</em>',
+    '먼저 <em>무엇을 어디서 실행할지</em> 보여 주고 허락을 받습니다': 'It shows you <em>what will run, and where</em> — and waits for your OK',
+    '백엔드 · 프론트 · 워커를 <em>한 탭에 나란히</em> — 보면서 직접 입력도 합니다': 'Backend · frontend · worker <em>side by side in one tab</em> — watch them, type into them',
+    '에이전트는 출력을 읽어 서버가 떴는지 확인하고,<br>입력할 때는 <em>매번 묻습니다</em>': 'Agents read the output to check the servers are up,<br>and <em>ask every time</em> before typing',
+    '<em>프로세스</em> — 에이전트가 띄운 셸 · 개발 서버 · 테스트를 에이전트별로': '<em>Processes</em> — the shells, dev servers and tests each agent started',
+    '최근 15분 CPU·메모리 차트, 무거운 순 정렬,<br>멈춘 서버는 <em>확인 후 끄기</em>': 'CPU and memory over the last 15 minutes, heaviest first,<br>and a stuck server is <em>one confirmed click away from stopping</em>',
+    '제목줄에 Claude 플랜의 <em>세션 · 주간 사용량</em> — 80%·95% 를 넘으면 알립니다': 'Your Claude plan\'s <em>session and weekly usage</em> in the title bar — with alerts at 80% and 95%',
+    '<em>설정</em> — 자동 시작, 창 불러오기 단축키, hook, 업데이트': '<em>Settings</em> — start at login, a global hotkey, hooks, updates',
+    '<em>자동 압축</em> 기본값 — 에이전트 대화가 30만 토큰을 넘으면 스스로 줄입니다<small>긴 대화를 매 단계 다시 읽는 비용이 크게 줄어듭니다</small>': 'The <em>auto-compact</em> default — agent conversations shrink themselves past 300k tokens<small>Re-reading a huge conversation at every step gets expensive — this cuts it</small>',
+    /* title and end cards */
+    'Claude Code 에이전트 팀을 한 화면에서': 'Your whole Claude Code agent team, on one screen', 'Windows · macOS 데스크톱 앱 사용 안내': 'A tour of the desktop app for Windows and macOS',
+    '에이전트는 일하고, 나는 한눈에 봅니다': 'Your agents work. You see it all at a glance.',
+    '프로젝트별 조직도': 'Org chart per project', '화면에서 승인': 'Approve on screen', '에이전트 창과 비서': 'Agent window & Assistant', '프로세스·사용량': 'Processes & usage', '자동 압축 설정': 'Auto-compact',
+    '승인 · 대화 · 터미널까지': 'Approvals · chat · terminals',
+  };
+  if (typeof module !== 'undefined') module.exports = D; else window.YT_EN = D;
+})();

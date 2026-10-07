@@ -2,6 +2,7 @@
 // Frames come from Electron's offscreen rendering and go straight to ffmpeg; a still every few seconds for checking.
 //   npm run record:youtube                      →  out/youtube.mp4, out/yt-stills/
 //   npm run record:youtube -- --thumb            →  out/youtube-thumb.png (1280×720)
+//   npm run record:youtube -- --lang=en          →  out/youtube-en.mp4, the English walkthrough (also with --thumb)
 //   npm run record:youtube -- --from=4 --len=30 --stills-only   (start at scene 4, 30 s, stills only: for checking)
 const { app, BrowserWindow, nativeTheme } = require('electron');
 const { spawn } = require('child_process');
@@ -9,10 +10,13 @@ const fs = require('fs'), path = require('path');
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
 app.setPath('userData', path.join(__dirname, 'out', 'yt-profile'));
 nativeTheme.themeSource = 'dark';
+const arg = (k, d) => { const a = process.argv.find((x) => x.startsWith('--' + k + '=')); return a ? a.split('=')[1] : d; };
+// --lang=en: the English walkthrough (the demo's data and the captions in English), its own files
+const LANG = arg('lang', 'ko') === 'en' ? 'en' : 'ko', SUFFIX = LANG === 'en' ? '-en' : '';
+process.env.YT_LANG = LANG;
 const { PORT } = require('./yt-demo.js');
 
-const arg = (k, d) => { const a = process.argv.find((x) => x.startsWith('--' + k + '=')); return a ? a.split('=')[1] : d; };
-const OUT = path.join(__dirname, 'out', 'youtube.mp4'), STILLS = path.join(__dirname, 'out', 'yt-stills');
+const OUT = path.join(__dirname, 'out', 'youtube' + SUFFIX + '.mp4'), STILLS = path.join(__dirname, 'out', 'yt-stills' + SUFFIX);
 const W = 1920, H = 1080, FPS = 30, FROM = Number(arg('from', 0)), ONLY = process.argv.includes('--stills-only'), EVERY = Number(arg('every', 3));
 const FFMPEG = require('ffmpeg-static');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -26,15 +30,15 @@ app.whenReady().then(async () => {
   let latest = null;
   w.webContents.on('paint', (_e, _dirty, image) => { latest = image; });
   w.webContents.on('console-message', (e) => { if (e.level === 'error' || String(e.message).startsWith('[stage]')) console.log('page:', e.message); });
-  await w.loadURL(`http://127.0.0.1:${PORT}/youtube.html`);
+  await w.loadURL(`http://127.0.0.1:${PORT}/youtube.html?lang=${LANG}`);
   w.webContents.setZoomFactor(1);
   await w.webContents.executeJavaScript('stageReady()');
   await wait(1500);
   if (process.argv.includes('--thumb')) {
     await w.webContents.executeJavaScript('stageThumb()');
     await wait(1500);
-    fs.writeFileSync(path.join(__dirname, 'out', 'youtube-thumb.png'), latest.resize({ width: 1280, height: 720, quality: 'best' }).toPNG());
-    console.log('thumbnail out/youtube-thumb.png');
+    fs.writeFileSync(path.join(__dirname, 'out', 'youtube-thumb' + SUFFIX + '.png'), latest.resize({ width: 1280, height: 720, quality: 'best' }).toPNG());
+    console.log('thumbnail out/youtube-thumb' + SUFFIX + '.png');
     return app.quit();
   }
   const LENGTH = Number(arg('len', 0)) || await w.webContents.executeJavaScript(`stageLength(${FROM})`);

@@ -521,7 +521,7 @@ npm run record       # out/reel.mp4, 확인용 스틸은 out/stills/
 
 장면, 자막, 타이밍은 `reel.html`, 데모 프로젝트와 에이전트는 `demo-server.js` 에 있습니다.
 
-같은 폴더에서 유튜브용 사용 안내 영상(1920×1080, 약 4분 40초, 한국어 자막)도 만듭니다. 데스크톱 앱 전체 — 제목줄, 페이지,
+같은 폴더에서 유튜브용 사용 안내 영상(1920×1080, 약 4분 40초, 한국어 또는 영어 자막)도 만듭니다. 데스크톱 앱 전체 — 제목줄, 페이지,
 터미널 패널, 설정 창(모두 앱의 실제 파일에 앱 연결 부분만 대신 붙임) — 를 마우스 포인터와 함께 장면별로 움직입니다. 대시보드,
 팀 대화와 작업판, 승인과 질문, 에이전트 창, 비서, 에이전트가 분할 탭을 여는 터미널 패널, 프로세스, 사용량과 설정 순서이고,
 이것도 지어낸 데이터로 찍습니다.
@@ -529,10 +529,12 @@ npm run record       # out/reel.mp4, 확인용 스틸은 out/stills/
 ```bash
 npm run record:youtube              # out/youtube.mp4, 확인용 스틸은 3초마다 out/yt-stills/
 npm run record:youtube -- --thumb   # out/youtube-thumb.png, 1280×720 썸네일
+npm run record:youtube -- --lang=en # 영문판: out/youtube-en.mp4 (--thumb 와 함께면 out/youtube-thumb-en.png)
 npm run record:youtube -- --from=7 --len=40 --stills-only   # 한 장면만 스틸로 확인
 ```
 
-장면, 자막, 가짜 셸은 `youtube.html`, 데모 팀·대화·프로세스는 `yt-demo.js` 에 있습니다.
+장면, 자막, 가짜 셸은 `youtube.html`, 데모 팀·대화·프로세스는 `yt-demo.js` 에 있습니다. 두 파일의 한국어 문구는 모두
+`yt-en.js` 에 영어로 옮겨 두었고, 영문판에서는 데모 서버가 내보내는 데이터와 무대의 자막이 이것을 거칩니다.
 
 ## 작업판 형식
 
