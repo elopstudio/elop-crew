@@ -26,7 +26,10 @@ const MAX_RELAYED_BODY = 20 * 1024 * 1024
 // PC) and this file's own linking (it stays on the PC). Streams are the page's server-sent events.
 const RELAYED = (p) => p.startsWith('/api/') && !p.startsWith('/api/account/') && !p.startsWith('/api/cloud')
 const STREAMS = new Set(['/api/events', '/api/live', '/api/agent-stream'])
-const TOKEN_IN_QUERY = new Set(['/api/dirs', '/api/account', '/api/upload-file', '/api/agent-stream', '/api/live'])
+// the page's reads that ask for the token in the address; what they give is masked or summarized there already
+// (a page's live picture is not under /api/, so it never goes)
+const TOKEN_IN_QUERY = new Set(['/api/dirs', '/api/account', '/api/upload-file', '/api/agent-stream', '/api/live',
+  '/api/assistant', '/api/processes', '/api/connectors', '/api/browsers'])
 
 const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex')
 const signedMessage = (method, pathAndQuery, time, raw) => ['cam-device-v1', method, pathAndQuery, time, sha256(raw)].join('\n')

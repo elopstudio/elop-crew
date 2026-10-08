@@ -310,7 +310,8 @@ the operating system and the monitor's version.
 **The relay.** While linked, the monitor keeps a WebSocket to crew.elopstudio.com (the desktop app, or Node 22 or
 later; the dialog says whether the app can reach this PC now). The app's calls come through it and are answered by
 this monitor's own API, as the page's are. What the app sees and sends — agents, conversations, messages, files,
-approvals, commands — therefore passes through that server, encrypted in transit (TLS) and not stored or logged
+approvals, commands, and the assistant's, processes', connectors' and browser tabs' lists (masked as on the page;
+never a page's live picture) — therefore passes through that server, encrypted in transit (TLS) and not stored or logged
 there, but not end-to-end encrypted. The monitor keeps two things to itself: its Claude sign-in (`/api/account/*`)
 and its linking (`/api/cloud*`). It adds its local token to each call and takes it out of every answer, so the
 token never leaves the PC. **Unlink this PC** stops the relay. The site's
