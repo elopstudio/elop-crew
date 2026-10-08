@@ -1211,11 +1211,20 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     return `<svg class="robot${ask ? ' asking' : ''}" viewBox="${mini ? '1 0 62 46' : '0 0 64 64'}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g class="rb">${lower}${accessory(s.acc, dark)}${ears}<rect x="8" y="12" width="48" height="32" rx="12" fill="${body}"/><rect x="13" y="14.6" width="13" height="3" rx="1.5" fill="#fff" opacity=".4"/><rect x="14" y="19" width="36" height="19.5" rx="8" fill="#1d2230"/><circle cx="18.6" cy="34.5" r="2.3" fill="#ff8fa8" opacity=".5"/><circle cx="45.4" cy="34.5" r="2.3" fill="#ff8fa8" opacity=".5"/>${face(st)}</g>${zz}${alert}</svg>`;
   }
   const clockNow = () => (-performance.now() / 1000).toFixed(3) + 's';   // see --t in the styles
+  // each look parsed once and copied after: the page draws dozens of robots on every redraw
+  const robotTpls = new Map();
   function robotNode(name, st, leader, mini) {
-    const tpl = document.createElement('template');
-    tpl.innerHTML = robotSvg(name, st, leader, mini).trim();   // static shapes only — no data strings go in here
-    tpl.content.firstChild.style.setProperty('--t', clockNow());
-    return tpl.content.firstChild;
+    const svg = robotSvg(name, st, leader, mini);
+    let tpl = robotTpls.get(svg);
+    if (!tpl) {
+      tpl = document.createElement('template');
+      tpl.innerHTML = svg.trim();   // static shapes only — no data strings go in here
+      if (robotTpls.size > 300) robotTpls.clear();
+      robotTpls.set(svg, tpl);
+    }
+    const n = tpl.content.firstChild.cloneNode(true);
+    n.style.setProperty('--t', clockNow());
+    return n;
   }
   // a conversation this long is pointed out: every step reads all of it again (most of what the agents cost)
   const CTX_LONG = 300000;
@@ -1546,7 +1555,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       },
     };
     if (sub) { tail.hidden = true; }   // a subagent's view has no approvals or status bar of its own
-    else { liveCtl = ctl; liveTick = setInterval(() => liveCtl && liveCtl.update(last), 1000); }
+    else { liveCtl = ctl; liveTick = setInterval(() => liveCtl && !document.hidden && liveCtl.update(last), 1000); }
     const tools = new Map();   // tool_use id → its <details>, so a result lands under its call
     const time = (at) => { if (!at) return ''; const d = new Date(at), p2 = (x) => String(x).padStart(2, '0'); return p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds()); };
     const put = (entries) => {
@@ -1644,7 +1653,10 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
           blocks.set(key, m);
           add(m);
         }
-        m.firstChild.replaceChildren(mdNode(ev.text));
+        // a reply being written is drawn at most ten times a second: each piece would parse it all again, the longer the slower
+        m.text = ev.text;
+        const draw = () => { m.drawT = 0; const b = nearBottom(); m.firstChild.replaceChildren(mdNode(m.text)); if (b) toBottom(); };
+        if (ev.done) { clearTimeout(m.drawT); draw(); } else if (!m.drawT) m.drawT = setTimeout(draw, 100);
         if (!ev.done) m.classList.add('streaming'); else m.classList.remove('streaming');
         lastAt = ev.at;
         if (atBottom) toBottom();
@@ -4701,6 +4713,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   function assistReveal(b) {
     if (b.timer) return;
     const step = () => {
+      // nobody watching it being typed: drawn once, whole
+      if (document.hidden || !assist.open) b.shown = b.full.length;
       const left = b.full.length - b.shown;
       if (left > 0) b.shown += Math.max(3, Math.ceil(left / 12));   // ~12 steps of 40 ms to catch up, never slower than 75 chars/s
       const stick = atBottom();
@@ -4862,11 +4876,12 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       if (!r.ok) throw new Error(String(r.status));
       const data = await r.json();
       if (data.token) token = data.token;
-      // nothing changed: leave the page as it is (redrawn every 30 s anyway, for the relative times,
-      // and every time while a request's countdown runs)
+      // nothing changed: leave the page as it is (redrawn every 30 s anyway, for the relative times); a request's
+      // countdown is counted down in place. Not in view, it is drawn when it shows again — the requests, the usage
+      // alerts and the title still kept up to date
       const sig = JSON.stringify({ ...data, now: 0, token: '', hooks: null });
-      if (sig !== lastSig || (data.approvals || []).length || Date.now() - lastDraw > 30000) { lastSig = sig; lastDraw = Date.now(); render(data); }
-      else last = data;
+      if (!document.hidden && (sig !== lastSig || Date.now() - lastDraw > 30000)) { lastSig = sig; lastDraw = Date.now(); render(data); }
+      else { last = data; approvalsNode(data); if (document.hidden) alertUsage(data.usage); }
       alertAsks(data);
       setLive(true); notice('');
     } catch (e) {

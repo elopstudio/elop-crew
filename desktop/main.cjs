@@ -644,8 +644,9 @@ function watch(data) {
 }
 async function watchLoop() {
   try {
-    const r = await fetch(URL + 'api/state', { cache: 'no-store', signal: AbortSignal.timeout(5000) })
-    if (r.ok) watch(await r.json())
+    // the server in this process: its state as it is (only read here); else over HTTP
+    if (globalThis.agentMonitorState) watch(await globalThis.agentMonitorState())
+    else { const r = await fetch(URL + 'api/state', { cache: 'no-store', signal: AbortSignal.timeout(5000) }); if (r.ok) watch(await r.json()) }
   } catch {}
   setTimeout(watchLoop, 2000)
 }

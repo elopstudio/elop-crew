@@ -132,9 +132,10 @@ export function createProcesses({ mask, clip }) {
     return { n: work.length, cpu: (self?.cpu || 0) + work.reduce((a, p) => a + (p.cpu || 0), 0), mem: (self?.mem || 0) + work.reduce((a, p) => a + p.mem, 0), hooks: list.length - work.length }
   }
   // for a card: how much the session has running, from the last snapshot (refreshed in the background)
-  function summary(pid, name) {
+  // (looked at every 20 s while the page is in view; otherwise every 2 min — each look is a PowerShell over every process)
+  function summary(pid, name, maxAge = 20000) {
     watch(pid, name)
-    const s = current(20000)
+    const s = current(maxAge)
     if (!s || !pid || !s.byPid.has(pid)) return null
     return { ...totals(descendants(s, pid), s.byPid.get(pid)), browsers: browsersIn(s, pid).length }
   }

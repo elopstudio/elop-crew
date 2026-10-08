@@ -550,7 +550,7 @@ async function buildState() {
     sess.away = awayOf(info, s.cwd, key, now)
     // taken over in the monitor and still open in VS Code: the page says which copy is the old one
     sess.takenOver = takenOver.get(s.sessionId) || ''
-    sess.procs = processes.summary(s.pid, s.name)   // what it has running: counts only, no commands
+    sess.procs = processes.summary(s.pid, s.name, procAge())   // what it has running: counts only, no commands
     const p = projects.get(key)
     p.sessions.push(sess)
     bySession.set(s.sessionId, { sess, project: key })
@@ -578,7 +578,7 @@ async function buildState() {
     }
     sess.stalledFor = sess.state === 'working' && sess.lastSignAt && now - sess.lastSignAt > STALL_MS ? now - sess.lastSignAt : 0
     sess.away = awayOf(info, m.cwd, m.key, now)
-    sess.procs = processes.summary(m.pid, m.name)
+    sess.procs = processes.summary(m.pid, m.name, procAge())
     projects.get(m.key).sessions.push(sess)
     bySession.set(m.sessionId, { sess, project: m.key })
   }
@@ -672,10 +672,17 @@ function cachedState() {
   p.catch(() => { stateCache = null })
   return p
 }
+// a burst of changes (a turn's start and end, hooks, the board) told once: each one makes every page poll the whole state
+let changedTimer = null
 function notifyPages() {
-  stateCache = null; for (const res of streams) { try { res.write('event: changed\ndata: {}\n\n') } catch {} } }
+  stateCache = null
+  if (changedTimer) return
+  changedTimer = setTimeout(() => { changedTimer = null; for (const res of streams) { try { res.write('event: changed\ndata: {}\n\n') } catch {} } }, 150)
+}
 const pageOpen = () => streams.size > 0 || Date.now() - lastViewAt < VIEWER_MS
 let lastViewAt = 0
+// how old the process snapshot on the cards may be: fresh while someone looks at the page
+const procAge = () => (Date.now() - lastViewAt < VIEWER_MS ? 20000 : 120000)
 const modes = new Map()                // sessionId → { mode, at }
 const pending = new Map()              // id → { id, sessionId, tool, what, code, at, expiresAt, done }
 // Prompts that only VS Code can answer (held messages between sessions, one-time auto-mode checks, MCP forms…):
@@ -1832,6 +1839,9 @@ function commandOf(input) {
   const m = /"command":\s*"((?:[^"\\]|\\.)*)/.exec(String(input || ''))
   return m ? m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\') : ''
 }
+// the state, for the desktop app in this process (its badge and notifications): no HTTP, no JSON round trip
+globalThis.agentMonitorState = () => cachedState()
+const runsCache = new Map()   // session → its runs, with the size and time of the transcript they came from
 globalThis.agentMonitorRuns = {
   async agents() {
     const st = await cachedState()
@@ -1843,6 +1853,12 @@ globalThis.agentMonitorRuns = {
   async runs(name) {
     const t = (await readRegistry()).find((x) => x.name === name) || agents.sessions(Date.now()).find((x) => x.name === name)
     if (!t?.sessionId) return null
+    // read again only once its transcript has grown: each agent tab asks every few seconds
+    const file = await findTranscript(t.sessionId)
+    let st = null
+    try { if (file) st = await fsp.stat(file) } catch {}
+    const kept = runsCache.get(t.sessionId)
+    if (st && kept && kept.file === file && kept.size === st.size && kept.mtime === st.mtimeMs) return kept.runs
     const runs = [], byId = new Map()
     for (const e of await transcriptEvents(t.sessionId)) {
       if (e.kind === 'tool' && RUN_TOOLS.test(e.name)) {
@@ -1854,7 +1870,9 @@ globalThis.agentMonitorRuns = {
         r.done = true; r.error = !!e.error; r.output = String(e.text || '')
       }
     }
-    return runs.slice(-80)
+    const out = runs.slice(-80)
+    if (st) { runsCache.delete(t.sessionId); runsCache.set(t.sessionId, { file, size: st.size, mtime: st.mtimeMs, runs: out }); if (runsCache.size > 40) runsCache.delete(runsCache.keys().next().value) }
+    return out
   },
 }
 const processes = createProcesses({ mask, clip })

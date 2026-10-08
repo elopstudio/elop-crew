@@ -179,8 +179,9 @@ function save() {
   // whole or not at all: an app killed while it writes keeps the last good file
   try { fs.mkdirSync(path.dirname(keepFile), { recursive: true }); fs.writeFileSync(keepFile + '.tmp', JSON.stringify({ v: 2, tabs })); fs.renameSync(keepFile + '.tmp', keepFile) } catch {}
 }
-// output only says the file is due: written every few seconds, so an app killed (an update installing) loses little
-const saveSoon = () => { if (!saveTimer) saveTimer = setTimeout(() => probeDirs().then(save), 4000) }
+// output only says the file is due: written every 15 s (the app quitting writes it too), so an app killed loses little and a busy shell does not have
+// hundreds of KB written out every few seconds
+const saveSoon = () => { if (!saveTimer) saveTimer = setTimeout(() => probeDirs().then(save), 15000) }
 // The tabs of the last run, handed out once (the first time the panel asks, with nothing running): the panel draws
 // each pane's old output and starts its shell again under it (open with inherit). Nothing to hand out after a shell
 // has been started. A file from before the split panes held one shell per tab.

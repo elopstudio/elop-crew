@@ -29,7 +29,9 @@ async function fileToday(file) {
   if (st.mtimeMs < day) { counts.delete(file); return null }   // not touched today
   let c = counts.get(file)
   if (c && c.day === day && c.size === st.size && c.mtimeMs === st.mtimeMs) return c
-  if (!c || c.day !== day || st.size < c.offset) c = { day, offset: 0, size: 0, mtimeMs: 0, byMsg: new Map() }
+  if (!c || st.size < c.offset) c = { day, offset: 0, size: 0, mtimeMs: 0, byMsg: new Map() }
+  // a new day: what was read already is all from before midnight, so it is not read again (tens of MB a file)
+  else if (c.day !== day) c = { ...c, day, byMsg: new Map() }
   const fh = await fsp.open(file, 'r')
   try {
     const n = st.size - c.offset
