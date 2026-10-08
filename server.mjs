@@ -42,6 +42,7 @@ const WAITING_MS = 30 * 60 * 1000      // idle for less than this = "waiting", l
 const STALL_MS = 10 * 60 * 1000        // "working" with no sign of life for this long = probably stuck
 const RECENT_RESULTS = 20              // tool errors are counted over the last this many tool results
 const MESSAGE_FEED = 14
+const CHATTY_MS = 30 * 60 * 1000, CHATTY_N = 12   // this many messages between two agents in half an hour: pointed out
 
 // a look picked on the page for a VS Code session: config.json projects.<key>.avatars.<short name or name>
 const LOOK_ACCS = ['ball', 'twin', 'phones', 'sprout', 'bolt']
@@ -452,7 +453,10 @@ function assignNicks(sessions, fixedFor) {
 // A session's subagents (the Agent tool): what kind, what for, whether still running, what they last did.
 // Kept to the recent ones; each file is re-read only when it changed.
 const SUB_RUNNING_MS = 45 * 1000, SUB_RECENT_MS = 3 * 60 * 60 * 1000, SUB_MAX = 12
-const subCache = new Map()   // file → { mtimeMs, size, info }
+const subCache = new Map()   // file → { mtimeMs, size, offset, info }
+// a subagent's file untouched for longer than SUB_RECENT_MS: not looked at again for a minute (a session can have
+// hundreds, each stat'd on every build of the state)
+const subStale = new Map()   // file → when it was last found stale
 // tokens used today by a session and its subagents
 async function todayOf(sessionId) {
   const file = await findTranscript(sessionId)
@@ -474,25 +478,42 @@ async function subagentsOf(sessionId) {
     const m = n.match(/^agent-([a-z0-9]+)\.jsonl$/)
     if (!m) continue
     const p = path.join(dir, n)
+    if (now - (subStale.get(p) || 0) < 60000) continue
     let st
     try { st = await fsp.stat(p) } catch { continue }
-    if (now - st.mtimeMs > SUB_RECENT_MS) continue
+    if (now - st.mtimeMs > SUB_RECENT_MS) { subStale.set(p, now); subCache.delete(p); continue }
+    subStale.delete(p)
     let hit = subCache.get(p)
     if (!hit || hit.mtimeMs !== st.mtimeMs || hit.size !== st.size) {
-      let meta = {}
-      try { meta = JSON.parse(await fsp.readFile(path.join(dir, 'agent-' + m[1] + '.meta.json'), 'utf8')) } catch {}
-      const info = { tools: 0, activity: null, startedAt: 0 }
+      // only what was written since the last look (the first time: its last part, as before)
+      if (!hit || st.size < hit.offset) {
+        let meta = {}
+        try { meta = JSON.parse(await fsp.readFile(path.join(dir, 'agent-' + m[1] + '.meta.json'), 'utf8')) } catch {}
+        hit = { mtimeMs: 0, size: 0, offset: Math.max(0, st.size - TAIL_BYTES), cut: st.size > TAIL_BYTES, info: { tools: 0, activity: null, startedAt: 0, type: clip(meta.agentType || 'subagent', 40), description: clip(meta.description || '', 120) } }
+      }
       try {
-        const { lines } = await tailLines(p)
-        for (const l of lines) {
-          let o
-          try { o = JSON.parse(l) } catch { continue }
-          if (!info.startedAt && o.timestamp) info.startedAt = Date.parse(o.timestamp)
-          if (o.type !== 'assistant' || !Array.isArray(o.message?.content)) continue
-          for (const c of o.message.content) if (c?.type === 'tool_use') { info.tools++; info.activity = describe(c.name, c.input) }
-        }
+        const fh = await fsp.open(p, 'r')
+        try {
+          const buf = Buffer.alloc(st.size - hit.offset)
+          if (buf.length) await fh.read(buf, 0, buf.length, hit.offset)
+          const end = buf.lastIndexOf(0x0a)
+          if (end >= 0) {
+            let lines = buf.subarray(0, end).toString('utf8').split('\n')
+            if (hit.cut) { lines = lines.slice(1); hit.cut = false }   // the first line, cut in half
+            const info = hit.info
+            for (const l of lines) {
+              if (!l) continue
+              let o
+              try { o = JSON.parse(l) } catch { continue }
+              if (!info.startedAt && o.timestamp) info.startedAt = Date.parse(o.timestamp)
+              if (o.type !== 'assistant' || !Array.isArray(o.message?.content)) continue
+              for (const c of o.message.content) if (c?.type === 'tool_use') { info.tools++; info.activity = describe(c.name, c.input) }
+            }
+            hit.offset += end + 1
+          }
+        } finally { await fh.close() }
       } catch {}
-      hit = { mtimeMs: st.mtimeMs, size: st.size, info: { ...info, type: clip(meta.agentType || 'subagent', 40), description: clip(meta.description || '', 120) } }
+      hit.mtimeMs = st.mtimeMs; hit.size = st.size
       subCache.set(p, hit)
     }
     out.push({ id: m[1], ...hit.info, lastAt: st.mtimeMs, running: now - st.mtimeMs < SUB_RUNNING_MS })
@@ -607,9 +628,18 @@ async function buildState() {
     for (const s of p.sessions) s.isLeader = s.name === leader
     p.sessions.sort((a, b) => (b.isLeader - a.isLeader) || a.name.localeCompare(b.name))
     p.messages.sort((a, b) => b.at - a.at)
+    // two agents talking back and forth a lot: each message is a turn for the one it wakes, with its whole conversation
+    // read again — pointed out on the page and to the assistant (the monitor cannot hold back what claude sends)
+    const pairs = new Map()
+    for (const m of p.messages) {
+      if (!m.to || now - m.at > CHATTY_MS) continue
+      const k = [m.from, m.to].sort().join('\n')
+      pairs.set(k, (pairs.get(k) || 0) + 1)
+    }
+    const chatty = [...pairs].filter(([, n]) => n >= CHATTY_N).map(([k, n]) => { const [a, b] = k.split('\n'); return { a, b, n } })
     out.push({
       key: p.key, root: p.root, name: typeof cfg.name === 'string' ? clip(cfg.name, 40) : '', label: cfg.label || '', leader,
-      sessions: p.sessions, messages: p.messages.slice(0, MESSAGE_FEED),
+      sessions: p.sessions, messages: p.messages.slice(0, MESSAGE_FEED), ...(chatty.length ? { chatty } : {}),
       board: boards.get(p.key) || null, check: typeof cfg.check === 'string' ? cfg.check : '',
       counts: {
         working: p.sessions.filter((s) => s.state === 'working').length,

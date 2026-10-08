@@ -5,7 +5,11 @@
 import fsp from 'node:fs/promises'
 
 const midnight = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() }
-const counts = new Map()   // file → { day, offset, size, mtimeMs, byMsg: Map(message id → usage) }
+const counts = new Map()   // file → { day, offset, size, mtimeMs, byMsg: Map(message id → usage), at }
+// A file quiet for an hour (a subagent done long ago) is looked at again only every 5 minutes, and one not touched today
+// likewise: a long session has hundreds of subagent files, each stat'd on every build of the state.
+const QUIET_MS = 3600e3, RECHECK_MS = 5 * 60e3
+const notToday = new Map()   // file → when it was found not touched today
 
 // a reply is written as one line per content block, each carrying the reply's usage so far: keep the last
 function addLine(c, l, day) {
@@ -23,12 +27,17 @@ function addLine(c, l, day) {
 }
 
 async function fileToday(file) {
+  const day = midnight(), now = Date.now()
+  const kept = counts.get(file)
+  if (kept && kept.day === day && now - kept.mtimeMs > QUIET_MS && now - kept.at < RECHECK_MS) return kept
+  const off = notToday.get(file)
+  if (off && off.day === day && now - off.at < RECHECK_MS) return null
   let st
   try { st = await fsp.stat(file) } catch { return null }
-  const day = midnight()
-  if (st.mtimeMs < day) { counts.delete(file); return null }   // not touched today
+  if (st.mtimeMs < day) { counts.delete(file); notToday.set(file, { day, at: now }); if (notToday.size > 5000) notToday.clear(); return null }   // not touched today
+  notToday.delete(file)
   let c = counts.get(file)
-  if (c && c.day === day && c.size === st.size && c.mtimeMs === st.mtimeMs) return c
+  if (c && c.day === day && c.size === st.size && c.mtimeMs === st.mtimeMs) { c.at = now; return c }
   if (!c || st.size < c.offset) c = { day, offset: 0, size: 0, mtimeMs: 0, byMsg: new Map() }
   // a new day: what was read already is all from before midnight, so it is not read again (tens of MB a file)
   else if (c.day !== day) c = { ...c, day, byMsg: new Map() }
@@ -46,6 +55,7 @@ async function fileToday(file) {
   } finally { await fh.close() }
   c.size = st.size
   c.mtimeMs = st.mtimeMs
+  c.at = now
   counts.set(file, c)
   return c
 }

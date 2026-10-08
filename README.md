@@ -104,7 +104,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   A monitor agent whose conversation has grown past 200k tokens (or half its model's context) starts its next task in a
   new conversation, under the same name, with the tasks it finished and its last message handed over — every step
   re-reads the whole conversation, so this keeps long runs cheap; no turn is spent writing the hand-over.
-- **Team chat.** Who messaged whom, as one-line summaries.
+- **Team chat.** Who messaged whom, as one-line summaries. Two agents that sent each other 12 messages or more in
+  half an hour are pointed out at the top (each message is a turn for the one it wakes, its whole conversation read
+  again), and the assistant is told, once an hour for a pair.
 - **Subagents.** A card shows `🤖 2` while that many of its subagents (the Agent tool) are running; the agent's dialog has a
   **Subagents** tab listing the recent ones — kind, purpose, last action, tool calls — and opens any of them as its own
   live conversation (masked like the main one).
@@ -450,7 +452,8 @@ server such as Nuxt or Vite takes `PORT` over its own setting).
   one, or looks stuck; Claude Code logged out, back, or as another account, and the monitor agents waiting for it; the
   plan passing 80 % and 95 %. Each time is a turn, and one after a few minutes' rest reads its whole conversation in
   again, so a finished turn or a usage level waits until something urgent goes anyway, its last turn ended under 4 minutes
-  ago, or 20 minutes have passed. It reads the conversation where it matters, handles what it safely can, suggests the next
+  ago, or 20 minutes have passed. It messages or nudges any one agent at most 3 times an hour, a turn it set off is not
+  told back to it as news, and one agent's failed turns are told at most twice an hour. It reads the conversation where it matters, handles what it safely can, suggests the next
   step, and alerts you only when you are needed: a highlighted line, a badge on the button and a desktop notification
   with its face on it.
 - **The login.** While Claude Code is logged out the assistant cannot work either, so the monitor itself puts the alert

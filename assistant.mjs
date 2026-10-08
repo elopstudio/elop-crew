@@ -298,6 +298,12 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
     return terminalTool(name, body.args || {}, { sessionId: a.sessionId, cwd: a.cwd })
   }
 
+  // What it sends one agent (messages, nudges): at most 3 an hour. Each one wakes that agent, the turn it takes comes back
+  // to the assistant as news, and it may answer that again — a loop of turns with nobody asking for them.
+  const SENDS_PER_HOUR = 3
+  const sentTo = new Map()   // agent name → when the assistant last messaged or nudged it, this hour
+  const sendsLeft = (name) => { const now = Date.now(), l = (sentTo.get(name) || []).filter((t) => now - t < 3600e3); sentTo.set(name, l); return SENDS_PER_HOUR - l.length }
+  const tooMany = (s) => `You have already messaged or nudged ${who(s)} ${SENDS_PER_HOUR} times in the last hour. Do not send it more: if it still needs something, tell the person (notify_user).`
   // a tool call from the assistant's MCP server
   async function tool(body) {
     if (String(body.agent || '') !== 'assistant' || String(body.key || '') !== agents.assistantKey()) return 'Only the monitor\'s assistant has these tools.'
@@ -317,6 +323,8 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
         const text = String(args.text || '').trim().slice(0, 4000)
         if (!s) return `No agent called "${args.agent}". Use the names from status.`
         if (!text) return 'Nothing to send.'
+        if (sendsLeft(s.name) <= 0) return tooMany(s)
+        sentTo.get(s.name).push(Date.now())
         const line = '[From the monitor\'s assistant] ' + text
         if (s.managed) return agents.sendText(s.agentId, line) ? `Sent to ${who(s)}.` : `Could not send to ${who(s)}.`
         const code = await sendTo(s.name, line)
@@ -346,6 +354,8 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
         if (!s) return `No agent called "${args.agent}".`
         if (!s.managed) return `${who(s)} is a VS Code session: it has to be stopped in its panel (Esc). Tell the person.`
         if (s.loginLost) return `${who(s)} is waiting for the login and carries on by itself once Claude Code is logged in; nudging it now would only fail again.`
+        if (sendsLeft(s.name) <= 0) return tooMany(s)
+        sentTo.get(s.name).push(Date.now())
         const [code] = await agents.handle(new URL('http://x/api/agents/nudge'), { id: s.agentId, text: 'It looked like you were stuck, so you were stopped. Please carry on with what you were doing.' })
         return code === 200 ? `Stopped ${who(s)} and asked it to carry on.` : `Could not nudge ${who(s)}.`
       }
@@ -361,7 +371,8 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
   }
 
   // what is passed on: each thing once, and again only after it went away and came back
-  const told = { asks: new Set(), stuck: new Set(), usage: new Map(), login: new Set(), fail: new Map(), limit: new Map() }
+  const told = { asks: new Set(), stuck: new Set(), usage: new Map(), login: new Set(), fail: new Map(), limit: new Map(), fails: new Map(), chatty: new Map() }
+  const failsThisHour = (name, now) => { const l = (told.fails.get(name) || []).filter((t) => now - t < 3600e3); told.fails.set(name, l); return l }
   const workingSince = new Map()   // agent → when it was first seen working this turn
   let lastWho = ''                 // the last account seen logged in (a hash), to tell a switch from a return
   let queue = []
@@ -414,16 +425,25 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
       // stopped at the usage limit, once each time (it carries on by itself after the reset)
       if (s.limitHit && told.limit.get(s.name) !== s.limitHit.at) { told.limit.set(s.name, s.limitHit.at); limited.push(s) }
       if (!s.limitHit) told.limit.delete(s.name)
-      if (s.lastFail && !s.loginLost && !s.limitHit && told.fail.get(s.name) !== s.lastFail.at) { told.fail.set(s.name, s.lastFail.at); tell('failed', `${who(s)} (${s.project}): its last turn failed — ${s.lastFail.text}`) }
+      if (s.lastFail && !s.loginLost && !s.limitHit && told.fail.get(s.name) !== s.lastFail.at && (told.fail.set(s.name, s.lastFail.at), failsThisHour(s.name, now).push(now) <= 2)) { tell('failed', `${who(s)} (${s.project}): its last turn failed — ${s.lastFail.text}`) }
       // a turn of some length that ended well: what it was on, for the assistant to judge whether the person needs it
       if (s.state === 'working') { if (!workingSince.has(s.name)) workingSince.set(s.name, now) }
       else if (workingSince.has(s.name)) {
         const since = workingSince.get(s.name)
         workingSince.delete(s.name)
-        if (now - since >= WORKED_MS && !s.lastFail && !s.loginLost) tell('finished', `${who(s)} (${s.project}, ${s.managed ? 'monitor agent' : 'VS Code session'}) finished a turn after ${mins(now - since)} min${s.title ? ' — on: ' + s.title : ''}`)
+        const prompted = (sentTo.get(s.name) || []).some((t) => t >= since - 30000)
+        if (now - since >= WORKED_MS && !s.lastFail && !s.loginLost && !prompted) tell('finished', `${who(s)} (${s.project}, ${s.managed ? 'monitor agent' : 'VS Code session'}) finished a turn after ${mins(now - since)} min${s.title ? ' — on: ' + s.title : ''}`)
       }
     }
     for (const name of workingSince.keys()) if (!sessions.some((s) => s.name === name)) workingSince.delete(name)
+    // two agents messaging each other over and over (with the stuck ones: work going round in circles), once an hour a pair
+    for (const p of data.projects || []) for (const c of p.chatty || []) {
+      const k = c.a + '\n' + c.b
+      if (now - (told.chatty.get(k) || 0) < 3600e3) continue
+      told.chatty.set(k, now)
+      const name = (n) => { const s = sessions.find((x) => x.name === n); return s ? who(s) : n }
+      tell('stuck', `${name(c.a)} and ${name(c.b)} (${p.name || p.key}) sent each other ${c.n} messages in the last 30 min: each one is a turn for the agent it wakes. Look at what they are going back and forth about; if it is going round in circles, tell the person`)
+    }
     if (limited.length) {
       const ends = limited.map((s) => s.limitHit.until).filter(Boolean), at = ends.length ? new Date(Math.min(...ends)).toTimeString().slice(0, 5) : ''
       const names = limited.map(who).join(', ')
