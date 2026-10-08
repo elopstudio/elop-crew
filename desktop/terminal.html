@@ -196,7 +196,7 @@ function addPane(g, info, buf, after) {
   view.innerHTML = '<div class="xt"></div><button class="px" type="button">×</button>'
   const term = new Terminal({
     fontFamily: MAC ? 'Menlo, "SF Mono", monospace' : '"Cascadia Mono", Consolas, "D2Coding", monospace',
-    fontSize, lineHeight: 1.15, cursorBlink: !info.agent, scrollback: 5000, theme: theme(), allowProposedApi: false,
+    fontSize, lineHeight: 1.15, cursorBlink: !info.agent, scrollback: info.agent ? 1000 : 5000, theme: theme(), allowProposedApi: false,
     ...(info.agent ? { disableStdin: true, cursorStyle: 'underline', cursorInactiveStyle: 'none' } : {}),
   })
   const fit = new FitAddon.FitAddon()
@@ -218,7 +218,7 @@ function addPane(g, info, buf, after) {
   view.addEventListener('mousedown', () => { if (g.focus !== x) setTimeout(() => focusPane(x), 0) })
   view.querySelector('.px').addEventListener('click', () => (x.agent ? removePane(x) : api.close(x.id)))
   view.querySelector('.px').title = t('closePane')
-  new ResizeObserver(() => fitNow(x)).observe(view)
+  x.ro = new ResizeObserver(() => fitNow(x)); x.ro.observe(view)
   keys(x)
   if (buf) term.write(buf)
   // what it printed before the panel knew it (a restarted shell's question where the cursor is, among it)
@@ -284,8 +284,8 @@ function select(gid) {
 // a pane whose shell ended: its share goes to the one beside it; the last one gone, the tab goes
 function removePane(x) {
   const g = x.g, i = g.panes.indexOf(x)
-  clearTimeout(x.poll)
-  x.term.dispose(); x.view.remove(); terms.delete(x.id)
+  clearTimeout(x.poll); x.ro?.disconnect()
+  x.term.dispose(); x.view.remove(); terms.delete(x.id); early.delete(x.id)
   if (i < 0) return
   const share = g.sizes[i] || 1
   g.panes.splice(i, 1); g.sizes.splice(i, 1)
@@ -400,7 +400,10 @@ async function pollAgent(x) {
   if (document.hidden) { clearTimeout(x.poll); x.poll = setTimeout(() => pollAgent(x), 3000); return }
   const runs = await api.runs(x.agent).catch(() => null)
   if (terms.get(x.id) !== x) return
-  if (!runs) { if (!x.gone) { x.gone = true; x.goneSince = Date.now(); x.term.write('\x1b[2m' + t('agentGone') + '\x1b[0m\r\n') } }
+  if (!runs) {
+    if (!x.gone) { x.gone = true; x.goneSince = Date.now(); x.term.write('\x1b[2m' + t('agentGone') + '\x1b[0m\r\n') }
+    if (x.running) { x.running = false; label(x.g) }
+  }
   else {
     x.gone = false
     // when it last ran something (or, with nothing yet, since the tab opened)
@@ -621,8 +624,8 @@ window.__crewLines = (id, n) => {
 
 /* ── from the app ── */
 const early = new Map()   // id → output from a shell whose pane is not drawn yet
-api.onData((id, d) => { const x = terms.get(id); if (x) x.term.write(d); else early.set(id, (early.get(id) || '') + d) })
-api.onExit((id) => { const x = terms.get(id); if (x) removePane(x) })
+api.onData((id, d) => { const x = terms.get(id); if (x) x.term.write(d); else early.set(id, ((early.get(id) || '') + d).slice(-200000)) })
+api.onExit((id) => { early.delete(id); const x = terms.get(id); if (x) removePane(x) })
 // the folder a shell has gone to: on its tab
 api.onCwd((id, dir) => { const x = terms.get(id); if (x) { x.cwd = dir; label(x.g) } })
 // started from the app's shell menu: a tab of its own

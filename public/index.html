@@ -1607,7 +1607,12 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
         }
       }
       for (const e of entries) if (e.at > lastAt) lastAt = e.at;
-      while (pane.children.length > 401 && pane.firstChild !== tail) pane.firstChild.remove();
+      if (pane.children.length > 401) {
+        while (pane.children.length > 401 && pane.firstChild !== tail) pane.firstChild.remove();
+        // what scrolled off is let go of here too, or a dialog left open all day keeps every call and reply it ever showed
+        for (const [k, n] of tools) if (!n.isConnected) tools.delete(k);
+        for (const [k, n] of blocks) if (!n.isConnected) blocks.delete(k);
+      }
       if (!sub && liveCtl) liveCtl.update(last);
       if (atBottom) toBottom();
       // reading further up: say that something new came in below, instead of jumping there
@@ -3694,11 +3699,16 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     if (!p) return;
     const box = p.querySelector('.bi'), bar = p.querySelector('.bu');
     if (info) { bar.replaceChildren(el('span', 'dot' + (info.live ? ' live' : '')), document.createTextNode(str(info.url) || ' ')); bar.title = str(info.title || info.url); }
-    if (data === null) { box.replaceChildren(el('div', 'bempty', empty || t('bPick'))); if (!info) bar.replaceChildren(); return; }
+    // each frame as a blob, the one before it let go: a data: URL per frame, for hours, piles up in the page's image cache
+    const drop = () => { if (bState.frameUrl) { URL.revokeObjectURL(bState.frameUrl); bState.frameUrl = null; } };
+    if (data === null) { drop(); box.replaceChildren(el('div', 'bempty', empty || t('bPick'))); if (!info) bar.replaceChildren(); return; }
     if (data) {
       let im = box.querySelector('img');
       if (!im) { im = document.createElement('img'); im.alt = t('bShot'); box.replaceChildren(im); }
-      im.src = 'data:image/jpeg;base64,' + data;
+      let bytes;
+      try { const s = atob(data); bytes = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i); } catch (e) { return; }
+      drop();
+      im.src = bState.frameUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
     }
   }
   function pickPage(port, id, pg) {
@@ -4680,6 +4690,11 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
         robotPng('monitor-assistant', !assistLook).then((icon) => { try { new Notification(t('assistTitle'), { body, tag, ...(icon ? { icon } : {}) }); } catch (e) {} });
       }
     }
+    // the last 400 lines are kept: the monitor tells it of every request and finished turn, all day long
+    if (l.children.length > 420) {
+      while (l.children.length > 400 && !l.firstChild.classList.contains('typing')) l.firstChild.remove();
+      for (const [k, b] of assist.blocks) if (!b.isConnected) { clearTimeout(b.timer); assist.blocks.delete(k); }
+    }
     if (counts && (ev.at || 0) > assist.seen && !assist.open) { assist.unread++; assistBadge(); }
     if (stick || fresh === false) toBottom();
   }
@@ -4835,10 +4850,15 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   async function refreshToken() {
     try { const d = await (await fetch('/api/state?visible=1', { cache: 'no-store' })).json(); if (d.token) token = d.token; } catch (e) {}
   }
+  // one poll at a time: asked again meanwhile (a burst of 'changed', a click), it polls once more when this one is done.
+  // Two at once would each leave a timer behind, one of which no clearTimeout could reach — a loop for good.
+  let ticking = false, tickAgain = false;
   async function tick() {
+    if (ticking) { tickAgain = true; return; }
+    ticking = true;
     try {
       // the language goes along, so the sessions are told which one to write to the person in
-      const r = await fetch('/api/state?visible=' + (document.hidden ? 0 : 1) + '&lang=' + lang, { cache: 'no-store' });
+      const r = await fetch('/api/state?visible=' + (document.hidden ? 0 : 1) + '&lang=' + lang, { cache: 'no-store', signal: AbortSignal.timeout(20000) });
       if (!r.ok) throw new Error(String(r.status));
       const data = await r.json();
       if (data.token) token = data.token;
@@ -4852,6 +4872,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     } catch (e) {
       setLive(false); notice(t('noServer'));
     }
+    ticking = false; clearTimeout(timer);
+    if (tickAgain) { tickAgain = false; timer = setTimeout(tick, 150); return; }
     timer = setTimeout(tick, document.hidden ? POLL_MS * 5 : (last?.approvals?.length ? FAST_MS : POLL_MS));
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { clearTimeout(timer); tick(); } });

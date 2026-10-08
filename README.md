@@ -479,6 +479,10 @@ itself. So a new PC needs only **Claude Code**, installed and signed in.
 - The window opens where it was left, at the same size, maximised if it was — after a restart or an update too. If
   that place is on no screen any more (a monitor unplugged), it opens at the default size on the main screen.
 - Closing the window keeps the monitor in the tray, with its agents running (or quits, if you turn that off).
+- **Memory:** a page past 2 GB, or a terminal panel past 1.5 GB, is drawn again from scratch once the window is not in
+  front — the agents, the server and the shells go on as they were, and the shells' screens come back from what is kept
+  of their output. Whenever a view passes 1 GB, `memory.log` in the app's folder (`%APPDATA%\Agent Monitor`) notes how
+  much each one used (sizes only).
 - **Something waiting for you:** while requests wait, the taskbar button and the tray icon carry an orange dot and the
   tray tooltip counts them. A new request flashes the taskbar and sends a desktop notification if the window is not in
   front; so do an agent that looks stuck and a limit passing 80 % or 95 %. Clicking a notification opens the window.

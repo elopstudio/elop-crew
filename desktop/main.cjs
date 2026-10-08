@@ -266,6 +266,37 @@ function termKeys(wc) {
   })
 }
 
+/* ── memory ── */
+// A view grown past what a day's work needs (a leak in the page, a terminal flooded with output) is drawn again from
+// scratch once nobody is looking at it: the server, the agents and the shells live in this process and go on as they
+// were, and the terminal panel draws its shells again from what is kept of their output. Whenever a view passes 1 GB,
+// what each one used is noted in memory.log in the app's folder (sizes only).
+const MEM_NOTE = 1024, MEM_RELOAD = { page: 2048, term: 1536 }   // MB
+function memoryCheck() {
+  if (!win) return
+  let byPid
+  try { byPid = new Map(app.getAppMetrics().map((m) => [m.pid, m])) } catch { return }
+  const mb = (v) => {
+    if (!v || v.webContents.isDestroyed()) return 0
+    const m = byPid.get(v.webContents.getOSProcessId())
+    return m ? Math.round((m.memory.privateBytes || m.memory.workingSetSize) / 1024) : 0
+  }
+  const used = { page: mb(page), strip: mb(strip), term: mb(term) }
+  if (Math.max(...Object.values(used)) < MEM_NOTE) return
+  const looking = win.isVisible() && !win.isMinimized() && win.isFocused()
+  const redrawn = []
+  for (const [name, v] of [['page', page], ['term', term]]) {
+    if (!v || used[name] < MEM_RELOAD[name] || looking) continue
+    v.webContents.reload(); redrawn.push(name)
+  }
+  try {
+    const file = path.join(app.getPath('userData'), 'memory.log')
+    const line = new Date().toISOString() + ' ' + Object.entries(used).map(([k, v]) => k + '=' + v + 'MB').join(' ') + (redrawn.length ? ' redrawn: ' + redrawn.join(',') : '') + '\n'
+    let old = ''; try { old = fs.readFileSync(file, 'utf8') } catch {}
+    fs.writeFileSync(file, (old + line).split('\n').slice(-300).join('\n'))
+  } catch {}
+}
+
 /* ── the terminal panel ── */
 // A view under the page with the shells installed here (terminal.cjs runs them). Hidden, its shells keep running;
 // the panel's height is kept in the settings.
@@ -280,7 +311,8 @@ function toggleTerminal(show = !termOpen) {
   // shown at the next start too, with its tabs, if it was when the app quit
   if (!!readSettings().termOpen !== show) writeSettings({ ...readSettings(), termOpen: show })
   if (show && !term) {
-    term = new WebContentsView({ webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'terminal-preload.cjs') } })
+    // not throttled when hidden: the output keeps coming, and xterm would hold what it had no time to take in
+    term = new WebContentsView({ webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false, preload: path.join(__dirname, 'terminal-preload.cjs') } })
     term.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#0f1116' : '#ffffff')
     win.contentView.addChildView(term)
     const wc = term.webContents
@@ -781,6 +813,7 @@ else {
     offerHooks(false)
     paintBadge()
     watchLoop()
+    setInterval(memoryCheck, 5 * 60 * 1000)
     registerHotkey()
     setupUpdates()
   })
