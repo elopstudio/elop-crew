@@ -666,20 +666,20 @@ body.docked .detail{bottom:60px;max-height:calc(100vh - 92px)}
 .detail form.msg .status.good{color:var(--run)}
 .detail form.msg .status.bad{color:var(--block)}
 .detail form.msg .status:empty{display:none}
-.detail form.msg.drop{outline:2px dashed var(--accent);outline-offset:-6px}
-.detail form.msg .chips{display:flex;flex-wrap:wrap;gap:6px}
-.detail form.msg .chips:empty{display:none}
-.detail form.msg .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:999px;padding:2px 4px 2px 10px}
-.detail form.msg .chip.up{opacity:.6}
-.detail form.msg .chip.bad{border-color:var(--block);color:var(--block)}
-.detail form.msg .chip .x{appearance:none;border:0;background:none;color:var(--muted);font-size:14px;line-height:1;cursor:pointer;padding:0 4px}
+.detail form.msg.drop,.detail form.newagent.drop{outline:2px dashed var(--accent);outline-offset:-6px}
+.detail .composer .chips{display:flex;flex-wrap:wrap;gap:6px}
+.detail .composer .chips:empty{display:none}
+.detail .composer .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:999px;padding:2px 4px 2px 10px}
+.detail .composer .chip.up{opacity:.6}
+.detail .composer .chip.bad{border-color:var(--block);color:var(--block)}
+.detail .composer .chip .x{appearance:none;border:0;background:none;color:var(--muted);font-size:14px;line-height:1;cursor:pointer;padding:0 4px}
 .detail form.msg .runout{margin:0;max-height:260px;overflow:auto;font:11.5px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--text)}
 .detail form.msg .runout.err{border-color:var(--block)}
 .detail form.msg .runout[hidden]{display:none}
 /* the composer: a rounded box that grows with the text, its buttons on a row inside */
 .composer{border:1px solid var(--line-strong);border-radius:18px;background:var(--surface-2);padding:8px 10px 8px 12px;display:grid;gap:6px;cursor:text;transition:border-color .15s,box-shadow .15s}
 .composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-.detail form.msg.drop .composer{border-style:dashed;border-color:var(--accent)}
+.detail form.msg.drop .composer,.detail form.newagent.drop .composer{border-style:dashed;border-color:var(--accent)}
 .composer textarea{display:block;width:100%;border:0;outline:0;background:transparent;resize:none;padding:4px 2px 2px;margin:0;font:14px/1.55 var(--sans);color:var(--text);max-height:220px;overflow-y:auto;min-height:26px}
 .composer textarea::placeholder{color:var(--faint)}
 .composer .chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -2304,14 +2304,55 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const go = roundButton('up', t('startAgent'), 'csend');
     go.type = 'submit';
     mode.title = t('dMode'); mode.setAttribute('aria-label', t('dMode'));
-    const first = composer(ta, el('div', 'chips'), [mode, model, effort], go);
+    // files for the first message: uploaded at once, as to an agent's message box (dropped, pasted or picked)
+    const files = [];   // { name, size, file, path | null (uploading), el }
+    const chips = el('div', 'chips');
+    const fpick = document.createElement('input');
+    fpick.type = 'file'; fpick.multiple = true; fpick.hidden = true;
+    const attachBtn = roundButton('clip', t('attach'), 'cicon');
+    attachBtn.addEventListener('click', () => fpick.click());
+    const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+    async function addFiles(list) {
+      for (const file of list) {
+        if (files.length >= 5) { status.textContent = t('tooMany'); status.className = 'status bad'; break; }
+        if (file.size > 20 * 1048576) { status.textContent = t('tooBig', { x: file.name }); status.className = 'status bad'; continue; }
+        const item = { name: file.name || 'pasted.png', size: file.size, file, path: null, el: el('span', 'chip up') };
+        const x = el('button', 'x', '×'); x.type = 'button'; x.setAttribute('aria-label', t('remove'));
+        x.addEventListener('click', () => { const i = files.indexOf(item); if (i >= 0) files.splice(i, 1); item.el.remove(); });
+        const nm = el('button', 'cname', item.name + ' · ' + kb(item.size));
+        nm.type = 'button'; nm.title = t('pvShow');
+        nm.addEventListener('click', () => openPreview({ name: item.name, blob: file }));
+        item.el.append(nm, x);
+        files.push(item); chips.append(item.el);
+        const put = () => fetch('/api/upload?session=new-agent&name=' + encodeURIComponent(item.name), { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-monitor-token': token }, body: file });
+        try {
+          let r = await put();
+          if (r.status === 403) { await refreshToken(); r = await put(); }
+          if (!r.ok) throw new Error(String(r.status));
+          item.path = (await r.json()).path;
+          item.el.classList.remove('up');
+        } catch (e) {
+          item.el.classList.add('bad');
+          const i = files.indexOf(item); if (i >= 0) files.splice(i, 1);
+          status.textContent = t('uploadFailed', { x: item.name }); status.className = 'status bad';
+        }
+      }
+    }
+    fpick.addEventListener('change', () => { addFiles([...fpick.files]); fpick.value = ''; });
+    form.addEventListener('dragover', (e) => { e.preventDefault(); form.classList.add('drop'); });
+    form.addEventListener('dragleave', () => form.classList.remove('drop'));
+    form.addEventListener('drop', (e) => { e.preventDefault(); form.classList.remove('drop'); addFiles([...e.dataTransfer.files]); });
+    ta.addEventListener('paste', (e) => { const fl = [...(e.clipboardData?.files || [])]; if (fl.length) { e.preventDefault(); addFiles(fl); } });
+    const first = composer(ta, chips, [attachBtn, mode, model, effort], go);
     enterSends(ta, form);
     const row = (label, node) => { const l = el('label', 'row'); l.append(el('span', null, label), node); return l; };
-    form.append(row(t('projectLabel'), project), other, picker, resume, row(t('nickLabel'), nick), row(t('descLabel'), lp.desc), row(t('avatarLabel'), avatarBox), fastLabel, first.box, el('div', 'hint', t('newAgentHint')), status);
+    form.append(row(t('projectLabel'), project), other, picker, resume, row(t('nickLabel'), nick), row(t('descLabel'), lp.desc), row(t('avatarLabel'), avatarBox), fastLabel, fpick, first.box, el('div', 'hint', t('newAgentHint')), status);
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (go.disabled) return;
+      if (files.some((x) => !x.path)) { status.textContent = t('stillUploading'); status.className = 'status bad'; return; }
       go.disabled = true;
-      const r = await agentCall('/api/agents/start', { cwd: folder.value.trim(), mode: mode.value, model: model.value, effort: effort.value, text: ta.value.trim(), ...lp.get(), fast: fast.checked });
+      const r = await agentCall('/api/agents/start', { cwd: folder.value.trim(), mode: mode.value, model: model.value, effort: effort.value, text: ta.value.trim(), files: files.map((x) => x.path), ...lp.get(), fast: fast.checked });
       if (r && r.name) looks.set(r.name, lp.get().avatar);
       go.disabled = false;
       if (!r || !r.id) { status.textContent = t('startFailed'); status.className = 'status bad'; return; }

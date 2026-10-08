@@ -1186,6 +1186,8 @@ async function saveUpload(req, url) {
   const target = (await readRegistry()).find((x) => x.name === name) || agents?.sessions().find((x) => x.name === name)
     // the assistant is not among the agents shown; its files go in a folder of its own until it has a session id
     || (name === 'monitor-assistant' && agents?.assistantState() ? { sessionId: agents.assistantState().sessionId || 'assistant' } : null)
+    // the new-agent dialog's first message: the agent is not there yet
+    || (name === 'new-agent' ? { sessionId: 'newagent' } : null)
   if (!target) return [404, {}]
   const chunks = []
   let size = 0
