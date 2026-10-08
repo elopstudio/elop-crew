@@ -104,6 +104,11 @@ const readOnly = (a) => READ_TOOLS.test(a.tool) || (/^(Bash|PowerShell)$/.test(a
 
 const WAIT_TELL_MS = 2 * 60 * 1000   // a question or plan left this long is passed on (they are the person's)
 const WORKED_MS = 60 * 1000          // a turn this long, ended, is passed on as finished
+// Each event it is told is a turn, and a turn after a few minutes' rest reads its whole conversation into a cold cache
+// again. Requests, questions, failures, stuck agents and the login are told at once; a finished turn or a usage level
+// waits until something urgent goes anyway, its cache is still warm (its last turn ended under 4 min ago), or 20 min.
+const URGENT = new Set(['asks', 'waiting', 'failed', 'stuck', 'login'])
+const WARM_MS = 4 * 60 * 1000, ROUTINE_WAIT_MS = 20 * 60 * 1000
 const TICK_MS = 15 * 1000
 
 export function createAssistant({ agents, dataDir, state, decide, sendTo, requestSession, personOnly, notifyPages, lang, login, conversation, options, saveOptions, terminals, mask, askPerson }) {
@@ -366,7 +371,7 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
     try { data = await state() } catch { return }
     const now = Date.now(), o = opts()
     // each kind of event only if the person has it on
-    const tell = (kind, text) => { if (o[kind]) queue.push(text) }
+    const tell = (kind, text) => { if (o[kind]) { queue.push({ text, urgent: URGENT.has(kind), at: now }); if (queue.length > 50) queue.shift() } }
     // the login: gone, back (the same account or another), or switched
     try {
       const l = await login()
@@ -437,8 +442,9 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
     }
     // one message for all of it, when the assistant is free (and not for want of a login it cannot work without)
     const st = agents.assistantState()
-    if (queue.length && st && st.state !== 'working' && loginNow?.loggedIn !== false && !st.limitHit) {
-      const text = '[Monitor events]\n' + queue.slice(-25).map((q) => '- ' + q).join('\n')
+    const due = queue.some((q) => q.urgent) || (st && now - (st.turnEndedAt || 0) < WARM_MS) || queue.some((q) => now - q.at >= ROUTINE_WAIT_MS)
+    if (queue.length && due && st && st.state !== 'working' && loginNow?.loggedIn !== false && !st.limitHit) {
+      const text = '[Monitor events]\n' + queue.slice(-25).map((q) => '- ' + q.text).join('\n')
       queue = []
       agents.sendText('assistant', text)
     }

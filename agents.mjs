@@ -60,7 +60,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // One that was in the middle of a turn when the monitor went away (quit, crash, an update) carries on by itself, and
   // one whose turn had ended just before is asked whether that turn was waiting for this restart (an install it started).
   const FILE = path.join(dataDir || root, '.runtime', 'agents.json')
-  const KEEP = ['id', 'kind', 'cwd', 'key', 'name', 'nick', 'desc', 'avatar', 'mode', 'model', 'effort', 'fast', 'sessionId', 'newSessionId', 'startedAt', 'midTurn', 'turnEndedAt', 'compact', 'loginLost', 'limitHit', 'forkFrom', 'forkedFrom']
+  const KEEP = ['id', 'kind', 'cwd', 'key', 'name', 'nick', 'desc', 'avatar', 'mode', 'model', 'effort', 'fast', 'sessionId', 'newSessionId', 'startedAt', 'midTurn', 'turnEndedAt', 'compact', 'loginLost', 'limitHit', 'forkFrom', 'forkedFrom', 'ctxTokens']
   const CARRY_ON = 'The agent monitor restarted (an update or a restart of the app) and cut your last turn short. Please carry on where you left off, and keep replying in the language you have been using with the user.'
   const JUST_AFTER = 'The agent monitor restarted (an update or a restart of the app) right after your last turn ended. If that turn started something this restart was part of — installing or updating the app, a restart you asked for — check now that it worked and tell the user what you found. If it had nothing to do with it, just say so in one line.'
   const JUST_AFTER_MS = 2 * 60 * 1000   // how soon after a turn ends a restart counts as "right after"
@@ -168,7 +168,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       // the assistant waits for its role (ensureAssistant, a moment later): started without it, it would not know
       // what it is, and its own tools would ask the person
       if (a.kind === 'assistant' && !a.system) { a.resumeWith = why; continue }
-      send(a, why, [])
+      resume(a, why)
     }
     notifyPages()
   }
@@ -333,6 +333,10 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
         if (blk) emit(a, { kind: 'block', msg: a.msg.id, index: e.index, type: blk.type, text: mask(clip2(blk.text, 20000)), done: true })
       }
       return
+    }
+    if (o.type === 'assistant' && !o.parent_tool_use_id && o.message?.usage && o.message.model !== '<synthetic>') {
+      const u = o.message.usage, n = (Number(u.input_tokens) || 0) + (Number(u.cache_read_input_tokens) || 0) + (Number(u.cache_creation_input_tokens) || 0)
+      if (n) a.ctxTokens = n
     }
     if (o.type === 'assistant' && o.error === 'authentication_failed') a.loginFailed = true
     if (o.type === 'assistant' && o.error === 'rate_limit') a.limitFailed = true
@@ -546,6 +550,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   }
 
   function send(a, text, files) {
+    resumeQ.delete(a.id)   // waiting in line to carry on: anything sent now does that
     // a message sent by hand to an agent waiting for the login: it goes now, in a new process with the login there is
     if (a.loginLost) { a.loginLost = 0; save() }
     // and one stopped at the usage limit: a turn that fails again marks it again, with the new time
@@ -579,6 +584,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     const now = Date.now()
     a.limitHit = { at: now, until: resetOf(why, now) || 0, who: loginNow().who }
     a.limitTries = (a.limitTries || 0) + 1
+    limitSince = now; lastLimit = a.limitHit
     save()
     const at = a.limitHit.until ? new Date(a.limitHit.until).toTimeString().slice(0, 5) : ''
     emit(a, { kind: 'note', text: 'usage limit reached — this agent carries on by itself ' + (at ? 'after it resets at ' + at : 'once it has reset (tried again in a while)') })
@@ -609,23 +615,51 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     let seen = null   // the login, read once and only if needed
     for (const a of agents.values()) {
       const l = a.limitHit
-      if (!l || a.loginLost || a.state === 'working') continue
+      if (!l || a.loginLost || a.state === 'working' || resumeQ.has(a.id)) continue
       const due = l.until ? l.until + LIMIT_GRACE_MS : l.at + LIMIT_RETRY_MS * Math.min(4, a.limitTries || 1)
-      if (now >= due) { send(a, LIMIT_BACK, []); continue }
+      if (now >= due) { resume(a, LIMIT_BACK); continue }
       seen = seen || loginNow()
-      if (seen.ok && seen.who && l.who && seen.who !== l.who && now - l.at > 5000) send(a, LIMIT_ACCOUNT, [])
+      if (seen.ok && seen.who && l.who && seen.who !== l.who && now - l.at > 5000) resume(a, LIMIT_ACCOUNT)
     }
     const waiting = [...agents.values()].filter((a) => a.loginLost)
     if (!waiting.length) return
     const login = loginNow()
     if (!login.ok) return
     for (const a of waiting) {
-      if (a.proc || now - a.loginLost < 20000) continue
+      if (a.proc || now - a.loginLost < 20000 || resumeQ.has(a.id)) continue
       if (!(login.at > a.loginLost || !a.loginTriedAt) || now - (a.loginTriedAt || 0) < 60000) continue
       a.loginTriedAt = now
-      send(a, LOGGED_BACK, [])
+      resume(a, LOGGED_BACK)
     }
   }, 15000).unref?.()
+
+  // Carrying on after a usage limit reset, a restart or a login comes back: one agent at a time, 40 s apart, the
+  // smallest conversation first (the assistant last). Each one, rested past the cache's few minutes, reads its whole
+  // conversation in again; all at once, six of them wrote 3M tokens within a minute. In line, the limit reached again
+  // stops the rest: they wait for that reset instead of each failing on it.
+  const RESUME_GAP_MS = 40 * 1000
+  const resumeQ = new Map()   // agent id → { text, at }
+  let resumedAt = 0, limitSince = 0, lastLimit = null
+  function resume(a, text) {
+    if (resumeQ.has(a.id)) return
+    resumeQ.set(a.id, { text, at: Date.now() })
+    if (resumeQ.size > 1 || Date.now() - resumedAt < RESUME_GAP_MS) emit(a, { kind: 'note', text: 'carries on in a moment — the agents waiting to are let go one at a time, so their conversations are not all read in again at once' })
+    // a moment later: the others found in the same look join the line first, and the smallest goes first
+    setTimeout(resumeNext, 1000)
+  }
+  function resumeNext() {
+    if (shuttingDown || !resumeQ.size || Date.now() - resumedAt < RESUME_GAP_MS) return
+    const line = [...resumeQ].map(([id, q]) => ({ id, q, a: agents.get(id) }))
+      .sort((x, y) => (x.a?.kind === 'assistant') - (y.a?.kind === 'assistant') || (x.a?.ctxTokens || 0) - (y.a?.ctxTokens || 0))
+    for (const { id, q, a } of line) {
+      resumeQ.delete(id)
+      if (!a || a.state === 'working') continue
+      if (q.text !== LOGGED_BACK && lastLimit && limitSince > q.at) { a.limitHit = { ...lastLimit }; save(); notifyPages(); continue }
+      resumedAt = Date.now()
+      if (send(a, q.text, [])) break
+    }
+  }
+  setInterval(resumeNext, 5000).unref?.()
 
   function stop(a, quiet) {
     if (!a.proc) return
@@ -884,7 +918,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       if (a.state === 'working') a.restartAfterTurn = true; else { a.respawn = true; stop(a) }
     }
   }
-  const assistantState = () => { const a = agents.get('assistant'); return a ? { state: a.state, running: !!a.proc, mode: a.mode, model: a.model, effort: a.effort || '', compact: a.compact || '', sessionId: a.sessionId, avatar: a.avatar || null, limitHit: a.limitHit || null } : null }
+  const assistantState = () => { const a = agents.get('assistant'); return a ? { state: a.state, turnEndedAt: a.turnEndedAt || 0, running: !!a.proc, mode: a.mode, model: a.model, effort: a.effort || '', compact: a.compact || '', sessionId: a.sessionId, avatar: a.avatar || null, limitHit: a.limitHit || null } : null }
   // a line in the assistant's chat that is not a message: an alert, or something it did on its own
   const noteTo = (id, ev) => { const a = agents.get(id); if (a) emit(a, ev) }
 

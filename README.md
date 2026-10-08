@@ -396,6 +396,10 @@ account) is stopped, since a claude that keeps running keeps the login it starte
 will carry on by itself. Once Claude Code is logged in again, it is started afresh and told to pick up where it left
 off. It is tried once with the login there is, in case it failed on an old one, and after that only when the login
 changes, so a login that still does not work is not tried over and over. A message sent to it by hand goes at once. An agent whose turn fails at the usage limit ("You've hit your session limit · resets 4:50pm") is asked to carry on just after the time that message gives (without one: after half an hour, then longer each time) — or at once when Claude Code is logged in as another account meanwhile (limits are each account's; the same account logged in again keeps its limit, so it is not woken for that); one that ended on the limit before a restart is picked up from its conversation, at once if the reset has passed. The assistant, held by the same limit, cannot say so itself, so the monitor puts the reset time and the agents waiting for it in its chat.
+Agents carrying on by themselves — after a limit reset, a restart or a login — go one at a time, 40 seconds apart, the
+smallest conversation first and the assistant last: each, rested past the cache's few minutes, reads its whole
+conversation in again. One that hits the limit again stops the line; the rest wait for that reset instead of each
+failing on it. A message sent by hand to one waiting in line goes at once.
 **End agent** also removes it from that list.
 
 `claude` takes a while to start, so the monitor starts it as soon as an agent is created, and when the dialog of a
@@ -444,7 +448,9 @@ server such as Nuxt or Vite takes `PORT` over its own setting).
 - **Speaking up.** The monitor tells it, at most every 15 seconds and only while it is free, about: each permission
   request; a question or plan waiting more than 2 minutes; an agent that finished a turn of a minute or more, failed
   one, or looks stuck; Claude Code logged out, back, or as another account, and the monitor agents waiting for it; the
-  plan passing 80 % and 95 %. It reads the conversation where it matters, handles what it safely can, suggests the next
+  plan passing 80 % and 95 %. Each time is a turn, and one after a few minutes' rest reads its whole conversation in
+  again, so a finished turn or a usage level waits until something urgent goes anyway, its last turn ended under 4 minutes
+  ago, or 20 minutes have passed. It reads the conversation where it matters, handles what it safely can, suggests the next
   step, and alerts you only when you are needed: a highlighted line, a badge on the button and a desktop notification
   with its face on it.
 - **The login.** While Claude Code is logged out the assistant cannot work either, so the monitor itself puts the alert
