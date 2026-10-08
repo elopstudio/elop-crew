@@ -120,7 +120,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   order (or **Ctrl + Shift + ← / →** on a focused chip); the numbers follow, and the order is kept in the browser. The
   bar lists session names only; unsent messages stay in the page and are never saved.
 - **Drafts.** A message started to an agent stays in its box when the dialog closes or shows another agent, on the bar
-  or not: open that agent again and it is there, the cursor at its end. Sending it (or emptying the box) ends the draft.
+  or not: open that agent again and it is there, the cursor at its end, with the files attached to it. Sending it (or
+  emptying the box) ends the draft.
   Kept in the page only — a reload loses it.
 - **Message box.** Like the AI chat apps: it starts one line high and grows with the text (up to about eight lines, then
   it scrolls). **Enter** sends, **Shift + Enter** starts a new line (Ctrl + Enter sends too). Inside the box sit the

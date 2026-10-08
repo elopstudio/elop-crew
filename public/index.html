@@ -2720,8 +2720,10 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const status = el('div', 'status');
     const send = roundButton('up', t('send'), 'csend empty');
     send.type = 'submit';
-    // attachments: picked, dropped or pasted files are uploaded at once; the message carries their paths
-    const files = [];   // { name, size, path | null (uploading), el }
+    // attachments: picked, dropped or pasted files are uploaded at once; the message carries their paths. Kept with the
+    // draft, so a dialog closed and opened again (or showing another agent meanwhile) still has them
+    if (!draftFiles.has(s.name)) draftFiles.set(s.name, []);
+    const files = draftFiles.get(s.name);   // { name, size, file, path | null (uploading), el }
     const chips = el('div', 'chips');
     const picker = document.createElement('input');
     picker.type = 'file'; picker.multiple = true; picker.hidden = true;
@@ -2732,14 +2734,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       for (const file of list) {
         if (files.length >= 5) { status.textContent = t('tooMany'); status.className = 'status bad'; break; }
         if (file.size > 20 * 1048576) { status.textContent = t('tooBig', { x: file.name }); status.className = 'status bad'; continue; }
-        const item = { name: file.name || 'pasted.png', size: file.size, path: null, el: el('span', 'chip up') };
-        const x = el('button', 'x', '×'); x.type = 'button'; x.setAttribute('aria-label', t('remove'));
-        x.addEventListener('click', () => { files.splice(files.indexOf(item), 1); item.el.remove(); ready(); });
-        const nm = el('button', 'cname', item.name + ' · ' + kb(item.size));
-        nm.type = 'button'; nm.title = t('pvShow');
-        nm.addEventListener('click', () => openPreview({ name: item.name, blob: file }));
-        item.el.append(nm, x);
-        files.push(item); chips.append(item.el); ready();
+        const item = { name: file.name || 'pasted.png', size: file.size, file, path: null, el: null };
+        files.push(item); mount(item); ready();
         const put = () => fetch('/api/upload?session=' + encodeURIComponent(str(s.name)) + '&name=' + encodeURIComponent(item.name), { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-monitor-token': token }, body: file });
         try {
           let r = await put();
@@ -2749,11 +2745,23 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
           item.el.classList.remove('up');
         } catch (e) {
           item.el.classList.add('bad');
-          files.splice(files.indexOf(item), 1);
+          const i = files.indexOf(item); if (i >= 0) files.splice(i, 1);
           status.textContent = t('uploadFailed', { x: item.name }); status.className = 'status bad';
         }
       }
     }
+    // a file's chip: its name opens a preview, × takes it off
+    function mount(item) {
+      item.el = el('span', 'chip' + (item.path ? '' : ' up'));
+      const x = el('button', 'x', '×'); x.type = 'button'; x.setAttribute('aria-label', t('remove'));
+      x.addEventListener('click', () => { const i = files.indexOf(item); if (i >= 0) files.splice(i, 1); item.el.remove(); ready(); });
+      const nm = el('button', 'cname', item.name + ' · ' + kb(item.size));
+      nm.type = 'button'; nm.title = t('pvShow');
+      nm.addEventListener('click', () => openPreview({ name: item.name, blob: item.file }));
+      item.el.append(nm, x);
+      chips.append(item.el);
+    }
+    for (const item of files) mount(item);
     picker.addEventListener('change', () => { addFiles([...picker.files]); picker.value = ''; });
     form.addEventListener('dragover', (e) => { e.preventDefault(); form.classList.add('drop'); });
     form.addEventListener('dragleave', () => form.classList.remove('drop'));
@@ -2762,6 +2770,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     // the send button is faint while there is nothing to send
     const ready = () => send.classList.toggle('empty', !ta.value.trim() && !files.length);
     ta.addEventListener('input', ready);
+    ready();
     const meter = ctxMeter(s);
     meter.set(s);
     meterNow = { name: s.name, set: (x) => { meter.set(x); ctxWarn(x); } };
@@ -2915,6 +2924,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   const docked = [];   // { name, s, tab, draft, at } — the draft stays in memory only
   // the unsent message to each agent, by session: in memory only (never stored), so it lasts until the page reloads
   const drafts = new Map();
+  const draftFiles = new Map();   // and the files attached to it (uploaded already; the uploads folder keeps them a day)
   let current = null;   // the agent dialog on screen: { name, tab(), draft() }
   try { for (const name of JSON.parse(localStorage.getItem('am.dock') || '[]')) if (typeof name === 'string') docked.push({ name, s: null, at: 0 }); } catch (e) {}
   const saveDock = () => { try { localStorage.setItem('am.dock', JSON.stringify(docked.map((k) => k.name))); } catch (e) {} };
