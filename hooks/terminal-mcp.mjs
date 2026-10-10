@@ -3,7 +3,8 @@
 //   claude -p … --mcp-config {terminal: this file} --allowedTools mcp__terminal
 // An agent opens a tab there for what runs long and the person wants to see (a dev server, a worker), reads what a
 // tab shows, and types into one. Each call goes to the monitor on 127.0.0.1 (/hook/terminal), which asks the person
-// on the page before anything is opened or typed; reading never asks.
+// on the page before anything is opened or typed; reading never asks. It also gives the monitor's shared browser
+// (shared_browser), started when it is not running, so pages are looked at where the person watches.
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
@@ -52,6 +53,11 @@ const TOOLS = [
     name: 'terminal_type',
     description: 'Type into one terminal: a command (Enter pressed after it unless enter is false), or Ctrl+C to stop what runs there. The person is asked on the page every time and it is typed only if they allow it; the answer then shows what the terminal printed. Give the reason. Never secrets.',
     inputSchema: { type: 'object', properties: { terminal: { type: 'number' }, text: { type: 'string' }, enter: { type: 'boolean' }, ctrl_c: { type: 'boolean', description: 'Send Ctrl+C instead of text' }, reason: { type: 'string' } }, required: ['terminal', 'reason'] },
+  },
+  {
+    name: 'shared_browser',
+    description: 'The monitor\'s shared browser (headless Chrome), which the person watches live in its browser panel and can click and type in: starts it if it is not running, and gives its DevTools address and how to connect (Playwright connectOverCDP, Puppeteer connect). Call it before you look at pages — checking a UI, screenshots, testing — and use that browser instead of launching one of your own. In the desktop app and the web page alike.',
+    inputSchema: { type: 'object', properties: {} },
   },
 ]
 

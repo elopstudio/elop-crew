@@ -6,6 +6,9 @@
 // only a pipe (Playwright's default) cannot be reached from outside; for those the monitor can run a shared browser
 // of its own, which the agents are told to connect to instead of launching one. Only ports of browsers the agents
 // started, and the shared one, are ever contacted, and only on 127.0.0.1. Nothing seen is kept.
+//
+// The person can also drive the page they watch, as in a browser of their own: type an address, go back and forward,
+// open and close tabs, and click, scroll and type on the picture (each sent to the page as DevTools input events).
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -15,11 +18,19 @@ const WIN = process.platform === 'win32'
 const SHARED_PORTS = [9333, 9334, 9335, 9336, 9337]
 
 // a page's DevTools answers, from 127.0.0.1 only
-async function getJson(port, what, ms = 1500) {
+async function getJson(port, what, ms = 1500, method = 'GET') {
   const c = new AbortController()
   const timer = setTimeout(() => c.abort(), ms)
-  try { const r = await fetch('http://127.0.0.1:' + port + '/json/' + what, { signal: c.signal }); return r.ok ? await r.json() : null } catch { return null } finally { clearTimeout(timer) }
+  try { const r = await fetch('http://127.0.0.1:' + port + '/json/' + what, { method, signal: c.signal }); return r.ok ? await r.json() : null } catch { return null } finally { clearTimeout(timer) }
 }
+const LOCAL_WS = /^ws:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//
+// an address the panel may send a page to: the web, or a blank page
+function webUrl(u) {
+  const s = String(u || '').trim().slice(0, 4000)
+  if (s === 'about:blank') return s
+  try { const x = new URL(s); return x.protocol === 'http:' || x.protocol === 'https:' ? x.href : '' } catch { return '' }
+}
+const num = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)))
 
 // where Chrome or Edge is on this PC, for the shared browser
 function browserExe() {
@@ -80,7 +91,7 @@ export function createBrowsers({ processes, roots, mask, clip, dataDir }) {
     if (!allowed.has(port)) await list()
     if (!allowed.has(port)) { res.writeHead(404).end(); return }
     const target = ((await getJson(port, 'list')) || []).find((t) => String(t.id) === String(id) && t.type === 'page')
-    if (!target?.webSocketDebuggerUrl || !/^ws:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(target.webSocketDebuggerUrl)) { res.writeHead(404).end(); return }
+    if (!target?.webSocketDebuggerUrl || !LOCAL_WS.test(target.webSocketDebuggerUrl)) { res.writeHead(404).end(); return }
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
     const send = (event, data) => { try { res.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n') } catch {} }
     let ws, seq = 0, closed = false
@@ -122,6 +133,112 @@ export function createBrowsers({ processes, roots, mask, clip, dataDir }) {
     ws.onerror = () => {}
   }
 
+  /* ── The person driving a page from the panel: its address, back and forward, tabs, and their mouse and keys ── */
+
+  // one DevTools connection per page driven, kept while the person goes on (a click is several events) and let go after a minute
+  const conns = new Map()   // 'port:id' → { ask(method, params) → result, touch() }
+  async function pageConn(port, id) {
+    const key = port + ':' + id
+    const had = conns.get(key)
+    if (had) { had.touch(); return had }
+    const target = ((await getJson(port, 'list')) || []).find((t) => String(t.id) === String(id) && t.type === 'page')
+    if (!target?.webSocketDebuggerUrl || !LOCAL_WS.test(target.webSocketDebuggerUrl)) return null
+    let ws
+    try {
+      ws = new WebSocket(target.webSocketDebuggerUrl)
+      await new Promise((ok, bad) => { ws.onopen = ok; ws.onerror = bad; setTimeout(bad, 3000) })
+    } catch { try { ws?.close() } catch {} return null }
+    let seq = 0, timer = 0
+    const waiting = new Map()
+    const drop = () => {
+      clearTimeout(timer)
+      if (conns.get(key) === c) conns.delete(key)
+      for (const w of waiting.values()) w.bad(new Error('gone'))
+      waiting.clear()
+      try { ws.close() } catch {}
+    }
+    ws.onmessage = (ev) => {
+      let m
+      try { m = JSON.parse(String(ev.data)) } catch { return }
+      const w = m.id && waiting.get(m.id)
+      if (!w) return
+      waiting.delete(m.id)
+      if (m.error) w.bad(new Error(m.error.message)); else w.ok(m.result || {})
+    }
+    ws.onclose = drop
+    ws.onerror = () => {}
+    const c = {
+      ask: (method, params = {}) => new Promise((ok, bad) => {
+        const i = ++seq
+        waiting.set(i, { ok, bad })
+        setTimeout(() => { if (waiting.delete(i)) bad(new Error('timeout')) }, 5000)
+        try { ws.send(JSON.stringify({ id: i, method, params })) } catch (e) { waiting.delete(i); bad(e) }
+      }),
+      touch() { clearTimeout(timer); timer = setTimeout(drop, 60 * 1000) },
+    }
+    c.touch()
+    conns.set(key, c)
+    return c
+  }
+
+  const BUTTONS = new Set(['none', 'left', 'middle', 'right'])
+  const MOUSE = new Set(['mousePressed', 'mouseReleased', 'mouseMoved', 'mouseWheel'])
+  const KEYS = new Set(['keyDown', 'rawKeyDown', 'keyUp'])
+  // → [status, answer]; a: { act, … } — go (url), back, forward, reload, new (url: a tab of its own), close, mouse, key,
+  // text (typed at once: an IME's result, a paste), compose (an IME's text while it is being composed)
+  async function act(port, id, a = {}) {
+    port = Number(port)
+    if (!allowed.has(port)) await list()
+    if (!allowed.has(port)) return [404, {}]
+    const what = String(a.act || '')
+    if (what === 'new') {
+      const t = await getJson(port, 'new?' + encodeURIComponent(webUrl(a.url) || 'about:blank'), 3000, 'PUT')
+      return t?.id ? [200, { id: String(t.id) }] : [500, {}]
+    }
+    if (what === 'close') {
+      if (!((await getJson(port, 'list')) || []).some((t) => String(t.id) === String(id) && t.type === 'page')) return [404, {}]
+      await getJson(port, 'close/' + encodeURIComponent(id))
+      return [200, {}]
+    }
+    const c = await pageConn(port, String(id))
+    if (!c) return [404, {}]
+    try {
+      if (what === 'go') {
+        const url = webUrl(a.url)
+        if (!url) return [400, {}]
+        await c.ask('Page.navigate', { url })
+      } else if (what === 'back' || what === 'forward') {
+        const h = await c.ask('Page.getNavigationHistory')
+        const e = h.entries?.[h.currentIndex + (what === 'back' ? -1 : 1)]
+        if (e) await c.ask('Page.navigateToHistoryEntry', { entryId: e.id })
+      } else if (what === 'reload') {
+        await c.ask('Page.reload')
+      } else if (what === 'mouse') {
+        if (!MOUSE.has(a.type)) return [400, {}]
+        await c.ask('Input.dispatchMouseEvent', {
+          type: a.type, x: num(a.x, 0, 20000), y: num(a.y, 0, 20000), modifiers: num(a.modifiers, 0, 15),
+          button: BUTTONS.has(a.button) ? a.button : 'none', buttons: num(a.buttons, 0, 31), clickCount: num(a.clickCount, 0, 3),
+          ...(a.type === 'mouseWheel' ? { deltaX: num(a.deltaX, -10000, 10000), deltaY: num(a.deltaY, -10000, 10000) } : {}),
+        })
+      } else if (what === 'key') {
+        if (!KEYS.has(a.type)) return [400, {}]
+        const text = a.type === 'keyDown' ? String(a.text || '').slice(0, 4) : ''
+        const code = num(a.keyCode, 0, 255)
+        await c.ask('Input.dispatchKeyEvent', {
+          type: a.type, key: String(a.key || '').slice(0, 40), code: String(a.code || '').slice(0, 40), modifiers: num(a.modifiers, 0, 15),
+          windowsVirtualKeyCode: code, nativeVirtualKeyCode: code, autoRepeat: !!a.repeat, location: num(a.location, 0, 3),
+          ...(text ? { text, unmodifiedText: text } : {}),
+        })
+      } else if (what === 'text') {
+        await c.ask('Input.insertText', { text: String(a.text || '').slice(0, 20000) })
+      } else if (what === 'compose') {
+        const text = String(a.text || '').slice(0, 200)
+        await c.ask('Input.imeSetComposition', { text, selectionStart: text.length, selectionEnd: text.length })
+      } else return [400, {}]
+      return [200, {}]
+    } catch { return [500, {}] }
+  }
+
   /* ── The shared browser ── */
 
   const sharedAlive = () => !!shared && shared.proc.exitCode === null && !shared.proc.killed
@@ -155,5 +272,5 @@ export function createBrowsers({ processes, roots, mask, clip, dataDir }) {
   const sharedPort = () => (sharedAlive() ? shared.port : 0)
   process.on('exit', stopShared)
 
-  return { list, stream, startShared, stopShared, sharedPort }
+  return { list, stream, act, startShared, stopShared, sharedPort }
 }

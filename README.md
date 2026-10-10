@@ -73,8 +73,12 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   cannot be reached from outside, so the panel offers a **Shared browser**: a headless Chrome or Edge of the monitor's
   own, and while it runs every agent is told once, with its next message, to open its pages there (Playwright's
   `connectOverCDP`, Puppeteer's `connect`) instead of in a browser of its own. When an agent has only such a browser, the
-  panel says there is no page to watch and points to the button. Only browsers the agents started and the shared one are contacted, on
-  127.0.0.1 only; page titles and addresses come masked, and the picture is never stored or relayed to the phone.
+  panel says there is no page to watch and points to the button. The page picked can be driven as in a browser of your
+  own: **← → ⟳**, an address box (an address, a host such as `localhost:3000`, or words to search), **+** for a new tab
+  in the shared browser and **×** to close the tab; click, drag, scroll and type on the picture (Korean and other IMEs
+  compose here and the result is sent; Ctrl+V pastes from this PC). Only browsers the agents started and the shared one are contacted, on
+  127.0.0.1 only; page titles and addresses come masked, and the picture is never stored or relayed to the phone, nor
+  is driving a page.
 - **Processes.** **Processes** in the header, with a count, opens what the agents have running: each agent
   itself (the claude process) and every shell, dev server, MCP server and background task it started, grouped by agent
   and heaviest first (CPU or memory), with how long each has been running. An agent's totals and its share of the chart
@@ -441,6 +445,11 @@ side by side or one under another (up to four), or as a pane beside a terminal a
 it, instead of a separate window or a background job of its own. Opening a tab and typing into one ask you on the
 agent's card every time; reading never does. Neither the tabs nor the agents get the monitor's own `PORT` (a dev
 server such as Nuxt or Vite takes `PORT` over its own setting).
+
+The same server gives them **shared_browser**: it starts the shared browser if it is not running and tells them how to
+connect, so the pages they look at open where you watch them. Both are in their system prompt too, as the language is,
+because Claude Code shows an MCP server's tools by name only until they are looked up: given only the tools, agents
+started their dev servers as background jobs and launched browsers of their own.
 
 - **Answering for you.** A permission request reaches it at once — a VS Code session's goes back to VS Code after a
   minute, and it used to hear of one only after two. It allows, without asking, work inside the agent's own project

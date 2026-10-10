@@ -816,11 +816,33 @@ function browserContext(sessionId) {
   const port = browsers.sharedPort()
   if (!port || toldBrowser.get(sessionId) === port) return ''
   toldBrowser.set(sessionId, port)
+  return 'Agent monitor: ' + sharedBrowserHow(port)
+}
+const sharedBrowserHow = (port) => {
   const at = 'http://127.0.0.1:' + port
-  return 'Agent monitor: a shared browser runs at ' + at + ' (headless Chrome, DevTools protocol), and the user watches it live in the monitor\'s browser panel. ' +
+  return 'a shared browser runs at ' + at + ' (headless Chrome, DevTools protocol), and the user watches it live in the monitor\'s browser panel, where they can click and type in it too. ' +
     'When you look at pages (checking a UI, screenshots, testing in a browser), connect to it instead of launching a browser of your own — Playwright: ' +
     'chromium.connectOverCDP(\'' + at + '\') then browser.newContext() and newPage(); Puppeteer: puppeteer.connect({ browserURL: \'' + at + '\' }). ' +
     'Close the pages and contexts you opened when you are done, but never the browser itself; it is shared with the other agents.'
+}
+// What a monitor agent is told of the monitor's panels, in its system prompt (every step sees it, a compaction keeps it).
+// Being given the tools was not enough: Claude Code shows an MCP server's tools by name only until they are looked up,
+// so an agent started its dev server as a background job and launched a browser of its own, out of the person's sight.
+const panelsRule = () => 'Agent monitor: you run inside the agent monitor (ELOP Crew), where the user watches your work. Two of its panels are there for you. ' +
+  '(1) The terminal panel (in the desktop app): start what runs long and the user may want to watch or use — a dev server, a watcher, a worker, an app they asked you to run — ' +
+  'with mcp__terminal__terminal_open rather than a background Bash job, and read what it printed with mcp__terminal__terminal_output. ' +
+  '(2) The shared browser: when you look at pages (checking a UI, screenshots, testing in a browser), call mcp__terminal__shared_browser — it starts the browser if it is not running ' +
+  'and tells you its address — and connect to it rather than launching a browser of your own; the user watches it live and can click and type in it. ' +
+  'If only these tools\' names are shown to you, load them with ToolSearch first.'
+// the shared_browser tool (hooks/terminal-mcp.mjs), for a monitor agent: started when it is not running, then how to reach it
+async function sharedBrowserTool(body) {
+  const a = agents.agentOf(String(body.agent || ''))
+  if (!a) return 'Only the monitor\'s agents have this tool.'
+  const r = await browsers.startShared()
+  if (!r) return 'The shared browser could not be started: no Chrome or Edge was found on this PC (or its ports 9333–9337 are taken). Use a browser of your own.'
+  notifyPages()
+  if (a.sessionId) toldBrowser.set(a.sessionId, r.port)
+  return 'The ' + sharedBrowserHow(r.port)
 }
 // what a prompt gets added to it: the language, the shared browser, and for a leader its team
 async function promptContext(sessionId) {
@@ -1833,6 +1855,8 @@ const agents = createAgents({
   onTurnEnd: (sessionId) => boardTurnEnded(sessionId),
   // the person's language, for a monitor agent's system prompt and the monitor's own messages to it
   langRule, replyIn,
+  // the terminal panel and the shared browser, for a monitor agent's system prompt
+  panelsRule,
   modDirs: () => modsFound().filter((m) => m.on).map((m) => m.dir),
   compactDefault: () => compactConf.window,
 })
@@ -1953,7 +1977,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req)
       if (url.pathname === '/hook/prompt') { json(200, await agents.prompt(body)); return }
       if (url.pathname === '/hook/assistant') { json(200, { text: await assistant.tool(body) }); return }
-      if (url.pathname === '/hook/terminal') { json(200, { text: await assistant.agentTool(body) }); return }
+      if (url.pathname === '/hook/terminal') { json(200, { text: body.tool === 'shared_browser' ? await sharedBrowserTool(body) : await assistant.agentTool(body) }); return }
       if (url.pathname === '/api/assistant/start') { json(200, await assistant.start()); return }
       if (url.pathname === '/api/assistant/settings') { json(await assistant.setOptions(body), {}); return }
       if (url.pathname.startsWith('/api/account/')) { const [code, o] = await account.handle(url); json(code, o); return }
@@ -1974,6 +1998,9 @@ const server = http.createServer(async (req, res) => {
         notifyPages()
         return
       }
+      // the person driving a page from the browser panel: not under /api/, so the phone app's relay never carries it,
+      // as it never carries the picture it is driven by
+      if (url.pathname === '/browser/act') { const [code, o] = await browsers.act(body.port, body.id || '', body); json(code, o); return }
       if (url.pathname === '/api/project-check') { json(await saveProjectCheck(body), {}); return }
       if (url.pathname === '/api/compact') { json(await saveCompact(body), {}); return }
       if (url.pathname === '/api/order') { json(await saveOrder(body), {}); return }

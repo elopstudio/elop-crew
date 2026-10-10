@@ -47,7 +47,7 @@ export const systemNote = (text) => SYSTEM_NOTES.find(([re]) => re.test(String(t
 export const systemNoteText = (text) => { for (const [re] of SYSTEM_NOTES) { const m = String(text || '').match(re); if (m) return (m[1] || '').replace(/\n\n\(Write to the user in [A-Za-z]+\.\)\s*$/, '').trim().slice(0, 1000) } return '' }
 const assistantLookOf = (v) => (v && v.acc === 'crown' && Number.isInteger(v.c) && v.c >= 0 && v.c < 8 ? { c: v.c, acc: 'crown' } : avatarOf(v))
 
-export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd, langRule, replyIn, modDirs, compactDefault }) {
+export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd, langRule, replyIn, panelsRule, modDirs, compactDefault }) {
   // what the agent is for, one line written by the user (shown under its name)
   const descOf = (v) => clip(String(v || '').replace(/[\x00-\x1f<>]/g, ' ').replace(/\s+/g, ' ').trim(), 80)
   // its name: one for both languages (a string) or one per language ({ en, ko }); the server reads both shapes
@@ -465,8 +465,9 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     // the terminal tools ask the person themselves (opening, typing), so Claude Code does not ask again
     else args.push('--allowedTools', 'mcp__terminal')
     if (a.kind === 'assistant' && a.system) args.push('--append-system-prompt', a.system)
-    // the person's language where every step sees it (a line in the conversation drifts out of view, or a compaction drops it)
-    else if (a.kind !== 'assistant' && langRule?.()) args.push('--append-system-prompt', langRule())
+    // the person's language, and the monitor's panels it may use, where every step sees them (a line in the conversation
+    // drifts out of view, or a compaction drops it)
+    else if (a.kind !== 'assistant') { const sys = [langRule?.(), panelsRule?.()].filter(Boolean).join('\n\n'); if (sys) args.push('--append-system-prompt', sys) }
     a.procHasRole = a.kind === 'assistant' && !!a.system
     if (a.model) args.push('--model', a.model)
     if (a.effort) args.push('--effort', a.effort)
