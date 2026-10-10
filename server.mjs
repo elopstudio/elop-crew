@@ -842,7 +842,7 @@ async function sharedBrowserTool(body) {
   if (!r) return 'The shared browser could not be started: no Chrome or Edge was found on this PC (or its ports 9333–9337 are taken). Use a browser of your own.'
   notifyPages()
   if (a.sessionId) toldBrowser.set(a.sessionId, r.port)
-  return 'The ' + sharedBrowserHow(r.port)
+  return 'A' + sharedBrowserHow(r.port).slice(1)
 }
 // what a prompt gets added to it: the language, the shared browser, and for a leader its team
 async function promptContext(sessionId) {

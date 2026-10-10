@@ -215,6 +215,9 @@ export function createBrowsers({ processes, roots, mask, clip, dataDir }) {
         await c.ask('Page.reload')
       } else if (what === 'mouse') {
         if (!MOUSE.has(a.type)) return [400, {}]
+        // a tab behind another is hidden in a headless browser: a wheel turn there never ends (and the picture stands
+        // still), so the page the person clicks or scrolls comes to the front first
+        if (a.type === 'mousePressed' || a.type === 'mouseWheel') await c.ask('Page.bringToFront').catch(() => {})
         await c.ask('Input.dispatchMouseEvent', {
           type: a.type, x: num(a.x, 0, 20000), y: num(a.y, 0, 20000), modifiers: num(a.modifiers, 0, 15),
           button: BUTTONS.has(a.button) ? a.button : 'none', buttons: num(a.buttons, 0, 31), clickCount: num(a.clickCount, 0, 3),
