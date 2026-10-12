@@ -269,10 +269,14 @@ function tail(id, n = 60) {
 function clearBuf(id) { const t = terms.get(id); if (t) { t.buf = ''; save() } }
 function rename(id, title) { const t = terms.get(id); if (t) { t.title = String(title || '').trim().slice(0, 40); save() } }
 function write(id, data) { const t = terms.get(id); if (t && !t.ended && typeof data === 'string') { try { t.p.write(data) } catch {} } }
-function resize(id, cols, rows) { const t = terms.get(id); if (t && cols > 1 && rows > 0) { try { t.p.resize(cols | 0, rows | 0) } catch {} } }
-function close(id) { const t = terms.get(id); if (t) { t.closing = true; try { t.p.kill() } catch {} } }
+function resize(id, cols, rows) { const t = terms.get(id); if (t && !t.ended && cols > 1 && rows > 0) { try { t.p.resize(cols | 0, rows | 0) } catch {} } }
+// once per shell, and not after it ended: node-pty's kill on Windows closes the pseudo console with nothing to stop a
+// second close, and a second close frees it twice — the heap is corrupted and the whole app dies (0xc0000374). A pane
+// stays until its exit comes, so a close asked again before that (×, Ctrl+Shift+W, closeAll on quit) must not kill again
+function kill(t) { if (t.killed || t.ended) return; t.killed = true; try { t.p.kill() } catch {} }
+function close(id) { const t = terms.get(id); if (t) { t.closing = true; kill(t) } }
 // the app quitting: the tabs are written down as they are, then the shells end
-function closeAll() { if (stopping) return; save(); stopping = true; for (const t of terms.values()) { try { t.p.kill() } catch {} } terms.clear() }
+function closeAll() { if (stopping) return; save(); stopping = true; for (const t of terms.values()) kill(t); terms.clear() }
 
 module.exports = {
   shells, open, list, write, resize, rename, clearBuf, close, closeAll, saved, setLayout, placeBeside, layout: groupsNow, info, tail, has: (id) => terms.has(id), count: () => terms.size,
