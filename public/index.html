@@ -3011,7 +3011,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     tabs.append(termBtn);
     termPanel(s, term, (n, running) => {
       termBtn.hidden = !n;
-      termBtn.textContent = t('tabTerm') + (n ? ' ' + n : '') + (running ? ' ⏳' : '');
+      // no count: it read as that many terminals open, when each command ends as it is done
+      termBtn.textContent = t('tabTerm') + (running ? ' ⏳' : '');
       termBtn.title = running ? t('running') : '';
       if (!n && pick === 'term') show('info');
     });

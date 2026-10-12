@@ -117,7 +117,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
 - **Terminal.** Once an agent (a monitor agent or a VS Code session) has run a command in a shell (Bash, PowerShell), its
   dialog has a **Terminal** tab: each command with when it ran and, once done, what it printed (✗ when it failed) — from
   its conversation, masked as the conversation view is (a long output shows its start). It follows as the agent works,
-  with ⏳ on the tab while one runs.
+  with ⏳ on the tab while one runs. These are commands, not terminals left open: each one ends when it is done; what
+  keeps running (a dev server, a background job) is in **Processes**.
 - **Minimise.** **_** (Minimise) at the top right of an agent's dialog, next to **✕** (Close), folds it into a bar along
   the bottom of the page — one chip per agent,
   with its robot, name and state (`!` while it waits for you). A click on a chip opens that agent again on the same tab,
