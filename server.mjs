@@ -1886,8 +1886,8 @@ const assistant = createAssistant({
     return t?.sessionId ? transcriptEvents(t.sessionId) : []
   },
 })
-// The commands each agent ran in a shell (Bash, PowerShell) and what they printed, for the desktop app's terminal panel
-// (a read-only tab per agent): read from its transcript, masked as the conversation view is, never kept
+// The commands each agent ran in a shell (Bash, PowerShell) and what they printed, for its dialog's Terminal tab:
+// read from its transcript, masked as the conversation view is, never kept
 const RUN_TOOLS = /^(Bash|PowerShell)$/
 function commandOf(input) {
   try { return String(JSON.parse(input).command || '') } catch {}
@@ -1898,38 +1898,29 @@ function commandOf(input) {
 // the state, for the desktop app in this process (its badge and notifications): no HTTP, no JSON round trip
 globalThis.agentMonitorState = () => cachedState()
 const runsCache = new Map()   // session → its runs, with the size and time of the transcript they came from
-globalThis.agentMonitorRuns = {
-  async agents() {
-    const st = await cachedState()
-    return st.projects.flatMap((p) => p.sessions.map((x) => ({
-      name: x.name, nick: x.nickKo || x.nick || x.short || x.name, nickEn: x.nick || x.short || x.name, project: p.name || p.key, state: x.state, managed: !!x.managed,
-      shellAt: x.activity?.kind === 'shell' ? x.activityAt || 0 : 0,   // its last step a shell command: when it began
-    })))
-  },
-  async runs(name) {
-    const t = (await readRegistry()).find((x) => x.name === name) || agents.sessions(Date.now()).find((x) => x.name === name)
-    if (!t?.sessionId) return null
-    // read again only once its transcript has grown: each agent tab asks every few seconds
-    const file = await findTranscript(t.sessionId)
-    let st = null
-    try { if (file) st = await fsp.stat(file) } catch {}
-    const kept = runsCache.get(t.sessionId)
-    if (st && kept && kept.file === file && kept.size === st.size && kept.mtime === st.mtimeMs) return kept.runs
-    const runs = [], byId = new Map()
-    for (const e of await transcriptEvents(t.sessionId)) {
-      if (e.kind === 'tool' && RUN_TOOLS.test(e.name)) {
-        const r = { id: e.id, at: e.at || 0, shell: e.name, command: commandOf(e.input), done: false, error: false, output: '' }
-        if (!r.command) continue
-        runs.push(r); byId.set(e.id, r)
-      } else if (e.kind === 'result' && byId.has(e.id)) {
-        const r = byId.get(e.id)
-        r.done = true; r.error = !!e.error; r.output = String(e.text || '')
-      }
+async function agentRuns(name) {
+  const t = (await readRegistry()).find((x) => x.name === name) || agents.sessions(Date.now()).find((x) => x.name === name)
+  if (!t?.sessionId) return null
+  // read again only once its transcript has grown: an open Terminal tab asks every few seconds
+  const file = await findTranscript(t.sessionId)
+  let st = null
+  try { if (file) st = await fsp.stat(file) } catch {}
+  const kept = runsCache.get(t.sessionId)
+  if (st && kept && kept.file === file && kept.size === st.size && kept.mtime === st.mtimeMs) return kept.runs
+  const runs = [], byId = new Map()
+  for (const e of await transcriptEvents(t.sessionId)) {
+    if (e.kind === 'tool' && RUN_TOOLS.test(e.name)) {
+      const r = { id: e.id, at: e.at || 0, shell: e.name, command: commandOf(e.input), done: false, error: false, output: '' }
+      if (!r.command) continue
+      runs.push(r); byId.set(e.id, r)
+    } else if (e.kind === 'result' && byId.has(e.id)) {
+      const r = byId.get(e.id)
+      r.done = true; r.error = !!e.error; r.output = String(e.text || '')
     }
-    const out = runs.slice(-80)
-    if (st) { runsCache.delete(t.sessionId); runsCache.set(t.sessionId, { file, size: st.size, mtime: st.mtimeMs, runs: out }); if (runsCache.size > 40) runsCache.delete(runsCache.keys().next().value) }
-    return out
-  },
+  }
+  const out = runs.slice(-80)
+  if (st) { runsCache.delete(t.sessionId); runsCache.set(t.sessionId, { file, size: st.size, mtime: st.mtimeMs, runs: out }); if (runsCache.size > 40) runsCache.delete(runsCache.keys().next().value) }
+  return out
 }
 const processes = createProcesses({ mask, clip })
 // every session's process, with what the page knows of it, for the processes dialog and for ending one of its children
@@ -2048,6 +2039,12 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/browser/stream') {
       if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
       await browsers.stream(req, res, url.searchParams.get('port'), url.searchParams.get('id') || '')
+      return
+    }
+    if (url.pathname === '/api/runs') {
+      // what an agent's commands printed is private like the conversation: the token is needed, and it comes masked
+      if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
+      json(200, { runs: await agentRuns(url.searchParams.get('name') || '') })
       return
     }
     if (url.pathname === '/api/processes') {

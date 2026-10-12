@@ -29,7 +29,7 @@ const STREAMS = new Set(['/api/events', '/api/live', '/api/agent-stream'])
 // the page's reads that ask for the token in the address; what they give is masked or summarized there already
 // (a page's live picture is not under /api/, so it never goes)
 const TOKEN_IN_QUERY = new Set(['/api/dirs', '/api/account', '/api/upload-file', '/api/agent-stream', '/api/live',
-  '/api/assistant', '/api/processes', '/api/connectors', '/api/browsers'])
+  '/api/assistant', '/api/processes', '/api/connectors', '/api/browsers', '/api/runs'])
 
 const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex')
 const signedMessage = (method, pathAndQuery, time, raw) => ['cam-device-v1', method, pathAndQuery, time, sha256(raw)].join('\n')

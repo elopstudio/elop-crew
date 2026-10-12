@@ -97,8 +97,6 @@ const TEXT = {
     kNth: '그 번호의 탭 (9: 마지막)', kFont: '글자 크기 크게·작게·원래대로', kRename: '탭 이름 바꾸기', kCopy: '선택한 글 복사 (없으면 셸로 Ctrl+C)', kPaste: '붙여넣기', kClear: '출력 지우기',
     newTerm: '새 터미널 (Ctrl+Shift+T)', pick: '셸 고르기', split: '오른쪽으로 분할 (Ctrl+Shift+5)', hide: '패널 숨기기 (Ctrl+`)', close: '닫기', tabs: '터미널',
     closePane: '이 창 닫기 (Ctrl+Shift+W)', panes: (n) => n + '개로 분할됨', zoomed: '한 창만 크게 보는 중 (Ctrl+Shift+Z)',
-    agentHead: (who, p) => who + ' (' + p + ') · 에이전트가 실행한 명령 · 읽기 전용', agentTab: '명령', agentGone: '이 에이전트의 대화 기록을 찾을 수 없습니다 (끝났거나 아직 시작 전).',
-    agentNone: '아직 실행한 명령이 없습니다. 실행하면 여기에 나옵니다.', runFailed: '실패', runCut: '… 출력이 길어 앞부분만 보입니다', running: '실행 중…', agentRunning: '명령 실행 중',
     cmd: '명령 프롬프트', failed: '셸을 시작하지 못했습니다: ', rename: '더블클릭하거나 F2 를 눌러 이름 바꾸기 · 끌어서 옮기기 · 오른쪽 클릭: 고정·분할·복제·닫기', pinned: '고정됨', renamePh: '비우면 원래 이름',
   },
   en: {
@@ -108,8 +106,6 @@ const TEXT = {
     kNth: 'That tab (9: the last)', kFont: 'Text size: bigger / smaller / as it was', kRename: 'Rename the tab', kCopy: 'Copy the selection (none: Ctrl+C goes to the shell)', kPaste: 'Paste', kClear: 'Clear the output',
     newTerm: 'New terminal (Ctrl+Shift+T)', pick: 'Pick a shell', split: 'Split right (Ctrl+Shift+5)', hide: 'Hide the panel (Ctrl+`)', close: 'Close', tabs: 'Terminals',
     closePane: 'Close this pane (Ctrl+Shift+W)', panes: (n) => 'Split in ' + n, zoomed: 'One pane shown alone (Ctrl+Shift+Z)',
-    agentHead: (who, p) => who + ' (' + p + ') · commands the agent ran · read-only', agentTab: 'commands', agentGone: 'This agent\'s conversation cannot be found (ended, or not started yet).',
-    agentNone: 'No commands yet. They show here as it runs them.', runFailed: 'failed', runCut: '… a long output: only its start is shown', running: 'running…', agentRunning: 'A command is running',
     cmd: 'Command Prompt', failed: 'Could not start the shell: ', rename: 'Double-click or press F2 to rename · drag to move · right-click: pin, split, duplicate, close', pinned: 'Pinned', renamePh: 'Empty for the usual name',
   },
 }
@@ -148,13 +144,11 @@ function label(g) {
   const x = g.focus || g.panes[0], go = g.tab.querySelector('.go')
   if (!x) return
   if (x.title) go.replaceChildren(x.title)
-  else if (x.agent) go.replaceChildren(document.createTextNode('🤖 ' + x.label + ' '), Object.assign(document.createElement('small'), { textContent: t('agentTab') }))
   else go.replaceChildren(document.createTextNode((x.shell === 'cmd' ? t('cmd') : x.name) + ' '), Object.assign(document.createElement('small'), { textContent: base(x.cwd) }))
-  if (x.agent && x.running) go.append(Object.assign(document.createElement('small'), { textContent: ' ⏳', title: t('agentRunning') }))
   if (g.pinned) go.insertAdjacentHTML('afterbegin', PIN)
   if (g.panes.length > 1) { const n = document.createElement('span'); n.className = 'n'; n.innerHTML = SPLIT; n.append(String(g.panes.length) + (g.zoom ? ' ⤢' : '')); n.title = t('panes', g.panes.length) + (g.zoom ? ' · ' + t('zoomed') : ''); go.append(n) }
   g.tab.classList.toggle('pinned', !!g.pinned)
-  go.title = (g.pinned ? t('pinned') + ' · ' : '') + (x.agent ? t('agentHead', x.label, x.project) : x.cwd) + '\n' + t('rename')
+  go.title = (g.pinned ? t('pinned') + ' · ' : '') + x.cwd + '\n' + t('rename')
   g.tab.querySelector('.x').title = t('close')
   g.tab.querySelector('.x').setAttribute('aria-label', t('close'))
 }
@@ -163,8 +157,7 @@ const tabsInOrder = () => [...$('tabs').children].map((n) => groups.get(Number(n
 function sync() {
   const all = tabsInOrder()
   $('tabs').append(...all.filter((g) => g.pinned).map((g) => g.tab), ...all.filter((g) => !g.pinned).map((g) => g.tab))
-  api.layout(tabsInOrder().filter((g) => !g.agent).map((g) => ({ ids: g.panes.map((x) => x.id), dir: g.dir, sizes: g.sizes, pinned: !!g.pinned })))
-  keepAgents()
+  api.layout(tabsInOrder().map((g) => ({ ids: g.panes.map((x) => x.id), dir: g.dir, sizes: g.sizes, pinned: !!g.pinned })))
 }
 
 function newGroup(o = {}) {
@@ -196,8 +189,7 @@ function addPane(g, info, buf, after) {
   view.innerHTML = '<div class="xt"></div><button class="px" type="button">×</button>'
   const term = new Terminal({
     fontFamily: MAC ? 'Menlo, "SF Mono", monospace' : '"Cascadia Mono", Consolas, "D2Coding", monospace',
-    fontSize, lineHeight: 1.15, cursorBlink: !info.agent, scrollback: info.agent ? 1000 : 5000, theme: theme(), allowProposedApi: false,
-    ...(info.agent ? { disableStdin: true, cursorStyle: 'underline', cursorInactiveStyle: 'none' } : {}),
+    fontSize, lineHeight: 1.15, cursorBlink: true, scrollback: 5000, theme: theme(), allowProposedApi: false,
   })
   const fit = new FitAddon.FitAddon()
   term.loadAddon(fit)
@@ -210,13 +202,11 @@ function addPane(g, info, buf, after) {
   g.focus = x
   arrange(g)
   term.open(view.querySelector('.xt'))
-  if (!info.agent) {
-    term.onData((d) => api.write(info.id, d))
-    term.onResize(({ cols, rows }) => api.resize(info.id, cols, rows))
-  }
+  term.onData((d) => api.write(info.id, d))
+  term.onResize(({ cols, rows }) => api.resize(info.id, cols, rows))
   view.addEventListener('focusin', () => focusPane(x, false))
   view.addEventListener('mousedown', () => { if (g.focus !== x) setTimeout(() => focusPane(x), 0) })
-  view.querySelector('.px').addEventListener('click', () => (x.agent ? removePane(x) : api.close(x.id)))
+  view.querySelector('.px').addEventListener('click', () => api.close(x.id))
   view.querySelector('.px').title = t('closePane')
   x.ro = new ResizeObserver(() => fitNow(x)); x.ro.observe(view)
   keys(x)
@@ -284,7 +274,7 @@ function select(gid) {
 // a pane whose shell ended: its share goes to the one beside it; the last one gone, the tab goes
 function removePane(x) {
   const g = x.g, i = g.panes.indexOf(x)
-  clearTimeout(x.poll); x.ro?.disconnect()
+  x.ro?.disconnect()
   x.term.dispose(); x.view.remove(); terms.delete(x.id); early.delete(x.id)
   if (i < 0) return
   const share = g.sizes[i] || 1
@@ -320,7 +310,7 @@ function rename(g) {
   const end = (keep) => {
     if (done) return
     done = true
-    if (keep) { x.title = box.value.trim(); if (x.agent) keepAgents(); else api.rename(x.id, x.title); label(g) }
+    if (keep) { x.title = box.value.trim(); api.rename(x.id, x.title); label(g) }
     box.remove(); go.hidden = false
     if (active === g.gid) x.term.focus()
   }
@@ -333,93 +323,6 @@ function fitNow(x) {
   if (v.clientWidth > 20 && v.clientHeight > 10) { try { x.fit.fit() } catch {} }
 }
 
-/* ── an agent's commands, as a read-only tab ── */
-// Each command an agent ran in a shell (Bash, PowerShell) with what it printed, from its conversation (masked by the
-// monitor), followed every few seconds. The tabs open are kept in this panel's storage; nothing of what they show is.
-const AGENTS_KEY = 'crew.agentTabs'
-function keepAgents() {
-  try { localStorage.setItem(AGENTS_KEY, JSON.stringify(tabsInOrder().filter((g) => g.agent).map((g) => ({ name: g.agent, label: g.panes[0].label, project: g.panes[0].project, title: g.panes[0].title || '', pinned: !!g.pinned, auto: !!g.auto })))) } catch {}
-}
-// o.auto: opened by the app as the agent started a command — behind the tab in view, and closed again after a while
-// (unless pinned, renamed or in view); one the person opens is theirs to close
-function openAgent(a, o = {}) {
-  const had = [...groups.values()].find((g) => g.agent === a.name)
-  if (had) {
-    if (o.auto) { const x = had.panes[0]; x.idleSince = 0; if (had.gid !== active) pollAgent(x) }   // news: looked at now
-    else { had.auto = false; select(had.gid); keepAgents() }
-    return had
-  }
-  const g = newGroup({ pinned: o.pinned })
-  g.agent = a.name
-  g.auto = !!o.auto
-  const x = addPane(g, { id: 'agent:' + a.name, agent: a.name, label: a.label || a.name, project: a.project || '', title: o.title || '', printed: new Map() })
-  x.term.write('\x1b[2m── ' + t('agentHead', x.label, x.project) + ' ──\x1b[0m\r\n')
-  label(g)
-  if (!o.quiet && !o.auto) { select(g.gid); sync() }
-  else if (o.auto) {
-    // behind the tab in view: shown, but not picked (the first tab ever is picked, as there is nothing else)
-    g.box.hidden = active != null; g.tab.setAttribute('aria-selected', String(active == null))
-    if (active == null) select(g.gid)
-    sync()
-  }
-  pollAgent(x)
-  return g
-}
-let prefs = { autoAgents: true, autoClose: true }
-api.prefs?.().then((p) => { if (p) prefs = p }).catch(() => {})
-api.onPrefs?.((p) => { if (p) prefs = p })
-const AUTO_IDLE_MS = 30 * 60 * 1000, AUTO_GONE_MS = 60 * 1000
-// a tab the app opened: closed after half an hour without a command, or a minute after its session is gone
-function autoClose(x) {
-  const g = x.g
-  if (!prefs.autoClose || !g.auto || g.pinned || x.title || g.gid === active || x.running) return false
-  const now = Date.now()
-  if ((x.gone && x.goneSince && now - x.goneSince > AUTO_GONE_MS) || (x.lastRunAt && now - x.lastRunAt > AUTO_IDLE_MS)) { closeGroup(g); return true }
-  return false
-}
-const hhmm = (at) => { const d = new Date(at || Date.now()); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') }
-const crlf = (s) => String(s).replace(/\r?\n/g, '\r\n')
-function printRun(x, r) {
-  const st = x.printed.get(r.id)
-  if (st === 'done' || (st === 'start' && !r.done)) return
-  if (!st) {
-    const [first, ...more] = r.command.split(/\r?\n/)
-    x.term.write('\r\n\x1b[2m' + hhmm(r.at) + ' ' + r.shell + '\x1b[0m\r\n\x1b[38;5;75m$\x1b[0m \x1b[1m' + first + '\x1b[0m\r\n' + more.map((l) => '  ' + l + '\r\n').join(''))
-    if (!r.done) x.term.write('\x1b[2m  ' + t('running') + '\x1b[0m\r\n')
-  } else x.term.write('\x1b[2m↳ ' + r.command.split(/\r?\n/)[0].slice(0, 80) + '\x1b[0m\r\n')
-  if (r.done) {
-    if (r.error) x.term.write('\x1b[31m✗ ' + t('runFailed') + '\x1b[0m\r\n')
-    if (r.output) x.term.write(crlf(r.output.replace(/\s+$/, '')) + '\r\n')
-    if (r.output.length >= 2900) x.term.write('\x1b[2m' + t('runCut') + '\x1b[0m\r\n')
-  }
-  x.printed.set(r.id, r.done ? 'done' : 'start')
-}
-async function pollAgent(x) {
-  if (terms.get(x.id) !== x) return
-  // the panel hidden: looked at again once it shows
-  if (document.hidden) { clearTimeout(x.poll); x.poll = setTimeout(() => pollAgent(x), 3000); return }
-  const runs = await api.runs(x.agent).catch(() => null)
-  if (terms.get(x.id) !== x) return
-  if (!runs) {
-    if (!x.gone) { x.gone = true; x.goneSince = Date.now(); x.term.write('\x1b[2m' + t('agentGone') + '\x1b[0m\r\n') }
-    if (x.running) { x.running = false; label(x.g) }
-  }
-  else {
-    x.gone = false
-    // when it last ran something (or, with nothing yet, since the tab opened)
-    x.lastRunAt = Math.max(x.openedAt || (x.openedAt = Date.now()), ...runs.map((r) => r.at || 0))
-    if (!runs.length && !x.saidNone) { x.saidNone = true; x.term.write('\x1b[2m' + t('agentNone') + '\x1b[0m\r\n') }
-    for (const r of runs) printRun(x, r)
-    const running = runs.some((r) => !r.done)
-    if (running !== !!x.running) { x.running = running; label(x.g) }
-  }
-  if (autoClose(x)) return
-  // the tab in view every 2.5 s, the others less often (one wait at a time: drawn again in another language, it polls at once)
-  clearTimeout(x.poll)
-  x.poll = setTimeout(() => pollAgent(x), x.g.gid === active ? 2500 : 8000)
-}
-api.onAgent((a) => openAgent(a, { auto: !!a.auto }))
-
 /* ── what a tab can do ── */
 function move(g, step) {
   const all = tabsInOrder(), i = all.indexOf(g), to = all[i + step]
@@ -429,10 +332,10 @@ function move(g, step) {
   g.tab.scrollIntoView({ block: 'nearest', inline: 'nearest' })
 }
 function setPin(g, on) { g.pinned = on; label(g); sync() }
-function closeGroup(g) { for (const x of [...g.panes]) { if (x.agent) removePane(x); else api.close(x.id) } }
+function closeGroup(g) { for (const x of [...g.panes]) api.close(x.id) }
 // close many at once: the pinned ones stay
 function closeMany(list) { for (const g of list) if (!g.pinned) closeGroup(g) }
-function clearOut(x) { x.term.clear(); if (!x.agent) api.clear(x.id) }
+function clearOut(x) { x.term.clear(); api.clear(x.id) }
 // the size a shell gets before its pane fits it: the panel's own, from the font's cell, shared by the panes
 function size(across = 1, down = 1) {
   const v = $('views'), cw = 7.8, ch = 15
@@ -454,7 +357,7 @@ async function openNew(o) {
 // the pane typed in, split: a new shell beside it (right) or under it (down), same shell, in the folder it is in now
 async function split(g, dir = 'row') {
   if (g) g.zoom = null
-  if (!g || g.agent || g.panes.length >= MAX_PANES || (g.panes.length > 1 && g.dir !== dir)) return
+  if (!g || g.panes.length >= MAX_PANES || (g.panes.length > 1 && g.dir !== dir)) return
   const src = g.focus || g.panes[g.panes.length - 1]
   $('msg').textContent = ''
   try {
@@ -467,18 +370,17 @@ async function split(g, dir = 'row') {
   } catch (e) { failed(e) }
 }
 async function dup(g) {
-  if (g.agent) return
   const src = g.focus || g.panes[0]
   const x = await openNew({ shell: src.shell, cwd: src.cwd })
   if (x) { (g.pinned ? tabsInOrder().filter((y) => y.pinned).pop().tab : g.tab).after(x.g.tab); sync() }
 }
-const canSplit = (g, dir) => !g.agent && g.panes.length < MAX_PANES && (g.panes.length === 1 || g.dir === dir)
+const canSplit = (g, dir) => g.panes.length < MAX_PANES && (g.panes.length === 1 || g.dir === dir)
 // a tab's menu (right-click), and what is picked in it
 function tabMenu(g, e) {
   e.preventDefault()
   const all = tabsInOrder(), i = all.indexOf(g), same = (y) => y && !!y.pinned === !!g.pinned
   api.tabMenu(g.gid, {
-    pinned: !!g.pinned, dup: !g.agent, left: same(all[i - 1]), right: same(all[i + 1]), splitRight: canSplit(g, 'row'), splitDown: canSplit(g, 'column'),
+    pinned: !!g.pinned, left: same(all[i - 1]), right: same(all[i + 1]), splitRight: canSplit(g, 'row'), splitDown: canSplit(g, 'column'),
     others: all.some((y) => y !== g && !y.pinned), toRight: all.slice(i + 1).some((y) => !y.pinned),
   }, e.clientX, e.clientY)
 }
@@ -488,7 +390,7 @@ api.onCommand((cmd, gid) => {
   const x = g.focus || g.panes[0]
   if (cmd === 'rename') { select(gid); rename(g) }
   if (cmd === 'pin' || cmd === 'unpin') setPin(g, cmd === 'pin')
-  if (cmd === 'dup' && !g.agent) dup(g)
+  if (cmd === 'dup') dup(g)
   if (cmd === 'splitRight') split(g, 'row')
   if (cmd === 'splitDown') split(g, 'column')
   if (cmd === 'left') move(g, -1)
@@ -544,7 +446,7 @@ function termKeys(x, e) {
   if (e.type && e.type !== 'keydown') return false
   const g = x.g, c = e.code, ctrl = e.ctrlKey && !e.metaKey, all = tabsInOrder()
   if (ctrl && e.shiftKey && !e.altKey) {
-    if (c === 'KeyW') { if (x.agent) closeGroup(g); else api.close(x.id); return true }
+    if (c === 'KeyW') { api.close(x.id); return true }
     if (c === 'KeyT') { openNew(); return true }
     if (c === 'KeyD') { dup(g); return true }
     if (c === 'KeyZ') { if (g.panes.length > 1) { g.zoom = g.zoom ? null : x; arrange(g); for (const y of g.panes) fitNow(y); x.term.focus() } return true }
@@ -633,7 +535,7 @@ api.onOpened((info) => {
   if (terms.has(info.id)) { select(terms.get(info.id).g.gid); return }
   // opened by an agent beside a terminal (a tab split into panes): in that one's tab, after it
   const by = info.beside != null && terms.get(info.beside), bg = by && by.g
-  if (bg && !bg.agent && bg.panes.length < MAX_PANES && (bg.panes.length === 1 || bg.dir === info.dir)) {
+  if (bg && bg.panes.length < MAX_PANES && (bg.panes.length === 1 || bg.dir === info.dir)) {
     bg.zoom = null; bg.dir = info.dir
     addPane(bg, info, '', bg.panes.indexOf(by)); select(bg.gid); sync()
     return
@@ -644,7 +546,6 @@ api.onShown(() => ready.then(() => { if (!groups.size) openNew(); else select(ac
 api.onLang((l) => {
   if (!TEXT[l] || l === lang) return
   lang = l; words()
-  for (const x of terms.values()) if (x.agent) { x.term.reset(); x.term.write('\x1b[2m── ' + t('agentHead', x.label, x.project) + ' ──\x1b[0m\r\n'); x.printed.clear(); x.saidNone = false; x.gone = false; pollAgent(x) }
 })
 window.addEventListener('focus', () => groups.get(active)?.focus?.term.focus())
 
@@ -717,7 +618,7 @@ const ready = api.list().then(async ({ running, layout, saved }) => {
     g.focus = g.panes[0]; arrange(g)
     sync()
   }
-  try { for (const a of JSON.parse(localStorage.getItem(AGENTS_KEY) || '[]')) if (a && a.name) { const g = openAgent(a, { quiet: true, pinned: a.pinned, title: a.title }); g.auto = !!a.auto } } catch {}
+  try { localStorage.removeItem('crew.agentTabs') } catch {}   // the agents' command tabs of before: the agent's dialog shows those now
   if (groups.size) { select(tabsInOrder().pop().gid); sync() }
 }, () => {})
 </script>

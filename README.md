@@ -114,6 +114,10 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
 - **Subagents.** A card shows `🤖 2` while that many of its subagents (the Agent tool) are running; the agent's dialog has a
   **Subagents** tab listing the recent ones — kind, purpose, last action, tool calls — and opens any of them as its own
   live conversation (masked like the main one).
+- **Terminal.** Once an agent (a monitor agent or a VS Code session) has run a command in a shell (Bash, PowerShell), its
+  dialog has a **Terminal** tab: each command with when it ran and, once done, what it printed (✗ when it failed) — from
+  its conversation, masked as the conversation view is (a long output shows its start). It follows as the agent works,
+  with ⏳ on the tab while one runs.
 - **Minimise.** **_** (Minimise) at the top right of an agent's dialog, next to **✕** (Close), folds it into a bar along
   the bottom of the page — one chip per agent,
   with its robot, name and state (`!` while it waits for you). A click on a chip opens that agent again on the same tab,
@@ -520,13 +524,7 @@ itself. So a new PC needs only **Claude Code**, installed and signed in.
   the pane bigger or smaller, **Ctrl + Shift + Z** shows it alone (and back), **Ctrl + Tab** / **Ctrl + Shift + Tab** and
   **Ctrl + Alt + 1…9** go to a tab, **Ctrl + = / - / 0** set the text size (kept). The app's stock menu is gone on Windows,
   so Ctrl + R, Ctrl + W and the like reach the shell.
-  **Agent commands:** **⌄ → Agent commands** opens a read-only tab for one agent (a monitor agent or a VS Code session):
-  each command it ran in a shell (Bash, PowerShell), with when, and what it printed once it is done — from its
-  conversation, masked as the conversation view is (a long output shows its start). It follows as the agent works, ⏳
-  on the tab while one runs, and is open again after a restart. An agent that starts a command gets its tab **by
-  itself**, behind the one in view; such a tab closes again after 30 minutes without a command or a minute after its
-  session ended — unless pinned, renamed or in view. Both are switches at the bottom of the ⌄ menu (on by default); a
-  tab you open yourself stays until you close it. Drag the
+  The commands an agent ran are in its dialog's **Terminal** tab, not here. Drag the
   top edge for the height, **Ctrl + C** copies a selection (otherwise it goes to the shell), **Ctrl + V** or a right-click
   pastes. Hiding the panel keeps the shells running. A shell cannot outlive the app: when it starts again (an update, a
   restart), the panel comes back — under a `── ↻ 10:45 ──` line with the time — with the same tabs and panes — shell, name, and the folder each was last in (the shells
