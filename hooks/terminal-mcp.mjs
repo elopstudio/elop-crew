@@ -4,7 +4,8 @@
 // An agent opens a tab there for what runs long and the person wants to see (a dev server, a worker), reads what a
 // tab shows, and types into one. Each call goes to the monitor on 127.0.0.1 (/hook/terminal), which asks the person
 // on the page before anything is opened or typed; reading never asks. It also gives the monitor's shared browser
-// (shared_browser), started when it is not running, so pages are looked at where the person watches.
+// (shared_browser), started when it is not running, so pages are looked at where the person watches, and puts a page
+// the agent made on the monitor's artifact list (show_artifact).
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
@@ -58,6 +59,11 @@ const TOOLS = [
     name: 'shared_browser',
     description: 'The monitor\'s shared browser (headless Chrome), which the person watches live in its browser panel and can click and type in: starts it if it is not running, and gives its DevTools address and how to connect (Playwright connectOverCDP, Puppeteer connect). Call it before you look at pages — checking a UI, screenshots, testing — and use that browser instead of launching one of your own. In the desktop app and the web page alike.',
     inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'show_artifact',
+    description: 'Show the person a page you made for them to look at — a mockup, a report, a chart, a diagram — in the monitor\'s Artifacts, beside your work: an .html file (or .svg, a picture, a .pdf) on this PC. What sits beside it in its folder (styles, scripts, pictures) loads too, and it shows again by itself each time you save the file, so call it once per file. Use it instead of asking them to open the file themselves.',
+    inputSchema: { type: 'object', properties: { path: { type: 'string', description: 'The file: absolute, or relative to your folder' }, title: { type: 'string', description: 'A short name for it (e.g. "Side rail mockup"); default: the file name' } }, required: ['path'] },
   },
 ]
 

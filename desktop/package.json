@@ -49,6 +49,7 @@
           "assistant.mjs",
           "browsers.mjs",
           "claudefiles.mjs",
+          "artifacts.mjs",
           "package.json",
           "LICENSE",
           "public/**/*",

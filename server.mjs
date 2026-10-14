@@ -27,6 +27,7 @@ import { createAssistant } from './assistant.mjs'
 import { tokensToday } from './tokens.mjs'
 import { createProcesses } from './processes.mjs'
 import { createClaudeFiles } from './claudefiles.mjs'
+import { createArtifacts } from './artifacts.mjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))   // the code: public/, hooks/
 // the data: config.json, boards/, .runtime/ — the code's own folder unless MONITOR_HOME says otherwise
@@ -38,6 +39,8 @@ const CLAUDE = process.env.CLAUDE_HOME || path.join(os.homedir(), '.claude')
 const SESSIONS_DIR = path.join(CLAUDE, 'sessions')
 const PROJECTS_DIR = path.join(CLAUDE, 'projects')
 const BOARDS_DIR = path.join(DATA, 'boards')
+// pages the agents made for the person to look at (show_artifact), shown in the page as they are saved
+const artifacts = createArtifacts({ dataDir: DATA, notifyPages: () => notifyPages() })
 const PORT = Number(process.env.PORT) || 4777
 const HOST = '127.0.0.1'
 const TAIL_BYTES = 768 * 1024          // transcripts grow to tens of MB — read only the end
@@ -681,7 +684,7 @@ async function buildState() {
     return { project: hit.project, session: hit.sess.name, short: hit.sess.short, nick: hit.sess.nick, nickKo: hit.sess.nickKo, isLeader: !!hit.sess.isLeader, type: w.type, message: w.message, at: w.at }
   }).sort((a, b) => a.at - b.at)
   const recent = outcomes.map((o) => { const hit = bySession.get(o.sessionId); return { at: o.at, agent: hit ? (hit.sess.nickKo || hit.sess.name) : '(other)', tool: o.tool, how: o.how, ms: o.ms } })
-  return { now, version: VERSION, projects: out, approvals, inEditor, recent, token: TOKEN, usage: account.usageNow(), compact: { ...compactConf }, hooks: { ...hookStats, viewerSeenAgo: lastViewAt ? now - lastViewAt : null, openPages: streams.size } }
+  return { now, version: VERSION, projects: out, approvals, inEditor, recent, token: TOKEN, artifacts: { n: artifacts.count(), latest: artifacts.latest() }, usage: account.usageNow(), compact: { ...compactConf }, hooks: { ...hookStats, viewerSeenAgo: lastViewAt ? now - lastViewAt : null, openPages: streams.size } }
 }
 
 /* ── Hooks: approvals and permission mode ─────── */
@@ -831,11 +834,13 @@ const sharedBrowserHow = (port) => {
 // What a monitor agent is told of the monitor's panels, in its system prompt (every step sees it, a compaction keeps it).
 // Being given the tools was not enough: Claude Code shows an MCP server's tools by name only until they are looked up,
 // so an agent started its dev server as a background job and launched a browser of its own, out of the person's sight.
-const panelsRule = () => 'Agent monitor: you run inside the agent monitor (ELOP Crew), where the user watches your work. Two of its panels are there for you. ' +
+const panelsRule = () => 'Agent monitor: you run inside the agent monitor (ELOP Crew), where the user watches your work. Three of its panels are there for you. ' +
   '(1) The terminal panel (in the desktop app): start what runs long and the user may want to watch or use — a dev server, a watcher, a worker, an app they asked you to run — ' +
   'with mcp__terminal__terminal_open rather than a background Bash job, and read what it printed with mcp__terminal__terminal_output. ' +
   '(2) The shared browser: when you look at pages (checking a UI, screenshots, testing in a browser), call mcp__terminal__shared_browser — it starts the browser if it is not running ' +
   'and tells you its address — and connect to it rather than launching a browser of your own; the user watches it live and can click and type in it. ' +
+  '(3) Artifacts: a page you make for the user to look at — a mockup, a report, a chart, as an .html file (or .svg, a picture) — show it with mcp__terminal__show_artifact; ' +
+  'it appears in the monitor beside your work and shows again each time you save the file. ' +
   'If only these tools\' names are shown to you, load them with ToolSearch first.'
 // the shared_browser tool (hooks/terminal-mcp.mjs), for a monitor agent: started when it is not running, then how to reach it
 async function sharedBrowserTool(body) {
@@ -846,6 +851,17 @@ async function sharedBrowserTool(body) {
   notifyPages()
   if (a.sessionId) toldBrowser.set(a.sessionId, r.port)
   return 'A' + sharedBrowserHow(r.port).slice(1)
+}
+// the show_artifact tool (hooks/terminal-mcp.mjs): a file of the agent's put on the page's artifact list, named for it
+async function artifactTool(body) {
+  const a = agents.agentOf(String(body.agent || ''))
+  if (!a) return 'Only the monitor\'s agents have this tool.'
+  const args = body.args || {}
+  const file = path.resolve(a.cwd || '.', String(args.path || ''))
+  const shown = (await cachedState()).projects.flatMap((p) => p.sessions.map((s) => ({ s, key: p.key }))).find((x) => x.s.agentId === String(body.agent))
+  const [code, o] = await artifacts.add({ file, title: args.title, by: shown ? (shown.s.nickKo || shown.s.nick || shown.s.name) : '', project: shown?.key || '' })
+  if (code !== 200) return 'Not shown: ' + (o.message || o.error)
+  return 'Shown in the monitor\'s Artifacts as "' + o.title + '" (' + file + '). It shows again by itself each time you save the file, and what sits beside it (styles, scripts, pictures) loads too; call this again only for another file.'
 }
 // what a prompt gets added to it: the language, the shared browser, and for a leader its team
 async function promptContext(sessionId) {
@@ -1975,7 +1991,14 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req)
       if (url.pathname === '/hook/prompt') { json(200, await agents.prompt(body)); return }
       if (url.pathname === '/hook/assistant') { json(200, { text: await assistant.tool(body) }); return }
-      if (url.pathname === '/hook/terminal') { json(200, { text: body.tool === 'shared_browser' ? await sharedBrowserTool(body) : await assistant.agentTool(body) }); return }
+      if (url.pathname === '/hook/terminal') { json(200, { text: body.tool === 'shared_browser' ? await sharedBrowserTool(body) : body.tool === 'show_artifact' ? await artifactTool(body) : await assistant.agentTool(body) }); return }
+      // the page opening a file as an artifact by its path, or taking one off the list; not under /api/, like the files
+      if (url.pathname === '/artifacts') {
+        if (body.remove) { json(artifacts.remove(String(body.remove)), {}); return }
+        const [code, o] = await artifacts.add({ file: String(body.path || '').trim().replace(/^"(.*)"$/, '$1'), title: body.title, by: '' })
+        json(code, o)
+        return
+      }
       if (url.pathname === '/api/assistant/start') { json(200, await assistant.start()); return }
       if (url.pathname === '/api/assistant/settings') { json(await assistant.setOptions(body), {}); return }
       if (url.pathname.startsWith('/api/account/')) { const [code, o] = await account.handle(url); json(code, o); return }
@@ -2048,6 +2071,13 @@ const server = http.createServer(async (req, res) => {
       await browsers.stream(req, res, url.searchParams.get('port'), url.searchParams.get('id') || '')
       return
     }
+    if (url.pathname === '/artifacts') {
+      if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
+      json(200, { list: await artifacts.info() })
+      return
+    }
+    // an artifact and what sits beside it: the random id in the address is what opens it (a page's own files carry no token)
+    if (url.pathname.startsWith('/artifact/')) { await artifacts.serve(res, url.pathname.slice(10)); return }
     if (url.pathname === '/claude/files' || url.pathname === '/claude/file') {
       if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
       const [code, o] = url.pathname === '/claude/files' ? await claudeFiles.list() : await claudeFiles.read(url.searchParams.get('ref') || '')

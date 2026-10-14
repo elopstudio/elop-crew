@@ -69,6 +69,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
 - **Long conversations.** A card's 🧠 (the conversation's size) turns amber from 300k tokens: every step an agent takes reads all of it again, which is most of what agents cost. The agent's dialog says so above the message box; for a monitor agent with **Run /compact**, which shortens it so the next turns cost less, and for a VS Code session it says to type /compact there.
 - **How full the context is.** Beside the send button, as in VS Code, a ring and a percentage show how much of its model's context the conversation fills (1M tokens, or 200k for Haiku; for a monitor agent, what claude itself reports), with the tokens on hover. It turns amber from 300k and red past 80%, and follows the conversation as it grows — and as it shrinks: once compacted (here or in VS Code) it shows the shortened size at once, and the notice above the message box goes. A click opens a small card with the numbers and, for a monitor agent, **Run /compact** to shorten the conversation (a VS Code session is told to type /compact there).
 - **The monitor's own messages are notes, not bubbles.** What the monitor tells an agent by itself — carry on after a restart, after logging in again or once the usage limit has reset, or the assistant's nudge — shows in the conversation as a faint one-line note ("↻ The monitor restarted and told it to carry on"), not as a message from you. What the assistant tells an agent shows the same way, in full, framed as the assistant's ("🤖 The assistant told it: …").
+- **The header.** The counts sit in one capsule (on a narrower window only their numbers and symbols, the names on
+  hover); beside them the tools are icons with a number — **Processes**, **Browsers**, **Artifacts** and, once allowed,
+  notifications — then **☰**.
 - **Counts in the header.** Clicking working, waiting or resting shows only the agents in that state, on every tab
   (projects with none of them are left out); clicking it again, the ✕ chip by the counts above the agents, or sessions, shows them all.
   Pointing at (or focusing) a count — projects, sessions, working, waiting, resting —
@@ -80,7 +83,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   is pointed at. Emptied, the folder's name is back.
 - **Org chart.** The leader (crowned robot) sits on top; the other agents hang below it.
   Each card shows the session's current action in a speech bubble, how long it has been in its state, and its uptime.
-- **Browsers.** **Browsers** in the header — in the desktop app the globe in the title strip, beside the terminal — (or
+- **Browsers.** **Browsers** (the globe) in the header — in the desktop app the globe in the title strip, beside the terminal — (or
   **🌐 N** on an agent's card) opens a panel over the page, which can be
   moved by its title and resized from its corner: the browsers the agents drive to look at what they build (headless
   Chrome, Edge, Playwright's Chromium), grouped by agent, with the pages open in each, and a live picture of the page
@@ -94,7 +97,15 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   compose here and the result is sent; Ctrl+V pastes from this PC). Only browsers the agents started and the shared one are contacted, on
   127.0.0.1 only; page titles and addresses come masked, and the picture is never stored or relayed to the phone, nor
   is driving a page.
-- **Processes.** **Processes** in the header, with a count, opens what the agents have running: each agent
+- **Artifacts.** Pages an agent made for you to look at — a mockup, a report, a chart — open in the page. An agent puts
+  one up with **show_artifact** (below); the artifacts icon in the header gets a dot, and opens a wide dialog: the list on
+  the left (newest first, who put each up and when) and the page on the right, drawn again each time its file is saved.
+  A file of your own opens by its path at the top (`.html`, `.svg`, a picture or `.pdf`); **Open in a window** and
+  **Reload** are above the page, **×** on an item takes it off the list (the file stays). The file is read from where it
+  is, with what sits beside it (styles, scripts, pictures) — only web files below its folder, never a dot file — and
+  shown sandboxed, on an origin of its own, so nothing in it can reach the monitor's API or its token. Not relayed to
+  the phone.
+- **Processes.** **Processes** (⚙) in the header, with a count, opens what the agents have running: each agent
   itself (the claude process) and every shell, dev server, MCP server and background task it started, grouped by agent
   and heaviest first (CPU or memory), with how long each has been running. An agent's totals and its share of the chart
   count the agent and what it started. Each card shows **⚙ N** too, red when it uses a lot of CPU. **End** stops one (and what it
@@ -186,6 +197,7 @@ The page polls every 3 seconds (every 15 seconds while the tab is hidden).
 | `~/.claude.json` | The signed-in account (name, e-mail, organisation) and the usage Claude Code last saved — only while the account dialog is open |
 | `~/.claude/.credentials.json` | The Claude sign-in token and plan, to ask Anthropic for the usage — only while the account dialog is open |
 | `~/.claude/CLAUDE.md`, `settings(.local).json`, `skills/`, `agents/`, `commands/`, `plans/`, `projects/*/memory/`; a project's `CLAUDE(.local).md`, `.claude/`, `.mcp.json`; the `mcpServers` of `~/.claude.json` | Shown and edited in **Claude files** — only while it is open, and written only when you save or delete there |
+| `<data>/artifacts.json`, and the files put up there | Where each artifact is, its title, who put it up and when — never what is in it; the file (and what beside it it uses) is read only while it is shown |
 | `~/.claude/settings.json` | `autoCompactWindow`, written when the compaction default is set to apply to every session; and the monitor's hooks, put in by the desktop app with your consent (a copy of the file as it was is kept as `settings.json.before-agent-monitor`) |
 
 A project is the folder name of the git root above a session's working directory. The leader is the session
@@ -473,6 +485,9 @@ The same server gives them **shared_browser**: it starts the shared browser if i
 connect, so the pages they look at open where you watch them. Both are in their system prompt too, as the language is,
 because Claude Code shows an MCP server's tools by name only until they are looked up: given only the tools, agents
 started their dev servers as background jobs and launched browsers of their own.
+
+And **show_artifact**: an agent that made a page for you to look at (an `.html`, `.svg`, picture or `.pdf` file) puts it
+up in **Artifacts** by its path, with a title, instead of telling you to open the file.
 
 - **Answering for you.** A permission request reaches it at once — a VS Code session's goes back to VS Code after a
   minute, and it used to hear of one only after two. It allows, without asking, work inside the agent's own project

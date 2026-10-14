@@ -946,8 +946,55 @@ body.docked .detail{bottom:60px;max-height:calc(100vh - 92px)}
 .menuwrap{position:relative}
 .menu-btn{display:grid;place-items:center;padding:5px 9px}
 .menu-btn svg{width:16px;height:16px;display:block}
-#proc-btn,#browser-btn{display:inline-flex;align-items:center;gap:5px}
-#proc-btn svg,#browser-btn svg{width:13px;height:13px;flex:none}
+#proc-btn,#browser-btn,#art-btn,#bell{display:inline-flex;align-items:center;gap:5px}
+#proc-btn svg,#browser-btn svg,#art-btn svg,#bell svg{width:15px;height:15px;flex:none}
+/* the header: the counts in one capsule (their names hidden on a narrower window), the tools as icons with a number */
+.totals{gap:0;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px;box-shadow:0 1px 2px var(--shadow);flex-wrap:nowrap}
+.totals .pill{border:0;box-shadow:none;background:none;padding:4px 10px;gap:5px}
+.totals .pill[tabindex]:hover,.totals .pill:focus-visible{background:var(--surface-2)}
+.totals .pill.on{background:var(--surface-2)}
+.totals .pill.run{margin-left:9px}
+.totals .pill.run::before{content:"";position:absolute;left:-5px;top:7px;bottom:7px;width:1px;background:var(--line-strong)}
+.totals .pill b{font-size:14px}
+.totals .pill .lb{color:var(--muted)}
+@media (max-width:1180px){ .totals .pill .lb{display:none} .totals .pill{padding:4px 8px} }
+.top .tools{display:flex;align-items:center;gap:6px}
+.top .tools .bell{height:32px;padding:0 10px;font:800 12px var(--sans)}
+.top .tools .bell:hover{color:var(--text);border-color:var(--text)}
+.top .tools .bell[hidden]{display:none}
+.menu-btn{height:32px}
+#bell.notify{color:var(--accent);border-color:var(--accent)}
+#art-btn{position:relative}
+#art-btn.fresh{color:var(--accent);border-color:var(--accent)}
+#art-btn.fresh::after{content:"";position:absolute;top:3px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--surface)}
+/* artifacts: the list on the left, the picked one beside it, sandboxed */
+.detail.wide{width:min(1500px,calc(100vw - 32px))}
+.detail.wide .dbody{overflow:hidden;display:flex}
+.arts{flex:1;display:grid;grid-template-columns:270px minmax(0,1fr);min-height:0}
+.arts .alist{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.arts .aopen{display:flex;gap:6px;padding:12px;border-bottom:1px solid var(--line)}
+.arts .aopen input{flex:1;min-width:0;font:12px var(--mono);color:var(--text);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:6px 8px}
+.arts .aopen button,.arts .abar button{appearance:none;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text);border-radius:8px;padding:5px 10px;font:700 12px var(--sans);cursor:pointer;flex:none}
+.arts .aitems{flex:1;overflow:auto;padding:8px;display:grid;gap:4px;align-content:start}
+.arts .ahint{font-size:11.5px;color:var(--faint);padding:4px 6px 8px}
+.arts .aerr{font-size:12px;color:var(--block);font-weight:700;padding:0 12px 10px}
+.arts .aitem{position:relative;appearance:none;text-align:left;border:1px solid transparent;background:none;color:var(--text);border-radius:9px;padding:8px 30px 8px 10px;cursor:pointer;display:grid;gap:1px;font:13px var(--sans);min-width:0}
+.arts .aitem:hover{background:var(--surface-2)}
+.arts .aitem.on{background:var(--accent-soft);border-color:var(--accent)}
+.arts .aitem b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arts .aitem span{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arts .aitem.gone b{color:var(--faint);text-decoration:line-through}
+.arts .aitem .x{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;color:var(--faint);font-size:14px;opacity:0}
+.arts .aitem:hover .x,.arts .aitem .x:focus-visible{opacity:1}
+.arts .aitem .x:hover{background:var(--surface);color:var(--block)}
+.arts .aview{display:flex;flex-direction:column;min-width:0;min-height:0}
+.arts .abar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);min-width:0}
+.arts .abar .at{min-width:0;flex:1;display:grid}
+.arts .abar .at b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arts .abar .at code{font:11px var(--mono);color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arts iframe{flex:1;width:100%;border:0;background:#fff;min-height:0}
+.arts .aempty{flex:1;display:grid;place-items:center;color:var(--faint);font-size:13px;padding:20px;text-align:center}
+@media (max-width:760px){ .arts{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)} .arts .alist{border-right:0;border-bottom:1px solid var(--line);max-height:34vh} }
 #browser-btn.on{border-color:var(--accent);color:var(--accent)}
 #browser-btn[hidden]{display:none}
 /* the browser panel: floats over the page (it can be moved by its title and resized from its corner), so the agents
@@ -1113,9 +1160,12 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     </div>
     <div class="right">
       <div class="totals" id="totals"></div>
-      <button type="button" class="bell" id="proc-btn"></button>
-      <button type="button" class="bell" id="browser-btn"></button>
-      <button type="button" class="bell" id="bell" hidden></button>
+      <div class="tools">
+        <button type="button" class="bell" id="proc-btn"></button>
+        <button type="button" class="bell" id="browser-btn"></button>
+        <button type="button" class="bell" id="art-btn"></button>
+        <button type="button" class="bell" id="bell" hidden></button>
+      </div>
       <!-- language, theme, account and about, under one menu button -->
       <div class="menuwrap">
         <button type="button" class="bell menu-btn" id="menu-btn" aria-haspopup="true" aria-expanded="false" aria-controls="hmenu"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
@@ -1161,6 +1211,10 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   /* ── Wording ── English is the default; Korean is an option. */
   const I18N = {
     en: {
+      artTitle: 'Artifacts', artHint: 'Pages the agents made for you to look at — mockups, reports, charts. An agent puts one here with show_artifact, and it is drawn again each time the file is saved. A file of your own opens by its path above.',
+      artPath: 'A file: .html, .svg, a picture or .pdf', artOpen: 'Open', artMissing: 'file gone', artYou: 'opened here', artWindow: 'Open in a window', artReload: 'Reload',
+      artRemove: 'Take it off the list (the file stays)', artPick: 'Pick one on the left.', artFailed: 'Could not open it: {x}', artGone: 'The file is no longer there.',
+      artSandbox: 'Shown sandboxed: nothing in it can reach the monitor.', artFresh: 'a new one is up',
       cfTitle: 'Claude files', cfTabGlobal: 'Yours', cfTabProject: 'Projects', cfTabMemory: 'Memory',
       cfHintGlobal: 'What Claude Code reads in every project, from {p}.', cfHintProject: 'A project\'s own files, for the projects on this page. CLAUDE.md and .claude/settings.json are usually shared through git; the .local ones stay on this PC.',
       cfHintMemory: 'What Claude Code notes down by itself, per folder. MEMORY.md is the index read at every start; each other file holds one memory. Searched by name and description.',
@@ -1201,6 +1255,10 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       },
     },
     ko: {
+      artTitle: '아티팩트', artHint: '에이전트가 보여 주려고 만든 페이지(시안, 보고서, 차트)입니다. 에이전트가 show_artifact 로 올리면 여기에 나오고, 파일을 저장할 때마다 다시 그려집니다. 내 파일도 위에 경로를 넣어 열 수 있습니다.',
+      artPath: '파일 경로 (.html, .svg, 그림, .pdf)', artOpen: '열기', artMissing: '파일 없음', artYou: '직접 연 파일', artWindow: '새 창으로 열기', artReload: '새로 고침',
+      artRemove: '목록에서 빼기 (파일은 그대로)', artPick: '왼쪽에서 하나를 고르세요.', artFailed: '열지 못했습니다: {x}', artGone: '파일이 더 이상 없습니다.',
+      artSandbox: '격리해서 보여 줍니다. 안의 내용은 모니터에 접근할 수 없습니다.', artFresh: '새 아티팩트가 있습니다',
       cfTitle: 'Claude 설정·메모리', cfTabGlobal: '전역', cfTabProject: '프로젝트', cfTabMemory: '메모리',
       cfHintGlobal: '모든 프로젝트에서 Claude Code 가 읽는 파일입니다({p}).', cfHintProject: '이 화면에 보이는 프로젝트의 파일입니다. CLAUDE.md 와 .claude/settings.json 은 보통 git 으로 공유하고, .local 이 붙은 파일은 이 PC 에만 둡니다.',
       cfHintMemory: 'Claude Code 가 폴더마다 스스로 기록하는 메모리입니다. MEMORY.md 는 시작할 때마다 읽는 목차이고, 나머지 파일은 메모리 하나씩입니다. 이름과 설명으로 검색합니다.',
@@ -1426,10 +1484,19 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     user: '<circle cx="8" cy="5.6" r="2.7"/><path d="M2.8 13.6c.6-2.6 2.7-4.1 5.2-4.1s4.6 1.5 5.2 4.1"/>',
     globe: '<circle cx="8" cy="8" r="5.8"/><path d="M2.2 8h11.6M8 2.2c1.7 1.6 2.6 3.6 2.6 5.8S9.7 12.2 8 13.8M8 2.2C6.3 3.8 5.4 5.8 5.4 8s.9 4.2 2.6 5.8"/>',
     cpu: '<rect x="4" y="4" width="8" height="8" rx="1.6"/><rect x="6.4" y="6.4" width="3.2" height="3.2" rx=".5"/><path d="M6.3 2v2M9.7 2v2M6.3 12v2M9.7 12v2M2 6.3h2M2 9.7h2M12 6.3h2M12 9.7h2"/>',
+    art: '<rect x="2.2" y="2.8" width="11.6" height="10.4" rx="1.8"/><path d="M2.2 5.9h11.6"/><path d="M5 10.6l2-2.2 1.6 1.5L11 7.6"/>',
+    bell: '<path d="M4.3 11.2V7.5a3.7 3.7 0 0 1 7.4 0v3.7l1.2 1.3H3.1z"/><path d="M6.6 14.2h2.8"/>',
     file: '<path d="M4 2.2h5.2L12 5v8.8H4z"/><path d="M9 2.2V5h3M6 8h4M6 10.6h4"/>',
     plug: '<path d="M5.5 2v3M10.5 2v3"/><path d="M3.5 5h9v2.5a4.5 4.5 0 0 1-9 0z"/><path d="M8 12v2"/>',
     info: '<circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.9"/><circle cx="8" cy="4.9" r=".55" fill="currentColor" stroke="none"/>',
   };
+  // a header tool: its icon and a number (none: the icon alone); its name is the tooltip and what screen readers say
+  function toolButton(b, icon, label, n) {
+    b.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + MENU_ICONS[icon] + '</svg>';   // static shapes only
+    if (n) b.append(el('span', 'tn', String(n)));
+    b.setAttribute('aria-label', label + (n ? ' ' + n : ''));
+    b.title = label;
+  }
   function menuItem(b, icon, label) {
     b.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">' + MENU_ICONS[icon] + '</svg>';
     b.append(el('span', null, label));
@@ -1443,7 +1510,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     $('theme').setAttribute('aria-label', t('menuTheme'));
     $('tabs').setAttribute('aria-label', t('tabsLabel'));
     $('dock').setAttribute('aria-label', t('dockLabel'));
-    if ($('bell')) $('bell').textContent = '🔔 ' + t('notifyOn');
+    if ($('bell')) bell();
     menuItem($('acct-btn'), 'user', t('acctTitle'));
     menuItem($('cloud-btn'), 'cloud', t('menuCloud'));
     menuItem($('mcp-btn'), 'plug', t('mcpTitle'));
@@ -3134,6 +3201,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   // the dialog is about to show something else or close: a docked agent keeps its tab and its unsent message
   function leaveDialog() {
     cfLeave = null;   // a Claude file being edited is left with it
+    $('detail').classList.remove('wide');
     const k = current && docked.find((x) => x.name === current.name);
     if (k) { k.tab = current.tab(); k.draft = current.draft(); }
     current = null;
@@ -4032,6 +4100,117 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     load();
   }
 
+  // The artifacts: pages the agents made for the person to look at (show_artifact), or a file opened here by its path.
+  // The list, and the one picked beside it — sandboxed, so nothing in it reaches the monitor — shown again by itself
+  // each time its file is saved. The header's button has a dot while one is newer than the last look.
+  const artSeen = () => { try { return Number(localStorage.getItem('am.artSeen')) || 0; } catch (e) { return 0; } };
+  function artButton(data) {
+    const a = (data || last)?.artifacts || { n: 0, latest: 0 };
+    const b = $('art-btn');
+    toolButton(b, 'art', t('artTitle'), a.n);
+    const fresh = a.latest > artSeen();
+    b.classList.toggle('fresh', fresh);
+    if (fresh) b.title = t('artTitle') + ' — ' + t('artFresh');
+  }
+  const artUrl = (a) => '/artifact/' + a.id + '/' + encodeURIComponent(a.name);
+  function showArtifacts() {
+    stopLive();
+    leaveDialog();
+    const d = $('detail');
+    const head = el('div', 'dh'), who = el('div', 'who');
+    who.append(el('b', null, t('artTitle')));
+    const close = iconButton('close', t('close'));
+    close.addEventListener('click', () => d.close());
+    head.append(who, close);
+    const box = el('div', 'arts'), side = el('div', 'alist'), view = el('div', 'aview');
+    const form = el('form', 'aopen'), input = document.createElement('input'), go = el('button', null, t('artOpen'));
+    input.placeholder = t('artPath'); input.spellcheck = false;
+    go.type = 'submit';
+    form.append(input, go);
+    const err = el('div', 'aerr'), items = el('div', 'aitems');
+    err.hidden = true;
+    side.append(form, err, items);
+    box.append(side, view);
+    let list = [], pick = null, shownAt = 0, frame = null;
+    const seen = () => { const top = Math.max(0, ...list.map((a) => a.at)); if (top > artSeen()) { try { localStorage.setItem('am.artSeen', String(top)); } catch (e) {} artButton(last); } };
+    function drawView() {
+      const a = list.find((x) => x.id === pick);
+      if (!a) { frame = null; shownAt = 0; view.replaceChildren(el('div', 'aempty', list.length ? t('artPick') : t('artHint'))); return; }
+      const bar = el('div', 'abar'), title = el('div', 'at');
+      title.append(el('b', null, str(a.title)), el('code', null, str(a.path)));
+      title.title = t('artSandbox');
+      const reload = el('button', null, t('artReload')); reload.type = 'button';
+      reload.addEventListener('click', () => { if (frame) frame.src = artUrl(a) + '?v=' + Date.now(); });
+      const win = el('button', null, t('artWindow') + ' ↗'); win.type = 'button';
+      win.addEventListener('click', () => window.open(artUrl(a), '_blank', 'noopener'));
+      bar.append(title, reload, win);
+      if (!a.exists) { frame = null; view.replaceChildren(bar, el('div', 'aempty', t('artGone'))); return; }
+      frame = document.createElement('iframe');
+      frame.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads');
+      frame.setAttribute('referrerpolicy', 'no-referrer');
+      frame.title = str(a.title);
+      frame.src = artUrl(a) + '?v=' + a.mtime;
+      shownAt = a.mtime;
+      view.replaceChildren(bar, frame);
+    }
+    function drawList() {
+      items.replaceChildren();
+      if (!list.length) { items.append(el('div', 'ahint', t('artHint'))); return; }
+      for (const a of list) {
+        const b = el('button', 'aitem' + (a.id === pick ? ' on' : '') + (a.exists ? '' : ' gone'));
+        b.type = 'button';
+        const who = [a.by ? str(a.by) : t('artYou'), str(a.project), a.exists ? ago(a.mtime || a.at) : t('artMissing')].filter(Boolean).join(' · ');
+        b.append(el('b', null, str(a.title)), el('span', null, str(a.name) + ' · ' + who));
+        b.title = str(a.path);
+        const x = el('span', 'x', '×');
+        x.title = t('artRemove'); x.setAttribute('role', 'button'); x.tabIndex = 0;
+        const off = async (e) => { e.stopPropagation(); await artPost({ remove: a.id }); if (pick === a.id) pick = null; load(); };
+        x.addEventListener('click', off);
+        x.addEventListener('keydown', (e) => { if (e.key === 'Enter') off(e); });
+        b.append(x);
+        b.addEventListener('click', () => { pick = a.id; drawList(); drawView(); });
+        items.append(b);
+      }
+    }
+    async function artPost(body) {
+      const send = () => fetch('/artifacts', { method: 'POST', headers: { 'content-type': 'application/json', 'x-monitor-token': token }, body: JSON.stringify(body) });
+      try { let r = await send(); if (r.status === 403) { await refreshToken(); r = await send(); } let o = {}; try { o = await r.json(); } catch (e) {} return { ...o, status: r.status }; } catch (e) { return { status: 0 }; }
+    }
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const path = input.value.trim();
+      if (!path) return;
+      const r = await artPost({ path });
+      if (r.status !== 200) { err.textContent = t('artFailed', { x: str(r.message || r.error || r.status) }); err.hidden = false; return; }
+      err.hidden = true; input.value = ''; pick = r.id;
+      load();
+    });
+    // the list asked again every two seconds while open: a file saved since it was drawn is drawn again
+    async function load() {
+      const r = await cfGet('/artifacts');
+      if (!box.isConnected) return;
+      const next = r?.list || [];
+      const sig = JSON.stringify(next.map((a) => [a.id, a.title, a.exists, a.mtime, a.at]));
+      if (sig === load.sig) return;
+      load.sig = sig;
+      list = next;
+      if (!pick || !list.some((a) => a.id === pick)) pick = list[0]?.id || null;
+      drawList();
+      const a = list.find((x) => x.id === pick);
+      if (!frame || !a || a.mtime !== shownAt || !a.exists) drawView();
+      seen();
+    }
+    d.replaceChildren(head, dbody(box));
+    if (!d.open) d.showModal();
+    floatInto(d);
+    d.classList.remove('narrow');
+    d.classList.add('wide');
+    close.focus();
+    drawView();
+    load();
+    acctTimer = setInterval(load, 2000);   // stopped with the dialog (stopLive)
+  }
+
   // what this program is, who makes it, where the code lives, and its licence
   const REPO = 'https://github.com/elopstudio/elop-crew', SITE = 'https://elopstudio.com';
   // every key the page and the desktop app answer to, grouped; "a / b" means either, "a+b" together
@@ -4066,10 +4245,10 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const all = ((data || last)?.projects || []).flatMap((p) => p.sessions);
     const n = all.reduce((a, x) => a + (x.procs?.browsers || 0), 0);
     const b = $('browser-btn');
-    menuItem(b, 'globe', t('browsers') + (n ? ' ' + n : ''));
+    toolButton(b, 'globe', t('browsers'), n);
     const on = !$('bpanel')?.hidden && !!$('bpanel');
     b.classList.toggle('on', on);
-    b.title = t('bTip');
+    b.title = t('browsers') + ' — ' + t('bTip');
     // the desktop app has it in its title strip, beside the terminal panel's: told when it opens or closes, or the count changes
     if (inApp && window.monitorApp?.panel) {
       b.hidden = true;
@@ -4079,12 +4258,13 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   }
   function procButton(data) {
     browserButton(data);
+    artButton(data);
     const all = ((data || last)?.projects || []).flatMap((p) => p.sessions);
     const n = all.reduce((a, x) => a + (x.procs?.n || 0), 0), cpu = all.reduce((a, x) => a + (x.procs?.cpu || 0), 0);
     const b = $('proc-btn');
-    menuItem(b, 'cpu', t('procs') + (n ? ' ' + n : ''));
+    toolButton(b, 'cpu', t('procs'), n);
     b.classList.toggle('hot', cpu >= 50);
-    b.title = n ? t('procChip', { n, cpu: pct(cpu), mem: bytes(all.reduce((a, x) => a + (x.procs?.mem || 0), 0)) }) : t('procNone');
+    b.title = t('procs') + ' — ' + (n ? t('procChip', { n, cpu: pct(cpu), mem: bytes(all.reduce((a, x) => a + (x.procs?.mem || 0), 0)) }) : t('procNone'));
   }
   /* ── The browser panel: the browsers the agents drive, their pages, a live picture of one ── */
   let bState = { pick: null, src: null, timer: 0, want: '' };   // pick: { port, id }; want: an agent whose first page to show
@@ -4996,7 +5176,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     // there opens its dialog, a project its tab
     const pill = (cls, g, label, v, rows, st) => {
       const x = el('span', 'pill ' + cls);
-      x.append(el('span', 'g', g), document.createTextNode(label + ' '), el('b', null, String(v)));
+      x.append(el('span', 'g', g), el('span', 'lb', label), el('b', null, String(v)));
+      x.title = label;
       // a state pill shows only the agents in that state (pressed again, all of them); "sessions" shows all
       if (st !== undefined) {
         x.dataset.st = st;
@@ -5188,7 +5369,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const b = $('bell');
     const can = window.Notification && Notification.permission === 'default';
     b.hidden = !can;
-    b.textContent = '🔔 ' + t('notifyOn');
+    toolButton(b, 'bell', t('notifyOn'));
+    b.classList.add('notify');
   }
   $('proc-btn').addEventListener('click', showProcesses);
   $('browser-btn').addEventListener('click', () => { const p = $('bpanel'); if (p && !p.hidden) hideBrowsers(); else showBrowsers(); });
@@ -5482,6 +5664,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   $('cloud-btn').addEventListener('click', () => showAccount('cloud'));
   $('mcp-btn').addEventListener('click', showConnectors);
   $('cf-btn').addEventListener('click', showClaudeFiles);
+  $('art-btn').addEventListener('click', showArtifacts);
   $('about-btn').addEventListener('click', showAbout);
   $('bell').addEventListener('click', async () => { try { await Notification.requestPermission(); } catch (e) {} bell(); });
   bell();
