@@ -25,7 +25,7 @@ ELOP Crew is made by ELOP Studio and works with Claude Code. It is not affiliate
 Claude and Claude Code are trademarks of Anthropic.
 
 **☰** at the right of the header opens the menu: the language, the theme, **Claude account**, **ELOP Crew Cloud**
-(this PC's link to crew.elopstudio.com, for the phone app), **Connectors** and **About**.
+(this PC's link to crew.elopstudio.com, for the phone app), **Connectors**, **Claude files** and **About**.
 
 **Connectors** lists the MCP servers and claude.ai connectors Claude Code uses, each with its state as claude itself
 checks it (`claude mcp list`): connected, needs signing in, or not working with the reason ("HTTP 404 — No MCP endpoint
@@ -33,6 +33,20 @@ was found at the URL provided."). Signing in to a claude.ai connector is done on
 its connector settings in the browser, and coming back to the window checks again. A server of this PC's own that needs
 signing in is done with `/mcp` in claude in a terminal. Agents already running get a newly connected one when they next
 start. Only a name, a host and a state reach the page — never a full address or a command line.
+
+**Claude files** shows Claude Code's own files and lets you edit them, in three tabs. **Yours**: `~/.claude/CLAUDE.md`,
+`settings.json` and `settings.local.json`, your MCP servers (the `mcpServers` part of `~/.claude.json`, nothing else of
+it), skills, subagents, commands and plans. **Projects**: for each project on the page, its `CLAUDE.md`,
+`CLAUDE.local.md`, `.claude/CLAUDE.md`, `.claude/settings(.local).json`, `.mcp.json`, the MCP servers for that folder
+only (in `~/.claude.json`) and its own skills, subagents and commands. **Memory**: what Claude Code noted down by itself
+under `~/.claude/projects/<folder>/memory/`, every folder that has any, the projects on the page first, searchable by
+name and description. Markdown is drawn and the rest shown as it is; **Edit** opens it in a box (Ctrl+S saves).
+A file not there yet can be created, and **+ New** starts a skill, subagent or command with its frontmatter. JSON is
+checked before it is saved; a file changed elsewhere after it was opened is not overwritten (load it again); every save
+or delete can be undone straight after. Deleting a memory takes its line out of `MEMORY.md` too. Skills claude.ai keeps
+in step with the account (`skills/synced/`) are read-only, since a change would be put back. Agents already running
+mostly pick a change up when they next start. Only those paths are opened, whatever is asked; nothing is copied or kept,
+and these files never go to the phone app (they are not under `/api/`).
 
 The page is in English by default. Switch to Korean with **EN / 한국어** in the menu (remembered in the browser) or open
 `http://127.0.0.1:4777/?lang=ko`. The theme is **System** (as the computer is set), **Light** or **Dark**, also remembered;
@@ -170,6 +184,8 @@ The page polls every 3 seconds (every 15 seconds while the tab is hidden).
 | the process list (Windows: `Win32_Process`, with the private working set from `Win32_PerfRawData_PerfProc_Process`; macOS: `ps`) | What each session started — name, command line (masked), CPU, memory, start time — only while a page asks, at most every few seconds; the last 15 minutes of totals kept in memory for the chart |
 | `~/.claude.json` | The signed-in account (name, e-mail, organisation) and the usage Claude Code last saved — only while the account dialog is open |
 | `~/.claude/.credentials.json` | The Claude sign-in token and plan, to ask Anthropic for the usage — only while the account dialog is open |
+| `~/.claude/CLAUDE.md`, `settings(.local).json`, `skills/`, `agents/`, `commands/`, `plans/`, `projects/*/memory/`; a project's `CLAUDE(.local).md`, `.claude/`, `.mcp.json`; the `mcpServers` of `~/.claude.json` | Shown and edited in **Claude files** — only while it is open, and written only when you save or delete there |
+| `~/.claude/settings.json` | `autoCompactWindow`, written when the compaction default is set to apply to every session; and the monitor's hooks, put in by the desktop app with your consent (a copy of the file as it was is kept as `settings.json.before-agent-monitor`) |
 
 A project is the folder name of the git root above a session's working directory. The leader is the session
 named in `config.json`; without one, it is the session that sent the most messages (at least 3).
@@ -182,7 +198,8 @@ any other session.
 
 ## What it never reads, and what it shows
 
-- `~/.claude/sessions/*.key` and settings files are never opened. `.credentials.json` is opened only by the
+- `~/.claude/sessions/*.key` are never opened. Settings files are opened only for what the table above says.
+  `.credentials.json` is opened only by the
   account dialog (below); its token goes to `api.anthropic.com` and nowhere else, and is never stored or logged.
 - The cards, tabs, board and state API carry no user prompts, conversation text, tool results or message bodies:
   a tool action is reduced to its kind plus a short label (a file name or the command's own description), and

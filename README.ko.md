@@ -25,13 +25,25 @@ ELOP Crew 는 이롭스튜디오가 만들었고 Claude Code 와 함께 씁니�
 Claude 와 Claude Code 는 Anthropic 의 상표입니다.
 
 헤더 오른쪽의 **☰** 를 누르면 메뉴가 열립니다. 메뉴에는 언어, 테마, **Claude 계정**, **ELOP Crew 클라우드**(휴대폰 앱을 위한 crew.elopstudio.com 연결),
-**커넥터**, **정보**가 있습니다.
+**커넥터**, **Claude 설정·메모리**, **정보**가 있습니다.
 
 **커넥터**는 Claude Code 가 쓰는 MCP 서버와 claude.ai 커넥터를 보여 줍니다. 각각의 상태는 claude 가 직접 확인한 대로(`claude mcp list`)
 연결됨, 로그인 필요, 연결 안 됨(이유와 함께, 예: "HTTP 404 — No MCP endpoint was found at the URL provided.")으로 나옵니다.
 claude.ai 커넥터의 로그인은 claude.ai 에서 합니다. **claude.ai 에서 연결**을 누르면 브라우저에서 커넥터 설정이 열리고, 창으로 돌아오면
 다시 확인합니다. 이 PC 에 직접 등록한 서버의 로그인은 터미널에서 claude 를 실행해 `/mcp` 로 합니다. 이미 실행 중인 에이전트는 다음에
 새로 시작할 때부터 새로 연결한 커넥터를 씁니다. 페이지에는 이름, 호스트, 상태만 오고 전체 주소나 명령줄은 오지 않습니다.
+
+**Claude 설정·메모리**는 Claude Code 자신의 파일을 보여 주고 고칠 수 있게 합니다. 탭은 셋입니다. **전역**: `~/.claude/CLAUDE.md`,
+`settings.json`, `settings.local.json`, 전역 MCP 서버(`~/.claude.json` 의 `mcpServers` 부분만, 나머지는 보여 주지 않음), 스킬,
+서브에이전트, 커맨드, 플랜. **프로젝트**: 화면에 보이는 프로젝트마다 `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`,
+`.claude/settings(.local).json`, `.mcp.json`, 그 폴더 전용 MCP 서버(`~/.claude.json` 안), 프로젝트 전용 스킬·서브에이전트·커맨드.
+**메모리**: Claude Code 가 `~/.claude/projects/<폴더>/memory/` 에 스스로 기록한 메모리로, 메모리가 있는 모든 폴더를 화면의 프로젝트부터
+보여 주며 이름과 설명으로 검색합니다. 마크다운은 그려서, 나머지는 그대로 보여 주고, **편집**을 누르면 입력 상자에서 고칩니다(Ctrl+S 저장).
+아직 없는 파일은 만들 수 있고, **+ 새로 만들기**는 스킬·서브에이전트·커맨드를 frontmatter 와 함께 시작합니다. JSON 은 저장 전에 형식을
+검사하고, 연 뒤에 다른 곳에서 바뀐 파일은 덮어쓰지 않으며(다시 불러오기), 저장과 삭제는 바로 되돌릴 수 있습니다. 메모리를 지우면
+`MEMORY.md` 의 그 줄도 함께 지웁니다. claude.ai 와 동기화되는 스킬(`skills/synced/`)은 고쳐도 다시 덮어써지므로 읽기만 됩니다.
+이미 실행 중인 에이전트는 대개 다음에 시작할 때부터 바뀐 내용을 씁니다. 무엇을 요청받든 이 경로들만 열고, 따로 복사하거나 남기지
+않으며, 이 파일들은 휴대폰 앱으로 가지 않습니다(`/api/` 아래가 아니기 때문입니다).
 
 화면은 기본이 영어입니다. 메뉴의 **EN / 한국어** 로 바꾸면 브라우저가 기억하고, `http://127.0.0.1:4777/?lang=ko` 로 열어도 됩니다.
 테마는 **시스템**(컴퓨터 설정대로), **라이트**, **다크** 중에 고르고, 이것도 기억합니다. 데스크톱 앱에서는 앱의 위쪽 막대, 제목줄,
@@ -149,6 +161,8 @@ claude.ai 커넥터의 로그인은 claude.ai 에서 합니다. **claude.ai 에�
 | 프로세스 목록(Windows: `Win32_Process`, 혼자 쓰는 메모리는 `Win32_PerfRawData_PerfProc_Process`, macOS: `ps`) | 세션마다 띄운 것의 이름, 명령줄(가림), CPU, 메모리, 시작 시각. 화면이 물을 때만, 몇 초에 한 번까지. 차트용으로 최근 15분의 합계만 메모리에 둡니다 |
 | `~/.claude.json` | 로그인한 계정(이름, 이메일, 조직)과 Claude Code가 마지막으로 저장한 사용량. 계정 창이 열려 있을 때만 |
 | `~/.claude/.credentials.json` | Anthropic 에 사용량을 묻기 위한 Claude 로그인 토큰과 요금제. 계정 창이 열려 있을 때만 |
+| `~/.claude/CLAUDE.md`, `settings(.local).json`, `skills/`, `agents/`, `commands/`, `plans/`, `projects/*/memory/`, 프로젝트의 `CLAUDE(.local).md`, `.claude/`, `.mcp.json`, `~/.claude.json` 의 `mcpServers` | **Claude 설정·메모리** 창에서 보여 주고 고칩니다. 창이 열려 있을 때만 읽고, 거기서 저장하거나 삭제할 때만 씁니다 |
+| `~/.claude/settings.json` | 압축 기본값을 모든 세션에 적용하도록 켜면 `autoCompactWindow` 를 씁니다. 데스크톱 앱이 동의를 받아 모니터의 훅을 넣습니다(원래 파일은 `settings.json.before-agent-monitor` 로 남겨 둡니다) |
 
 프로젝트는 세션 작업 폴더 위쪽의 git 루트 폴더 이름입니다. 리더는 `config.json` 에 적힌 세션이고,
 적혀 있지 않으면 메시지를 가장 많이 보낸 세션(3개 이상)입니다.
@@ -160,7 +174,7 @@ claude.ai 커넥터의 로그인은 claude.ai 에서 합니다. **claude.ai 에�
 
 ## 절대 읽지 않는 것, 그리고 보여주는 것
 
-- `~/.claude/sessions/*.key` 와 설정 파일은 열지 않습니다. `.credentials.json` 은 아래 계정 창에서만 엽니다.
+- `~/.claude/sessions/*.key` 는 열지 않습니다. 설정 파일은 위 표에 적은 경우에만 엽니다. `.credentials.json` 은 아래 계정 창에서만 엽니다.
   그 토큰은 `api.anthropic.com` 에만 보내고, 저장하거나 로그에 남기지 않습니다.
 - 카드, 탭, 작업판, 상태 API 에는 사용자 프롬프트, 대화 내용, 도구 결과, 메시지 본문이 실리지 않습니다.
   도구 동작은 종류와 짧은 이름표(파일 이름이나 명령에 붙은 설명)로만 줄이고,

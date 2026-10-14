@@ -5,6 +5,8 @@
 //   ~/.claude/sessions/<pid>.json        session registry (name, cwd, busy/idle) — other files (*.key etc.) are never opened
 //   ~/.claude/projects/*/<id>.jsonl      only the TAIL of each transcript — last tool action, summaries of messages between sessions
 //   ./boards/<project>.json              task board written by the project's leader (optional)
+// Shows and edits, from the menu's Claude files only: Claude Code's instructions, settings, memory and extensions
+//   (claudefiles.mjs lists which; nothing else is opened there)
 // Never exposes
 //   user prompts, conversation text, tool results, message bodies, socket paths, tokens.
 //   Tool actions are reduced to a kind plus a short label (file name, command description).
@@ -24,6 +26,7 @@ import { createCloud } from './cloud.mjs'
 import { createAssistant } from './assistant.mjs'
 import { tokensToday } from './tokens.mjs'
 import { createProcesses } from './processes.mjs'
+import { createClaudeFiles } from './claudefiles.mjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))   // the code: public/, hooks/
 // the data: config.json, boards/, .runtime/ — the code's own folder unless MONITOR_HOME says otherwise
@@ -1942,6 +1945,9 @@ const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT,
 // this PC linked to an account on crew.elopstudio.com
 // the mobile app's calls come through the relay and are answered by this server's own API, with its token added there
 const cloud = createCloud({ dataDir: DATA, version: VERSION, notifyPages, local: { port: PORT, token: () => TOKEN } })
+// Claude Code's instructions, settings, memory and extensions, opened from the menu: the user's own and those of the
+// projects on the page. Not under /api/, so the phone app's relay never carries them (they are shown unmasked, to edit)
+const claudeFiles = createClaudeFiles({ claude: CLAUDE, projects: async () => (await cachedState()).projects.map(({ key, root, name }) => ({ key, root, name })) })
 // the about dialog's files: the maker's logo for light and dark, and the licence
 const ABOUT_FILES = {
   '/brand/elop-logo-black.png': [path.join(ROOT, 'docs', 'elop-logo-black.png'), 'image/png'],
@@ -1965,6 +1971,7 @@ const server = http.createServer(async (req, res) => {
       // cross-origin request with a custom header needs a CORS preflight this server never answers.
       if (!sameToken(req.headers['x-monitor-token'])) { res.writeHead(403).end(); return }
       if (url.pathname === '/api/upload') { const [code, o] = await saveUpload(req, url); json(code, o); return }
+      if (url.pathname === '/claude/file') { const [code, o] = await claudeFiles.write(await readBody(req, 2 * 1024 * 1024)); json(code, o); return }
       const body = await readBody(req)
       if (url.pathname === '/hook/prompt') { json(200, await agents.prompt(body)); return }
       if (url.pathname === '/hook/assistant') { json(200, { text: await assistant.tool(body) }); return }
@@ -2039,6 +2046,12 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/browser/stream') {
       if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
       await browsers.stream(req, res, url.searchParams.get('port'), url.searchParams.get('id') || '')
+      return
+    }
+    if (url.pathname === '/claude/files' || url.pathname === '/claude/file') {
+      if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
+      const [code, o] = url.pathname === '/claude/files' ? await claudeFiles.list() : await claudeFiles.read(url.searchParams.get('ref') || '')
+      json(code, o)
       return
     }
     if (url.pathname === '/api/runs') {

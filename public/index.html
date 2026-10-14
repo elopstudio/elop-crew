@@ -878,6 +878,46 @@ body.docked .detail{bottom:60px;max-height:calc(100vh - 92px)}
 .mcp .conn .why{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .mcp .conn .acts{margin-top:2px}
 .acct .relay.on{color:var(--run)}
+/* Claude Code's files: the lists by kind, then one file to read or edit */
+.cf{padding:14px 16px 16px;display:grid;gap:14px;font-size:13px;align-content:start}
+.cf[hidden],.cf [hidden]{display:none}
+.cf .hint,.cf .meta,.cf .cfroot{font-size:11.5px;color:var(--faint)}
+.cf .cfroot{font-family:var(--mono);overflow-wrap:anywhere;margin-top:-8px}
+.cf .bad{color:var(--block);font-weight:700}
+.cf .cfsec{display:grid;gap:6px}
+.cf .cfsec h4{display:flex;align-items:center;gap:8px;margin:0;font-size:12.5px;color:var(--muted)}
+.cf .cfsec h4 .small{margin-left:auto}
+.cf .cfrow{appearance:none;text-align:left;display:grid;gap:3px;width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--text);font:13px var(--sans);cursor:pointer;min-width:0}
+.cf .cfrow:hover{border-color:var(--line-strong)}
+.cf .cfrow.missing{background:none;border-style:dashed;color:var(--muted)}
+.cf .ct{display:flex;align-items:center;gap:8px;min-width:0}
+.cf .ct b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cf .src{font-size:10.5px;font-weight:800;color:var(--muted);border:1px solid var(--line-strong);border-radius:4px;padding:0 5px;flex:none}
+.cf .ct .meta{margin-left:auto;flex:none}
+.cf .cfrow .why{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cf select,.cf input[type=search]{font:13px var(--sans);color:var(--text);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:6px 10px;justify-self:start;max-width:100%}
+.cf input[type=search]{justify-self:stretch}
+.cf details{border:1px solid var(--line);border-radius:12px;padding:0 10px}
+.cf summary{cursor:pointer;padding:9px 2px;display:flex;gap:8px;align-items:center;min-width:0}
+.cf summary b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cf summary .meta{margin-left:auto;flex:none}
+.cf details[open]>summary{border-bottom:1px solid var(--line);margin-bottom:8px}
+.cf .cfrows{display:grid;gap:6px;padding-bottom:10px}
+.cf .cfedit{display:grid;gap:10px}
+.cf .cfbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cf .cfpath{font:12px var(--mono);color:var(--muted);overflow-wrap:anywhere;flex:1;min-width:120px}
+.cf .acts{display:flex;gap:8px;align-items:center}
+.cf .acts button:not(.copy),.cf .cfback,.cf .small{appearance:none;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text);border-radius:8px;padding:6px 12px;font:700 12.5px var(--sans);cursor:pointer}
+.cf .small{padding:3px 10px;font-size:12px}
+.cf .acts .main{border-color:var(--run);background:var(--run);color:var(--surface)}
+.cf .acts .danger{color:var(--block);border-color:var(--block)}
+.cf .cfmsg{font-size:12.5px;font-weight:700;border-radius:8px;padding:7px 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cf .cfmsg.ok{color:var(--run);background:var(--run-soft)}
+.cf .cfmsg.bad{color:var(--block);background:var(--block-soft)}
+.cf .cfta{display:block;width:100%;min-height:55vh;resize:vertical;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface-2);color:var(--text);font:12.5px/1.55 var(--mono);padding:10px 12px;tab-size:2}
+.cf .cfpre,.cf .cffm{font:12px/1.5 var(--mono);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.cf .cffm{color:var(--muted);margin-bottom:10px}
+.cf .cfview .md{font-size:13.5px;line-height:1.6;overflow-wrap:anywhere}
 .acct .me{display:grid;gap:2px}
 .acct .me b{font-size:15px;font-weight:900}
 .acct .me .mail{font-family:var(--mono);font-size:12px;color:var(--muted);overflow-wrap:anywhere}
@@ -1095,6 +1135,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
           <button type="button" class="mi" id="acct-btn"></button>
           <button type="button" class="mi" id="cloud-btn"></button>
           <button type="button" class="mi" id="mcp-btn"></button>
+          <button type="button" class="mi" id="cf-btn"></button>
           <button type="button" class="mi" id="about-btn"></button>
         </div>
       </div>
@@ -1119,6 +1160,20 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   /* ── Wording ── English is the default; Korean is an option. */
   const I18N = {
     en: {
+      cfTitle: 'Claude files', cfTabGlobal: 'Yours', cfTabProject: 'Projects', cfTabMemory: 'Memory',
+      cfHintGlobal: 'What Claude Code reads in every project, from {p}.', cfHintProject: 'A project\'s own files, for the projects on this page. CLAUDE.md and .claude/settings.json are usually shared through git; the .local ones stay on this PC.',
+      cfHintMemory: 'What Claude Code notes down by itself, per folder. MEMORY.md is the index read at every start; each other file holds one memory. Searched by name and description.',
+      cfApply: 'Agents already running mostly pick a change up when they next start.', cfSecInstr: 'Instructions', cfSecSettings: 'Settings', cfSecMcp: 'MCP servers',
+      cfSec_skills: 'Skills', cfSec_agents: 'Subagents', cfSec_commands: 'Commands', cfSec_plans: 'Plans',
+      cfMcpUser: 'Yours, in every project', cfMcpLocal: 'This folder only, on this PC', cfMcpShared: 'Shared with the project (.mcp.json)', cfServers: '{n} servers',
+      cfMcpHint: 'Servers by name, kept in ~/.claude.json (only this part of it is shown). Whether they work: Connectors in the menu.',
+      cfNone: 'None', cfMissing: 'Not there yet', cfCreate: 'Create', cfNew: 'New', cfNewName: 'Name (letters, numbers, - and _)', cfBadName: 'Use letters, numbers, - and _ only.',
+      cfSyncedTag: 'claude.ai', cfSynced: 'Kept in step with claude.ai: a change made here would be put back, so it is read-only.', cfIndex: 'index',
+      cfBack: 'List', cfEdit: 'Edit', cfSave: 'Save', cfCancel: 'Cancel', cfDelete: 'Delete', cfDeleteAsk: 'Delete {x}?', cfDeleteMem: 'Delete {x}? Its line in MEMORY.md goes too.',
+      cfSaved: 'Saved', cfDeleted: 'Deleted', cfUndo: 'Undo', cfUndone: 'Undone',
+      cfChanged: 'It was changed elsewhere after you opened it. Loading it again drops your edit, so copy it first if you need it.', cfReload: 'Load again',
+      cfBadJson: 'Not valid JSON: {x}', cfFailed: 'Could not save it.', cfLoadFailed: 'Could not read it.', cfLeave: 'Leave without saving your edit?',
+      cfSearch: 'Search memories', cfOther: 'not on this page', cfNoProjects: 'No projects on the page.', cfEmpty: '(empty)', cfMemCount: '{n} memories',
       title: 'ELOP Crew', tagline: 'AI Agent Monitor', copy: 'Copy', copied: 'Copied', copyFailed: 'Could not copy', live: 'Live', connecting: 'Connecting', offline: 'Offline', updated: 'Updated {t}',
       projects: 'Projects', sessions: 'Sessions', working: 'Working', waiting: 'Waiting', resting: 'Resting',
       leader: 'LEAD', idleBubble: 'Resting', waitBubble: 'Waiting', last: 'Last · {x}',
@@ -1144,6 +1199,20 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       },
     },
     ko: {
+      cfTitle: 'Claude 설정·메모리', cfTabGlobal: '전역', cfTabProject: '프로젝트', cfTabMemory: '메모리',
+      cfHintGlobal: '모든 프로젝트에서 Claude Code 가 읽는 파일입니다({p}).', cfHintProject: '이 화면에 보이는 프로젝트의 파일입니다. CLAUDE.md 와 .claude/settings.json 은 보통 git 으로 공유하고, .local 이 붙은 파일은 이 PC 에만 둡니다.',
+      cfHintMemory: 'Claude Code 가 폴더마다 스스로 기록하는 메모리입니다. MEMORY.md 는 시작할 때마다 읽는 목차이고, 나머지 파일은 메모리 하나씩입니다. 이름과 설명으로 검색합니다.',
+      cfApply: '이미 실행 중인 에이전트는 대개 다음에 시작할 때부터 바뀐 내용을 씁니다.', cfSecInstr: '지시', cfSecSettings: '설정', cfSecMcp: 'MCP 서버',
+      cfSec_skills: '스킬', cfSec_agents: '서브에이전트', cfSec_commands: '커맨드', cfSec_plans: '플랜',
+      cfMcpUser: '전역, 모든 프로젝트에서', cfMcpLocal: '이 폴더 전용, 이 PC 에만', cfMcpShared: '프로젝트와 공유 (.mcp.json)', cfServers: '서버 {n}개',
+      cfMcpHint: '이름별 서버 설정이며 ~/.claude.json 에 들어 있습니다(이 부분만 보여 줍니다). 연결 상태는 메뉴의 커넥터에서 확인하세요.',
+      cfNone: '없음', cfMissing: '아직 없음', cfCreate: '만들기', cfNew: '새로 만들기', cfNewName: '이름 (영문·숫자·-·_)', cfBadName: '영문·숫자·-·_ 만 쓸 수 있습니다.',
+      cfSyncedTag: 'claude.ai', cfSynced: 'claude.ai 와 동기화되는 스킬입니다. 여기서 고쳐도 다시 덮어써지므로 읽기만 할 수 있습니다.', cfIndex: '목차',
+      cfBack: '목록', cfEdit: '편집', cfSave: '저장', cfCancel: '취소', cfDelete: '삭제', cfDeleteAsk: '{x} 파일을 삭제할까요?', cfDeleteMem: '{x} 파일을 삭제할까요? MEMORY.md 에 있는 줄도 함께 지웁니다.',
+      cfSaved: '저장했습니다', cfDeleted: '삭제했습니다', cfUndo: '되돌리기', cfUndone: '되돌렸습니다',
+      cfChanged: '연 뒤에 다른 곳에서 바뀌었습니다. 다시 불러오면 고친 내용이 사라지니, 필요하면 먼저 복사해 두세요.', cfReload: '다시 불러오기',
+      cfBadJson: 'JSON 형식이 올바르지 않습니다: {x}', cfFailed: '저장하지 못했습니다.', cfLoadFailed: '읽지 못했습니다.', cfLeave: '저장하지 않은 내용이 있습니다. 나갈까요?',
+      cfSearch: '메모리 검색', cfOther: '이 화면에 없는 폴더', cfNoProjects: '화면에 보이는 프로젝트가 없습니다.', cfEmpty: '(비어 있음)', cfMemCount: '메모리 {n}개',
       title: 'ELOP Crew', tagline: 'AI Agent Monitor', copy: '복사', copied: '복사했습니다', copyFailed: '복사하지 못했습니다', live: '실시간', connecting: '연결 중', offline: '끊김', updated: '갱신 {t}',
       projects: '프로젝트', sessions: '세션', working: '작업 중', waiting: '대기', resting: '쉬는 중',
       leader: '리더', idleBubble: '쉬는 중', waitBubble: '대기 중', last: '마지막 · {x}',
@@ -1354,6 +1423,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     user: '<circle cx="8" cy="5.6" r="2.7"/><path d="M2.8 13.6c.6-2.6 2.7-4.1 5.2-4.1s4.6 1.5 5.2 4.1"/>',
     globe: '<circle cx="8" cy="8" r="5.8"/><path d="M2.2 8h11.6M8 2.2c1.7 1.6 2.6 3.6 2.6 5.8S9.7 12.2 8 13.8M8 2.2C6.3 3.8 5.4 5.8 5.4 8s.9 4.2 2.6 5.8"/>',
     cpu: '<rect x="4" y="4" width="8" height="8" rx="1.6"/><rect x="6.4" y="6.4" width="3.2" height="3.2" rx=".5"/><path d="M6.3 2v2M9.7 2v2M6.3 12v2M9.7 12v2M2 6.3h2M2 9.7h2M12 6.3h2M12 9.7h2"/>',
+    file: '<path d="M4 2.2h5.2L12 5v8.8H4z"/><path d="M9 2.2V5h3M6 8h4M6 10.6h4"/>',
     plug: '<path d="M5.5 2v3M10.5 2v3"/><path d="M3.5 5h9v2.5a4.5 4.5 0 0 1-9 0z"/><path d="M8 12v2"/>',
     info: '<circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.9"/><circle cx="8" cy="4.9" r=".55" fill="currentColor" stroke="none"/>',
   };
@@ -1374,6 +1444,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     menuItem($('acct-btn'), 'user', t('acctTitle'));
     menuItem($('cloud-btn'), 'cloud', t('menuCloud'));
     menuItem($('mcp-btn'), 'plug', t('mcpTitle'));
+    menuItem($('cf-btn'), 'file', t('cfTitle'));
     procButton();
     menuItem($('about-btn'), 'info', t('about'));
     if (!$('live').classList.contains('on')) $('live-text').textContent = last ? t('offline') : t('connecting');
@@ -3029,8 +3100,11 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     // with a draft, the box is focused at its end, to go on writing
     if (focusMessage || ta.value) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } else close.focus();
   }
-  $('detail').addEventListener('click', (e) => { if (e.target === $('detail')) $('detail').close(); });   // click outside closes
+  // click outside closes; Esc too — but an unsaved edit of a Claude file is asked about first
+  $('detail').addEventListener('click', (e) => { if (e.target === $('detail') && (!cfLeave || cfLeave())) $('detail').close(); });
+  $('detail').addEventListener('cancel', (e) => { if (cfLeave && !cfLeave()) e.preventDefault(); });
   $('detail').addEventListener('close', () => {
+    cfLeave = null;
     if ($('detail').open) return;   // opened again before this late event came in: the requests and the dock stay inside it
     leaveDialog(); $('projects').after(approvalsBox, dockBox, assistBox, fabBox); assistScrollBack(); stopLive(); if (last) approvalsNode(last); renderDock(); });
 
@@ -3056,6 +3130,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   }
   // the dialog is about to show something else or close: a docked agent keeps its tab and its unsent message
   function leaveDialog() {
+    cfLeave = null;   // a Claude file being edited is left with it
     const k = current && docked.find((x) => x.name === current.name);
     if (k) { k.tab = current.tab(); k.draft = current.draft(); }
     current = null;
@@ -3700,6 +3775,255 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     d.classList.add('narrow');
     close.focus();
     load(false);
+  }
+
+  // Claude Code's own files: instructions, settings, MCP servers, skills, subagents, commands, plans and memory — the
+  // user's and those of the projects on the page — read and edited here. A file is saved whole, and only if nobody
+  // changed it since it was opened; the undo puts back what was there. Not under /api/, so never on the phone.
+  let cfLeave = null;   // while an edit is unsaved: asks before it is left (false = stay)
+  async function cfGet(q) {
+    const go = () => fetch(q + (q.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token), { cache: 'no-store' });
+    try { let r = await go(); if (r.status === 403) { await refreshToken(); r = await go(); } return r.ok ? await r.json() : null; } catch (e) { return null; }
+  }
+  async function cfPost(body) {
+    const go = () => fetch('/claude/file', { method: 'POST', headers: { 'content-type': 'application/json', 'x-monitor-token': token }, body: JSON.stringify(body) });
+    try { let r = await go(); if (r.status === 403) { await refreshToken(); r = await go(); } let o = {}; try { o = await r.json(); } catch (e) {} return { ...o, status: r.status }; } catch (e) { return { status: 0 }; }
+  }
+  const CF_NEW = { skills: (n) => [n + '/SKILL.md', '---\nname: ' + n + '\ndescription: \n---\n\n'], agents: (n) => [n + '.md', '---\nname: ' + n + '\ndescription: \n---\n\n'], commands: (n) => [n + '.md', '---\ndescription: \n---\n\n'] };
+  function showClaudeFiles() {
+    stopLive();
+    leaveDialog();
+    const d = $('detail');
+    const head = el('div', 'dh'), who = el('div', 'who');
+    who.append(el('b', null, t('cfTitle')));
+    const close = iconButton('close', t('close'));
+    close.addEventListener('click', () => { if (!cfLeave || cfLeave()) d.close(); });
+    head.append(who, close);
+    const panes = { global: el('div', 'cf'), project: el('div', 'cf'), memory: el('div', 'cf') };
+    let data = null, pick = 'global', projKey = '', query = '';
+    const opened = new Set();   // memory folders unfolded
+    const kb = (n) => (n < 1024 ? n + ' B' : (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB');
+    const button = (cls, label, fn) => { const b = el('button', cls, label); b.type = 'button'; b.addEventListener('click', fn); return b; };
+    const scrollTop = () => { const b = d.querySelector('.dbody'); if (b) b.scrollTop = 0; };
+    const tabs = el('div', 'dtabs');
+    tabs.setAttribute('role', 'tablist');
+    const show = (k) => { pick = k; for (const x of tabs.children) x.setAttribute('aria-selected', String(x.dataset.k === k)); for (const [pk, pane] of Object.entries(panes)) pane.hidden = pk !== k; };
+    for (const [k, label] of [['global', t('cfTabGlobal')], ['project', t('cfTabProject')], ['memory', t('cfTabMemory')]]) {
+      const b = button('dtab', label, () => { if (cfLeave && !cfLeave()) return; cfLeave = null; show(k); draw(); });
+      b.dataset.k = k; b.setAttribute('role', 'tab');
+      tabs.append(b);
+    }
+
+    // a file in a list: its name, what kind, its size and when it changed (or that it is not there yet), a line under it
+    function row(f, label, title, opts = {}) {
+      const r = button('cfrow' + (f.exists === false ? ' missing' : ''), null, () => openFile(f.ref, title, opts.template));
+      const top = el('div', 'ct');
+      top.append(el('b', null, label));
+      if (f.type) top.append(el('span', 'src', str(f.type)));
+      if (f.readonly) top.append(el('span', 'src', t('cfSyncedTag')));
+      top.append(el('span', 'meta', opts.meta || (f.exists === false ? t('cfMissing') : kb(f.size) + ' · ' + ago(f.at))));
+      r.append(top);
+      if (opts.sub) r.append(el('div', 'why', opts.sub));
+      return r;
+    }
+    function section(title, items, add) {
+      const s = el('div', 'cfsec'), h = el('h4', null, title);
+      if (add) h.append(add);
+      s.append(h);
+      if (items.length) s.append(...items); else s.append(el('div', 'hint', t('cfNone')));
+      return s;
+    }
+    // + New for skills, subagents and commands: a name, then the editor with a frontmatter to fill in
+    // ref: 'g|' or 'p|<key>|'; base: what the titles start with; dir: where the trees are below it ('' or '.claude/')
+    function newButton(kind, ref, base, dir) {
+      return button('small', '+ ' + t('cfNew'), () => {
+        const n = (prompt(t('cfNewName')) || '').trim();
+        if (!n) return;
+        if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,60}$/.test(n)) { alert(t('cfBadName')); return; }
+        const [rel, template] = CF_NEW[kind](n);
+        openFile(ref + dir + kind + '/' + rel, base + dir + kind + '/' + rel, template);
+      });
+    }
+    const trees = (o, ref, base, dir) => ['skills', 'agents', 'commands'].map((k) => section(t('cfSec_' + k),
+      o[k].map((f) => row(f, str(f.name) || f.path.split('/').slice(-2).join('/'), base + f.path, { sub: str(f.description) })),
+      newButton(k, ref, base, dir)));
+    const servers = (m) => (m.servers.length ? m.servers.join(', ') : t('cfNone'));
+
+    function drawGlobal() {
+      const g = data.global, base = '~/.claude/';
+      const file = (rel) => g.files.find((f) => f.path === rel);
+      panes.global.replaceChildren(
+        el('div', 'hint', t('cfHintGlobal', { p: g.base }) + ' ' + t('cfApply')),
+        section(t('cfSecInstr'), [row(file('CLAUDE.md'), 'CLAUDE.md', base + 'CLAUDE.md')]),
+        section(t('cfSecSettings'), ['settings.json', 'settings.local.json'].map((rel) => row(file(rel), rel, base + rel))),
+        section(t('cfSecMcp'), [row({ ref: g.mcp.ref }, t('cfMcpUser'), '~/.claude.json · mcpServers', { meta: t('cfServers', { n: g.mcp.servers.length }), sub: servers(g.mcp) })]),
+        ...trees(g, 'g|', base, ''),
+        section(t('cfSec_plans'), g.plans.map((f) => row(f, f.path.replace(/^plans\//, ''), base + f.path, { sub: str(f.description) }))),
+      );
+    }
+    function drawProject() {
+      const pane = panes.project;
+      if (!data.projects.length) { pane.replaceChildren(el('div', 'hint', t('cfNoProjects'))); return; }
+      const p = data.projects.find((x) => x.key === projKey) || data.projects[0];
+      projKey = p.key;
+      const sel = document.createElement('select');
+      for (const x of data.projects) { const o = el('option', null, str(x.name) || x.key); o.value = x.key; sel.append(o); }
+      sel.value = p.key;
+      sel.addEventListener('change', () => { projKey = sel.value; drawProject(); });
+      const base = p.root.replace(/\\/g, '/') + '/', prefix = 'p|' + p.key + '|';
+      const file = (rel) => row(p.files.find((f) => f.path === rel), rel, base + rel);
+      pane.replaceChildren(
+        el('div', 'hint', t('cfHintProject') + ' ' + t('cfApply')),
+        sel, el('div', 'cfroot', base),
+        section(t('cfSecInstr'), ['CLAUDE.md', 'CLAUDE.local.md', '.claude/CLAUDE.md'].map(file)),
+        section(t('cfSecSettings'), ['.claude/settings.json', '.claude/settings.local.json'].map(file)),
+        section(t('cfSecMcp'), [
+          row(p.files.find((f) => f.path === '.mcp.json'), t('cfMcpShared'), base + '.mcp.json'),
+          row({ ref: p.mcp.ref }, t('cfMcpLocal'), '~/.claude.json · projects · mcpServers', { meta: t('cfServers', { n: p.mcp.servers.length }), sub: servers(p.mcp) }),
+        ]),
+        ...trees(p, prefix, base, '.claude/'),
+      );
+    }
+    function drawMemory() {
+      const pane = panes.memory;
+      const search = document.createElement('input');
+      search.type = 'search'; search.placeholder = t('cfSearch'); search.value = query;
+      const list = el('div', 'cfsec');
+      const fill = () => {
+        const q = query.trim().toLowerCase();
+        const hit = (f) => !q || [f.path, f.name, f.description, f.type].some((v) => str(v).toLowerCase().includes(q));
+        list.replaceChildren();
+        for (const m of data.memory) {
+          const files = m.files.filter(hit);
+          if (q && !files.length) continue;
+          const det = el('details'), sum = el('summary');
+          sum.append(el('b', null, m.key ? str(m.name) || m.key : m.slug));
+          if (!m.key) sum.append(el('span', 'src', t('cfOther')));
+          sum.append(el('span', 'meta', t('cfMemCount', { n: m.files.filter((f) => f.path !== 'MEMORY.md').length })));
+          det.append(sum);
+          det.open = !!q || opened.has(m.slug);
+          det.addEventListener('toggle', () => { if (!q) { if (det.open) opened.add(m.slug); else opened.delete(m.slug); } });
+          const rows = el('div', 'cfrows');
+          const base = '~/.claude/projects/' + m.slug + '/memory/';
+          rows.append(...files.map((f) => row(f, f.path === 'MEMORY.md' ? 'MEMORY.md · ' + t('cfIndex') : str(f.name) || f.path, base + f.path, { sub: str(f.description) })));
+          det.append(rows);
+          list.append(det);
+        }
+        if (!list.children.length) list.append(el('div', 'hint', t('cfNone')));
+      };
+      search.addEventListener('input', () => { query = search.value; fill(); });
+      fill();
+      pane.replaceChildren(el('div', 'hint', t('cfHintMemory')), search, list);
+    }
+    function draw() {
+      cfLeave = null;
+      if (!data) { for (const p of Object.values(panes)) p.replaceChildren(el('div', 'bad', t('cfLoadFailed'))); return; }
+      drawGlobal(); drawProject(); drawMemory();
+    }
+    const load = async () => {
+      data = await cfGet('/claude/files');
+      if (panes.global.isConnected) draw();
+    };
+
+    async function openFile(ref, title, template) {
+      if (cfLeave && !cfLeave()) return;
+      cfLeave = null;
+      const pane = panes[pick];
+      pane.replaceChildren(el('div', 'hint', '…'));
+      scrollTop();
+      const f = await cfGet('/claude/file?ref=' + encodeURIComponent(ref));
+      if (!pane.isConnected) return;
+      if (!f) { pane.replaceChildren(button('cfback', '← ' + t('cfBack'), load), el('div', 'bad', t('cfLoadFailed'))); return; }
+      pane.replaceChildren(editor(f, title, template && !f.exists ? template : ''));
+      pane.querySelector('.cfta')?.focus();
+    }
+    // one file: read (markdown drawn, the rest as it is), then edited in a box; Ctrl+S saves
+    function editor(f, title, template) {
+      const box = el('div', 'cfedit'), bar = el('div', 'cfbar'), acts = el('div', 'acts');
+      const msg = el('div', 'cfmsg'), view = el('div', 'cfview');
+      msg.hidden = true;
+      bar.append(button('cfback', '← ' + t('cfBack'), () => { if (cfLeave && !cfLeave()) return; cfLeave = null; load(); }), el('code', 'cfpath', title), acts);
+      box.append(bar, msg, view);
+      if (f.readonly === 'synced') box.insertBefore(el('div', 'hint', t('cfSynced')), msg);
+      if (f.mcp) box.insertBefore(el('div', 'hint', t('cfMcpHint')), msg);
+      let text = f.text, version = f.version, exists = f.exists, ta = null;
+      const isMemory = f.ref.startsWith('m|');
+      const dirty = () => !!ta && ta.value !== text;
+      cfLeave = () => !dirty() || confirm(t('cfLeave'));
+      const say = (cls, words, ...more) => { msg.className = 'cfmsg ' + cls; msg.replaceChildren(el('span', null, words), ...more); msg.hidden = false; };
+      const failed = (r) => (r.status === 409 ? say('bad', t('cfChanged'), button('small', t('cfReload'), reload)) : r.error === 'json' ? say('bad', t('cfBadJson', { x: str(r.message) })) : say('bad', t('cfFailed')));
+      async function reload() {
+        const g = await cfGet('/claude/file?ref=' + encodeURIComponent(f.ref));
+        if (!g) { say('bad', t('cfLoadFailed')); return; }
+        text = g.text; version = g.version; exists = g.exists; msg.hidden = true; showView();
+      }
+      function showView() {
+        ta = null;
+        acts.replaceChildren();
+        if (!f.readonly) acts.append(button('main', exists ? t('cfEdit') : t('cfCreate'), () => showEdit(exists ? text : '')));
+        if (exists && f.removable) acts.append(button('danger', t('cfDelete'), remove));
+        if (exists) acts.append(copyButton(() => text));
+        view.replaceChildren();
+        if (!exists) { view.append(el('div', 'hint', t('cfMissing'))); return; }
+        if (!text.trim()) { view.append(el('div', 'hint', t('cfEmpty'))); return; }
+        if (f.kind !== 'md') { view.append(el('pre', 'cfpre', text)); return; }
+        // the frontmatter (name, description…) as it is, the rest drawn
+        const fm = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/.exec(text);
+        if (fm) view.append(el('pre', 'cffm', fm[0].trim()));
+        const md = el('div', 'md');
+        md.append(mdNode(fm ? text.slice(fm[0].length) : text));
+        view.append(md);
+      }
+      function showEdit(start) {
+        ta = el('textarea', 'cfta');
+        ta.value = start; ta.spellcheck = false;
+        ta.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); } });
+        acts.replaceChildren(button('main', t('cfSave'), save), button('', t('cfCancel'), () => { if (!dirty() || confirm(t('cfLeave'))) { msg.hidden = true; showView(); } }));
+        view.replaceChildren(ta);
+        if (ta.isConnected) ta.focus();
+      }
+      async function save() {
+        if (!ta) return;
+        const value = ta.value, was = text, wasThere = exists;
+        const r = await cfPost({ ref: f.ref, text: value, version });
+        if (r.status !== 200) { failed(r); return; }
+        text = value; version = r.version; exists = true;
+        showView();
+        say('ok', t('cfSaved'), button('small', t('cfUndo'), async () => {
+          const u = await cfPost(wasThere ? { ref: f.ref, text: was, version } : { ref: f.ref, remove: true, version });
+          if (u.status !== 200) { failed(u); return; }
+          text = wasThere ? was : ''; version = u.version || ''; exists = wasThere;
+          showView(); say('ok', t('cfUndone'));
+        }));
+      }
+      async function remove() {
+        if (!confirm(t(isMemory ? 'cfDeleteMem' : 'cfDeleteAsk', { x: title.split('/').pop() }))) return;
+        const was = text;
+        const r = await cfPost({ ref: f.ref, remove: true, version });
+        if (r.status !== 200) { failed(r); return; }
+        exists = false; version = '';
+        showView();
+        say('ok', t('cfDeleted'), button('small', t('cfUndo'), async () => {
+          const u = await cfPost({ ref: f.ref, text: was, version: '' });
+          if (u.status !== 200) { failed(u); return; }
+          if (r.index) await cfPost({ ref: r.index.ref, text: r.index.was, version: r.index.version });
+          text = was; version = u.version; exists = true;
+          showView(); say('ok', t('cfUndone'));
+        }));
+      }
+      showView();
+      if (template) showEdit(template);
+      return box;
+    }
+
+    show(pick);
+    for (const p of Object.values(panes)) p.append(el('div', 'hint', '…'));
+    d.replaceChildren(head, tabs, dbody(...Object.values(panes)));
+    if (!d.open) d.showModal();
+    floatInto(d);
+    d.classList.remove('narrow');
+    close.focus();
+    load();
   }
 
   // what this program is, who makes it, where the code lives, and its licence
@@ -5151,6 +5475,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   $('acct-btn').addEventListener('click', () => showAccount('claude'));
   $('cloud-btn').addEventListener('click', () => showAccount('cloud'));
   $('mcp-btn').addEventListener('click', showConnectors);
+  $('cf-btn').addEventListener('click', showClaudeFiles);
   $('about-btn').addEventListener('click', showAbout);
   $('bell').addEventListener('click', async () => { try { await Notification.requestPermission(); } catch (e) {} bell(); });
   bell();

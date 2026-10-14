@@ -48,6 +48,7 @@
           "processes.mjs",
           "assistant.mjs",
           "browsers.mjs",
+          "claudefiles.mjs",
           "package.json",
           "LICENSE",
           "public/**/*",
