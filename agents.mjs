@@ -19,6 +19,10 @@ import { spawn, execFileSync } from 'node:child_process'
 
 const HISTORY = 600                 // normalised events kept per agent for a dialog opened later
 const IMAGE_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' }
+// Claude Code tells a session run without a terminal which claude.ai connectors still want signing in to, and to tell
+// the user so; agents added it to the end of their answers, turn after turn. The monitor's Connectors panel shows them
+const CONNECTORS_RULE = 'Agent monitor: connectors that still need authentication are listed in the monitor\'s Connectors panel, so the user already knows. ' +
+  'Do not tell the user about them (nor about authorizing them) unless they asked for something that needs one of those connectors.'
 const MODES = ['default', 'acceptEdits', 'plan', 'auto', 'dontAsk', 'bypassPermissions']
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']   // claude's --effort; none = its own default
 const effortOf = (v) => (EFFORTS.includes(v) ? v : '')
@@ -464,10 +468,10 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     if (a.kind === 'assistant') args.push('--allowedTools', 'mcp__assistant')
     // the terminal tools ask the person themselves (opening, typing), so Claude Code does not ask again
     else args.push('--allowedTools', 'mcp__terminal')
-    if (a.kind === 'assistant' && a.system) args.push('--append-system-prompt', a.system)
+    if (a.kind === 'assistant' && a.system) args.push('--append-system-prompt', a.system + '\n\n' + CONNECTORS_RULE)
     // the person's language, and the monitor's panels it may use, where every step sees them (a line in the conversation
     // drifts out of view, or a compaction drops it)
-    else if (a.kind !== 'assistant') { const sys = [langRule?.(), panelsRule?.()].filter(Boolean).join('\n\n'); if (sys) args.push('--append-system-prompt', sys) }
+    else if (a.kind !== 'assistant') { const sys = [langRule?.(), panelsRule?.(), CONNECTORS_RULE].filter(Boolean).join('\n\n'); if (sys) args.push('--append-system-prompt', sys) }
     a.procHasRole = a.kind === 'assistant' && !!a.system
     if (a.model) args.push('--model', a.model)
     if (a.effort) args.push('--effort', a.effort)

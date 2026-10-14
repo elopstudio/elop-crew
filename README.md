@@ -32,7 +32,8 @@ checks it (`claude mcp list`): connected, needs signing in, or not working with 
 was found at the URL provided."). Signing in to a claude.ai connector is done on claude.ai: **Connect on claude.ai** opens
 its connector settings in the browser, and coming back to the window checks again. A server of this PC's own that needs
 signing in is done with `/mcp` in claude in a terminal. Agents already running get a newly connected one when they next
-start. Only a name, a host and a state reach the page — never a full address or a command line.
+start. Only a name, a host and a state reach the page — never a full address or a command line. The monitor's agents
+are told the ones still to sign in to are listed here, so they do not end their answers reminding you of them.
 
 **Claude files** shows Claude Code's own files and lets you edit them, in three tabs. **Yours**: `~/.claude/CLAUDE.md`,
 `settings.json` and `settings.local.json`, your MCP servers (the `mcpServers` part of `~/.claude.json`, nothing else of
