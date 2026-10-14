@@ -909,6 +909,7 @@ body.docked .detail{bottom:60px;max-height:calc(100vh - 92px)}
 .cf .acts{display:flex;gap:8px;align-items:center}
 .cf .acts button:not(.copy),.cf .cfback,.cf .small{appearance:none;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text);border-radius:8px;padding:6px 12px;font:700 12.5px var(--sans);cursor:pointer}
 .cf .small{padding:3px 10px;font-size:12px}
+.cf .cfext{justify-self:start}
 .cf .acts .main{border-color:var(--run);background:var(--run);color:var(--surface)}
 .cf .acts .danger{color:var(--block);border-color:var(--block)}
 .cf .cfmsg{font-size:12.5px;font-weight:700;border-radius:8px;padding:7px 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -1174,6 +1175,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       cfChanged: 'It was changed elsewhere after you opened it. Loading it again drops your edit, so copy it first if you need it.', cfReload: 'Load again',
       cfBadJson: 'Not valid JSON: {x}', cfFailed: 'Could not save it.', cfLoadFailed: 'Could not read it.', cfLeave: 'Leave without saving your edit?',
       cfSearch: 'Search memories', cfOther: 'not on this page', cfNoProjects: 'No projects on the page.', cfEmpty: '(empty)', cfMemCount: '{n} memories',
+      cfSecAccount: 'On claude.ai', cfAccountHint: 'Artifacts and docs made on claude.ai are kept in your account, not on this PC; they open in the browser.', cfArtifacts: 'claude.ai artifacts',
       title: 'ELOP Crew', tagline: 'AI Agent Monitor', copy: 'Copy', copied: 'Copied', copyFailed: 'Could not copy', live: 'Live', connecting: 'Connecting', offline: 'Offline', updated: 'Updated {t}',
       projects: 'Projects', sessions: 'Sessions', working: 'Working', waiting: 'Waiting', resting: 'Resting',
       leader: 'LEAD', idleBubble: 'Resting', waitBubble: 'Waiting', last: 'Last · {x}',
@@ -1213,6 +1215,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       cfChanged: '연 뒤에 다른 곳에서 바뀌었습니다. 다시 불러오면 고친 내용이 사라지니, 필요하면 먼저 복사해 두세요.', cfReload: '다시 불러오기',
       cfBadJson: 'JSON 형식이 올바르지 않습니다: {x}', cfFailed: '저장하지 못했습니다.', cfLoadFailed: '읽지 못했습니다.', cfLeave: '저장하지 않은 내용이 있습니다. 나갈까요?',
       cfSearch: '메모리 검색', cfOther: '이 화면에 없는 폴더', cfNoProjects: '화면에 보이는 프로젝트가 없습니다.', cfEmpty: '(비어 있음)', cfMemCount: '메모리 {n}개',
+      cfSecAccount: 'claude.ai', cfAccountHint: 'claude.ai 에서 만든 아티팩트와 문서는 이 PC 가 아니라 계정에 저장됩니다. 브라우저에서 열립니다.', cfArtifacts: 'claude.ai 아티팩트',
       title: 'ELOP Crew', tagline: 'AI Agent Monitor', copy: '복사', copied: '복사했습니다', copyFailed: '복사하지 못했습니다', live: '실시간', connecting: '연결 중', offline: '끊김', updated: '갱신 {t}',
       projects: '프로젝트', sessions: '세션', working: '작업 중', waiting: '대기', resting: '쉬는 중',
       leader: '리더', idleBubble: '쉬는 중', waitBubble: '대기 중', last: '마지막 · {x}',
@@ -3789,6 +3792,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const go = () => fetch('/claude/file', { method: 'POST', headers: { 'content-type': 'application/json', 'x-monitor-token': token }, body: JSON.stringify(body) });
     try { let r = await go(); if (r.status === 403) { await refreshToken(); r = await go(); } let o = {}; try { o = await r.json(); } catch (e) {} return { ...o, status: r.status }; } catch (e) { return { status: 0 }; }
   }
+  const ARTIFACTS_URL = 'https://claude.ai/artifacts';
   const CF_NEW = { skills: (n) => [n + '/SKILL.md', '---\nname: ' + n + '\ndescription: \n---\n\n'], agents: (n) => [n + '.md', '---\nname: ' + n + '\ndescription: \n---\n\n'], commands: (n) => [n + '.md', '---\ndescription: \n---\n\n'] };
   function showClaudeFiles() {
     stopLive();
@@ -3859,6 +3863,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
         section(t('cfSecMcp'), [row({ ref: g.mcp.ref }, t('cfMcpUser'), '~/.claude.json · mcpServers', { meta: t('cfServers', { n: g.mcp.servers.length }), sub: servers(g.mcp) })]),
         ...trees(g, 'g|', base, ''),
         section(t('cfSec_plans'), g.plans.map((f) => row(f, f.path.replace(/^plans\//, ''), base + f.path, { sub: str(f.description) }))),
+        // artifacts and docs made on claude.ai are kept in the account, not on this PC: a link to them, in the browser
+        section(t('cfSecAccount'), [el('div', 'hint', t('cfAccountHint')), button('small cfext', t('cfArtifacts') + ' ↗', () => window.open(ARTIFACTS_URL, '_blank', 'noopener'))]),
       );
     }
     function drawProject() {

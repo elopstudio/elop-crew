@@ -45,7 +45,8 @@ A file not there yet can be created, and **+ New** starts a skill, subagent or c
 checked before it is saved; a file changed elsewhere after it was opened is not overwritten (load it again); every save
 or delete can be undone straight after. Deleting a memory takes its line out of `MEMORY.md` too. Skills claude.ai keeps
 in step with the account (`skills/synced/`) are read-only, since a change would be put back. Agents already running
-mostly pick a change up when they next start. Only those paths are opened, whatever is asked; nothing is copied or kept,
+mostly pick a change up when they next start. Artifacts and docs made on claude.ai are kept in the account, not on
+this PC: **claude.ai artifacts** at the bottom of **Yours** opens them in the browser. Only those paths are opened, whatever is asked; nothing is copied or kept,
 and these files never go to the phone app (they are not under `/api/`).
 
 The page is in English by default. Switch to Korean with **EN / 한국어** in the menu (remembered in the browser) or open
