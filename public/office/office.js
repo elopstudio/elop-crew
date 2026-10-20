@@ -12,13 +12,46 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const CSS = `
-.office{position:relative;height:clamp(440px,calc(100vh - 250px),900px);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface-2)}
+.office{display:grid;grid-template-columns:minmax(0,1fr) 300px;height:clamp(480px,calc(100vh - 214px),1400px);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface-2)}
+.office .ostage{position:relative;overflow:hidden;min-width:0}
+@media (max-width:900px){.office{grid-template-columns:minmax(0,1fr)}.office .oside{display:none}}
+.office .oside{border-left:1px solid var(--line);background:var(--surface);padding:14px;display:flex;flex-direction:column;gap:14px;overflow:auto;min-height:0}
+.office .oside h4{margin:0 0 8px;font-size:11.5px;color:var(--faint);letter-spacing:.06em;font-weight:700}
+.office .ocard{border:1px solid var(--line);border-radius:12px;padding:12px;background:linear-gradient(180deg,var(--surface),var(--surface-2))}
+.office .ocard.asking{border:2px solid var(--wait);box-shadow:0 0 0 4px var(--wait-soft, rgba(140,106,16,.12))}
+.office .ocard .who{display:flex;gap:10px;align-items:center;min-width:0;cursor:pointer}
+.office .ocard .who>div:last-child{min-width:0}
+.office .ocard .av{width:58px;height:58px;flex:none}.office .ocard .av svg{width:58px;height:58px}
+.office .ocard .nm{font:800 16px var(--mono, ui-monospace,monospace);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.office .ocard .role{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.office .ocard .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;border-radius:999px;padding:1px 9px;margin-top:4px}
+.office .b-run{background:var(--run-soft);color:var(--run)}.office .b-wait{background:var(--wait-soft);color:var(--wait)}.office .b-rest{background:var(--done-soft);color:var(--done)}.office .b-ask{background:var(--wait);color:var(--surface)}
+.office .ocard dl{display:grid;grid-template-columns:72px minmax(0,1fr);gap:6px 10px;margin:12px 0 0;font-size:12px}
+.office .ocard dt{color:var(--faint)}.office .ocard dd{margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.office .ocard dd.m{font-family:var(--mono, ui-monospace,monospace);font-size:11.5px}
+.office .ocard .meter{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:5px}.office .ocard .meter b{display:block;height:100%;background:var(--accent);border-radius:3px}
+.office .ocard .acts{display:flex;gap:6px;margin-top:12px}
+.office .ocard .acts button,.office .askb .b button{flex:1;appearance:none;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);border-radius:8px;padding:6px 0;font:700 12px var(--sans, inherit);cursor:pointer}
+.office .ocard .acts .yes,.office .askb .b .yes{background:var(--accent);border-color:var(--accent);color:#fff}
+.office .ocard .acts button:disabled,.office .askb .b button:disabled{opacity:.5;cursor:default}
+.office .ofeed{display:flex;flex-direction:column;gap:4px;font-size:12px;max-height:200px;overflow:hidden}
+.office .ofeed div{color:var(--muted);animation:ofeedin .3s ease-out;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.office .ofeed div b{color:var(--text)}
+.office .ofeed time{font:11px var(--mono, ui-monospace,monospace);color:var(--faint);margin-right:6px}
+.office .ofeed .none{color:var(--faint)}
+@keyframes ofeedin{from{opacity:0;transform:translateY(-4px)}}
+.office .oplaces{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+.office .oplaces div{display:grid;grid-template-columns:22px 1fr;gap:4px;align-items:start}.office .oplaces b{color:var(--text);font-weight:700}
+.office .ohud .oname{font:700 12px var(--mono, ui-monospace,monospace);color:var(--muted);padding:0 10px;line-height:22px;white-space:nowrap}
+.office .ohud .oname small{font-family:var(--sans, inherit);font-weight:500;color:var(--faint);margin-left:6px}
+.office .ohudwrap{position:absolute;top:10px;left:10px;right:10px;z-index:3;display:flex;gap:8px;align-items:center;pointer-events:none}
+.office .ohudwrap>*{pointer-events:auto}
+.office .oslot{margin-left:auto}
 .office canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
 .office canvas.drag{cursor:grabbing} .office canvas.hot{cursor:pointer}
 .office .oov{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
 .office .oov>*{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform;transition:opacity .2s}
 .office .oov>.hide{display:none}
-.office .ohud{position:absolute;top:10px;left:10px;z-index:3;display:flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--surface) 86%,transparent);backdrop-filter:blur(8px);font:700 12px var(--mono, ui-monospace,monospace);color:var(--muted)}
+.office .ohud{display:flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--surface) 86%,transparent);backdrop-filter:blur(8px);font:700 12px var(--mono, ui-monospace,monospace);color:var(--muted)}
 .office .ohud button{border:none;background:none;color:inherit;width:24px;height:22px;border-radius:999px;font-weight:900;cursor:pointer}
 .office .ohud button:hover{background:var(--accent-soft, rgba(58,99,216,.12))}
 .office .ohud span{min-width:46px;text-align:center;line-height:22px;cursor:pointer}
@@ -39,6 +72,8 @@ const CSS = `
 .office .askb .h .tag{font-size:10px;color:var(--surface);background:var(--wait);border-radius:4px;padding:0 6px}
 .office .askb code{display:block;margin-top:5px;font:11.5px var(--mono, ui-monospace,monospace);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:3px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .office .askb .go{margin-top:5px;font-size:11px;color:var(--muted)}
+.office .askb .b{display:flex;gap:6px;margin-top:7px}
+.office .askb .b button{padding:4px 0}
 .office .zone{pointer-events:none!important;font:800 11px inherit;font-weight:800;font-size:11px;letter-spacing:.08em;color:color-mix(in srgb,var(--muted) 80%,transparent);white-space:nowrap}
 .office .wallbtn{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 88%,transparent);color:var(--text);backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(59,51,96,.1);white-space:nowrap;cursor:pointer}
 .office .wallbtn:hover{border-color:var(--accent);color:var(--accent)}
@@ -73,12 +108,19 @@ export function createOffice(api) {
   const t = api.t;
   const el = document.createElement('div');
   el.className = 'office';
-  el.innerHTML = '<canvas></canvas><div class="oov"></div><div class="ohud"><button type="button" data-z="out">−</button><span></span><button type="button" data-z="in">+</button></div><div class="ohint"></div>';
-  const canvas = el.querySelector('canvas'), ov = el.querySelector('.oov');
+  el.innerHTML = '<div class="ostage"><canvas></canvas><div class="oov"></div><div class="ohudwrap"><div class="ohud"><span class="oname"></span></div><div class="ohud"><button type="button" data-z="out">−</button><span class="ozv"></span><button type="button" data-z="in">+</button></div><div class="oslot"></div></div><div class="ohint"></div></div>'
+    + '<aside class="oside"><div class="osel"></div><div><h4></h4><div class="ofeed"></div></div><div><h4></h4><div class="oplaces"></div></div></aside>';
+  const stage = el.querySelector('.ostage'), canvas = el.querySelector('canvas'), ov = el.querySelector('.oov'), slot = el.querySelector('.oslot');
+  const side = el.querySelector('.oside'), selBox = el.querySelector('.osel'), feedBox = el.querySelector('.ofeed');
+  const [feedH, legendH] = side.querySelectorAll('h4');
+  feedH.textContent = t('officeFeed'); legendH.textContent = t('officeLegend');
+  side.querySelector('.oplaces').innerHTML = [['⌨', 'edit'], ['🔍', 'read'], ['🌐', 'web'], ['💬', 'talk'], ['❗', 'ask'], ['💤', 'wait'], ['🛋', 'rest']]
+    .map(([i, k]) => `<div><span>${i}</span><span><b>${esc(t('officeL_' + k))}</b> — ${esc(t('officeL_' + k + 'D'))}</span></div>`).join('');
+  feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`;
   el.querySelector('.ohint').textContent = t('officeHint');
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
-  catch (e) { el.replaceChildren(Object.assign(document.createElement('div'), { className: 'onogl', textContent: t('officeNoGL') })); return { el, update() {}, setVisible() {} }; }
+  catch (e) { el.replaceChildren(Object.assign(document.createElement('div'), { className: 'onogl', textContent: t('officeNoGL') })); return { el, slot: document.createElement('div'), update() {}, wake() {} }; }
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.NeutralToneMapping;
@@ -495,7 +537,7 @@ export function createOffice(api) {
   /* ── camera: a fixed angle fit to the box; drag to move, Ctrl+wheel to zoom ── */
   const CAM_DIR = new THREE.Vector3(1, 0.92, 1).normalize();
   let VW = 1, VH = 1, zoom = 1; const pan = new THREE.Vector2(); let fit = { cx: 0, cy: 0, fw: 1, fh: 1 };
-  const zv = el.querySelector('.ohud span');
+  const zv = el.querySelector('.ozv');
   function fitCamera() {
     const target = new THREE.Vector3(GX / 2, 0.5, L.GY / 2);
     camera.position.copy(target).addScaledVector(CAM_DIR, 80); camera.lookAt(target); camera.updateMatrixWorld();
@@ -535,11 +577,11 @@ export function createOffice(api) {
   { const base = ao._overrideVisibility.bind(ao); ao._overrideVisibility = function () { base(); this.scene.traverse((o) => { if ((o.userData.noAO || o.isSprite) && o.visible) { o.visible = false; this._visibilityCache.push(o); } }); }; }
   composer.addPass(ao); composer.addPass(new OutputPass());
   function resize() {
-    const r = el.getBoundingClientRect(); if (!r.width || !r.height) return;
+    const r = stage.getBoundingClientRect(); if (!r.width || !r.height) return;
     VW = r.width; VH = r.height;
     renderer.setSize(VW, VH, false); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(VW, VH); fitCamera();
   }
-  new ResizeObserver(resize).observe(el);
+  new ResizeObserver(resize).observe(stage);
 
   /* ── pointer: drag to move the view, click a robot to open the agent ── */
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let hovered = null, drag = null;
@@ -557,9 +599,10 @@ export function createOffice(api) {
     }
     hovered = pick(e); canvas.classList.toggle('hot', !!hovered);
   });
-  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a) api.open(a.s); } });
+  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a) select(a); } });
+  canvas.addEventListener('dblclick', (e) => { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a) api.open(a.s); });
   canvas.addEventListener('pointerleave', () => { hovered = null; });
-  el.addEventListener('wheel', (e) => { if (!e.ctrlKey) return; e.preventDefault(); const r = canvas.getBoundingClientRect(); setZoom(zoom * Math.exp(-e.deltaY * 0.0012), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  stage.addEventListener('wheel', (e) => { e.preventDefault(); const r = canvas.getBoundingClientRect(); setZoom(zoom * Math.exp(-e.deltaY * 0.0012), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
 
   /* ── the agents ── */
   const agents = new Map();   // session name → agent
@@ -571,7 +614,12 @@ export function createOffice(api) {
     const a = { name: s.name, s, leader, look, lookKey: look.c + look.acc, pos: [0, 0], path: [], lift: 0, liftTo: 0, size: leader ? 1.34 : 1.2, mode: 'typing', ang: 0, angTo: 0, vis: 0, phase: Math.random() * 10, place: null, spot: null, want: null, wantSince: 0, arrivedAt: 0, minis: [] };
     a.r = makeRobot(a.name, look);
     a.chip = document.createElement('div'); a.chip.className = 'act hide'; ov.append(a.chip);
-    a.chip.addEventListener('click', () => api.open(a.s));
+    // a request's bubble answers it here (allow, deny) or opens it; any other bubble picks the agent
+    a.chip.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-a]'), ask = approvals.get(a.name);
+      if (b && ask) { for (const x of a.chip.querySelectorAll('button')) x.disabled = true; answer(a, ask, b.dataset.a); return; }
+      if (ask) api.open(a.s); else select(a);
+    });
     return a;
   }
   function dropAgent(a) { a.r.dispose(); a.chip.remove(); for (const m of a.minis) m.r.dispose(); }
@@ -583,6 +631,14 @@ export function createOffice(api) {
     a.spot = null; a.place = place; a.liftTo = 0;
     a.arrive = () => { a.spot = tgt; a.angTo = angOf(tgt.face); a.liftTo = tgt.lift; a.arrivedAt = performance.now(); dirtyPlates = true; };
     dirtyPlates = true;
+    const k = place.split(':')[0];
+    if (k !== 'desk' && k !== 'lead') log(a, '→ ' + placeName(a, place) + (a.s.state === 'working' && a.s.activity ? ' · ' + (ICON[a.s.activity.kind] || '') + ' ' + api.actText(a.s.activity) : ''));
+  }
+  // where an agent is, in words
+  function placeName(a, place) {
+    const [k, i] = (place || '').split(':');
+    if (k === 'visit') { const to = [...agents.values()].find((x) => !x.leader && x.desk === +i); return to ? t('officeAtOf', { x: api.name(to.s) }) : t('officeAtVisit'); }
+    return t({ desk: 'officeAtDesk', lead: a.leader ? 'officeAtDesk' : 'officeLead', lib: 'officeLib', web: 'officeBrowser', pantry: 'officePantry', sofa: 'officeLounge', bean: 'officeBreak', visitlead: 'officeLead' }[k] || 'officeAtDesk');
   }
   const home = (a) => (a.leader ? 'lead' : 'desk');
   // the place a session's state calls for; shared places are handed out one each
@@ -594,7 +650,16 @@ export function createOffice(api) {
       const k = s.activity?.kind;
       if (k === 'read' || k === 'search') return free('lib', LIB.length) || home(a);
       if (k === 'web') return free('web', WEB.length) || home(a);
-      if (k === 'talk' && !a.leader && leaderName && agents.has(leaderName)) return free('visitlead', 3) || home(a);
+      if (k === 'talk') {
+        // a message: to the desk of the one it is for (the leader's corner for the leader)
+        const to = a.talkTo && agents.get(a.talkTo);
+        if (to && to !== a) {
+          if (to.leader) return free('visitlead', 3) || home(a);
+          const id = 'visit:' + to.desk;
+          return a.want === id || !taken.has(id) ? id : home(a);
+        }
+        if (!a.leader && leaderName && agents.has(leaderName)) return free('visitlead', 3) || home(a);
+      }
       return home(a);
     }
     if (s.state === 'waiting') {
@@ -604,7 +669,8 @@ export function createOffice(api) {
       if (waited > 60000) return free('pantry', 2) || free('sofa', 2) || home(a);
       return home(a);
     }
-    return home(a);
+    // its session is over: asleep on the sofa, or at its desk when the lounge is full
+    return free('sofa', 2) || free('bean', 3) || home(a);
   }
   function modeAt(a) {
     if (a.path.length) return 'walking';
@@ -619,18 +685,73 @@ export function createOffice(api) {
   }
   const plateClick = (i) => {
     const a = [...agents.values()].find((x) => (i === 'lead' ? x.leader : !x.leader && x.desk === i));
-    if (a) api.open(a.s); else if (i === newSeat) api.newAgent();
+    if (a) select(a); else if (i === newSeat) api.newAgent();
   };
   let newSeat = -1;
+
+  /* ── the side panel: the agent picked, what just happened, where each kind of work is done ── */
+  let selected = null, sideKey = '';
+  function select(a) { selected = a.name; sideKey = ''; sideCard(); }
+  async function answer(a, ask, how) {
+    const ok = await api.decide(ask, how).catch(() => false);
+    log(a, ok ? (how === 'allow' ? '✓ ' + t('didAllow').replace(/^✓\s*/, '') : '✕ ' + t('didDeny').replace(/^✕\s*/, '')) : t('failed'));
+    sideKey = '';
+  }
+  const hhmmss = (d) => [d.getHours(), d.getMinutes(), d.getSeconds()].map((x) => String(x).padStart(2, '0')).join(':');
+  function log(a, text) {
+    feedBox.querySelector('.none')?.remove();
+    const d = document.createElement('div');
+    d.innerHTML = `<time>${hhmmss(new Date())}</time><b>${esc(api.name(a.s))}</b> ${esc(text)}`;
+    d.title = d.textContent;
+    feedBox.prepend(d);
+    while (feedBox.children.length > 12) feedBox.lastChild.remove();
+  }
+  function stateOf(a) { return approvals.has(a.name) ? 'asking' : a.s.state; }
+  function sideCard() {
+    let a = selected && agents.get(selected);
+    if (!a) {
+      const all = [...agents.values()];
+      a = all.find((x) => approvals.has(x.name)) || all.find((x) => x.s.state === 'working' && !x.leader) || all.find((x) => x.leader) || all[0];
+    }
+    if (!a) { if (sideKey !== '-') { sideKey = '-'; selBox.innerHTML = `<h4>${esc(t('officeSelected'))}</h4><div class="ocard"><div class="role">${esc(t('officePickHint'))}</div></div>`; } return; }
+    const s = a.s, ask = approvals.get(a.name), st = stateOf(a);
+    const badge = { asking: ['b-ask', '❗ ' + t('asking')], working: ['b-run', '▶ ' + t('working')], waiting: ['b-wait', '○ ' + t('waiting')] }[st] || ['b-rest', '– ' + t('resting')];
+    const now = ask ? String(ask.what || ask.code || ask.tool || '').split('\n')[0] : s.state === 'working' && s.activity ? (ICON[s.activity.kind] || '•') + ' ' + api.actText(s.activity) : '—';
+    const where = a.path.length ? t('officeWalking') : placeName(a, a.place);
+    const ctx = s.context ? Math.min(100, Math.round(s.context / (s.ctxWindow || 1e6) * 100)) : 0;
+    const key = JSON.stringify([a.name, st, ask?.id, now, where, ctx, s.today?.total, Math.floor(Date.now() / 30000), api.name(s), s.desc]);
+    if (key === sideKey) return;
+    sideKey = key;
+    const tool = ask && !ask.questions && !ask.plan;
+    const rows = [[t('dNow'), now, !!ask], [t('officeWhere'), where]];
+    if (s.model) rows.push([t('modelLabel'), s.model, true]);
+    if (s.startedAt) rows.push([t('dUp'), api.dur(s.startedAt)]);
+    if (s.today?.total) rows.push([t('dToday'), api.tokens(s.today.total)]);
+    selBox.innerHTML = `<h4>${esc(t('officeSelected'))}</h4><div class="ocard${ask ? ' asking' : ''}">
+      <div class="who"><div class="av"></div><div><div class="nm">${esc(api.name(s))}</div>${s.desc ? `<div class="role">${esc(s.desc)}</div>` : a.leader ? `<div class="role">${esc(t('leader'))}</div>` : ''}<span class="badge ${badge[0]}">${esc(badge[1])}</span></div></div>
+      <dl>${rows.map(([k, v, m]) => `<dt>${esc(k)}</dt><dd${m ? ' class="m"' : ''} title="${esc(v)}">${esc(v)}</dd>`).join('')}${ctx ? `<dt>${esc(t('officeCtx'))}</dt><dd>${ctx}%<div class="meter"><b style="width:${ctx}%"></b></div></dd>` : ''}</dl>
+      <div class="acts">${tool ? `<button type="button" class="yes" data-a="allow">${esc(t('allow'))}</button><button type="button" data-a="deny">${esc(t('deny'))}</button>` : ask ? `<button type="button" class="yes" data-a="open">${esc(t('answer'))}</button>` : ''}<button type="button" data-a="conv">${esc(t('tabConv'))}</button><button type="button" data-a="msg">${esc(t('officeMsg'))}</button></div></div>`;
+    selBox.querySelector('.av').append(api.robot(s, st));
+    selBox.querySelector('.who').addEventListener('click', () => api.open(s));
+    for (const b of selBox.querySelectorAll('button[data-a]')) b.addEventListener('click', () => {
+      const how = b.dataset.a;
+      if (how === 'conv') api.open(s, false, 'conv');
+      else if (how === 'msg') api.open(s, true);
+      else if (how === 'open') api.open(s);
+      else if (ask) { for (const x of selBox.querySelectorAll('.acts button')) x.disabled = true; answer(a, ask, how); }
+    });
+  }
 
   // the page hands in the project on every poll
   function update(p, data) {
     const fresh = !project || project.key !== p.key;
     project = p;
+    el.querySelector('.oname').innerHTML = `${esc(api.projName(p))}<small>${esc(t('officeAgents', { n: (p.sessions || []).length }))}</small>`;
+    if (fresh) { selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; }
     approvals = new Map(); for (const x of data?.approvals || []) if (x.session && !approvals.has(x.session)) approvals.set(x.session, x);
     const sessions = p.sessions || [], names = new Set(sessions.map((s) => s.name));
     if (fresh) { for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); }
-    for (const [n, a] of agents) if (!names.has(n)) { dropAgent(a); agents.delete(n); seats.delete(n); }
+    for (const [n, a] of agents) if (!names.has(n)) { log(a, t('officeLogLeave')); dropAgent(a); agents.delete(n); seats.delete(n); }
     const lead = sessions.find((s) => s.isLeader); leaderName = lead ? lead.name : null;
     const crew = sessions.filter((s) => !s.isLeader);
     // desks: each keeps the one it had; rows grow so that one desk stays free for a new agent
@@ -645,9 +766,28 @@ export function createOffice(api) {
       let a = agents.get(s.name);
       const leader = !!s.isLeader, look = api.look(s, leader);
       if (a && (a.leader !== leader || a.lookKey !== look.c + look.acc)) { dropAgent(a); agents.delete(s.name); a = null; }
+      const born = !a;
       if (!a) { a = newAgent(s, leader); agents.set(s.name, a); a.desk = seats.get(s.name); put(a, home(a)); a.want = a.place; a.vis = fresh ? 1 : 0; }
       a.s = s; a.desk = leader ? -1 : seats.get(s.name);
       if (s.state !== 'waiting') a.waitSince = 0;
+      // a message: who it went to (the newest one it sent since this started)
+      a.talkTo = null;
+      if (s.activity?.kind === 'talk') a.talkTo = (p.messages || []).find((m) => m.from === s.name && m.at >= (s.activityAt || 0) - 120000)?.to || null;
+      const ask = approvals.get(s.name), subs = (s.subagents || []).filter((x) => x.running).length;
+      const now = { state: s.state, ask: ask?.id || '', subs };
+      if (born && !fresh && !a.prev) log(a, t('officeLogJoin'));
+      const was = a.prev;
+      if (was && !fresh) {
+        if (now.ask && now.ask !== was.ask) log(a, '❗ ' + t('officeLogAsk', { x: ask.questions ? t('questionKind') : ask.plan ? t('planKind') : String(ask.tool || '') }));
+        if (now.state !== was.state) {
+          if (now.state === 'waiting') log(a, '💤 ' + t('officeLogWait'));
+          else if (now.state === 'resting') log(a, '🛋 ' + t('officeLogRest'));
+          else if (now.state === 'working') log(a, '▶ ' + (s.activity ? api.actText(s.activity) : t('working')));
+        }
+        if (subs > was.subs) log(a, '🤖 ' + t('officeLogSubs', { n: subs - was.subs }));
+        else if (!subs && was.subs) log(a, '🤖 ' + t('officeLogSubsDone'));
+      }
+      a.prev = now;
     }
     if (rebuild) for (const a of agents.values()) { a.path = []; put(a, home(a)); a.want = a.place; }
     dirtyPlates = true;
@@ -708,7 +848,8 @@ export function createOffice(api) {
     if (ask) {
       const kind = ask.questions ? t('questionKind') : ask.plan ? t('planKind') : t('askTitle');
       const what = String(ask.what || ask.code || ask.tool || '').split('\n')[0];
-      return ['askb', `<div class="h"><span class="tag">${esc(kind)}</span>${nm}${ask.tool ? ' · ' + esc(ask.tool) : ''}</div>${what ? `<code>${esc(what)}</code>` : ''}<div class="go">${esc(t('officeAnswer'))}</div>`];
+      const tool = !ask.questions && !ask.plan;
+      return ['askb', `<div class="h"><span class="tag">${esc(kind)}</span>${nm}${ask.tool ? ' · ' + esc(ask.tool) : ''}</div>${what ? `<code>${esc(what)}</code>` : ''}${tool ? `<div class="b"><button type="button" class="yes" data-a="allow">${esc(t('allow'))}</button><button type="button" data-a="deny">${esc(t('deny'))}</button></div>` : `<div class="go">${esc(t('officeAnswer'))}</div>`}`];
     }
     if (s.state === 'working' && s.activity) return ['act', `<b>${nm}</b>${ICON[s.activity.kind] || '•'} ${esc(api.actText(s.activity))}`];
     if (s.state === 'working') return ['act', `<b>${nm}</b>${esc(t('working'))}`];
@@ -744,7 +885,7 @@ export function createOffice(api) {
     }
     deskChairs.forEach((c, i) => { const a = [...agents.values()].find((x) => !x.leader && x.desk === i); c?.userData.mat?.color.set(a ? PALETTE[a.look.c][0] : C('chair')); });
   }
-  function hudRects() { const w = el.getBoundingClientRect(); return [...el.querySelectorAll('.ohud,.ohint')].map((e) => { const r = e.getBoundingClientRect(); return { l: r.left - w.left, t: r.top - w.top, w: r.width, h: r.height }; }); }
+  function hudRects() { const w = stage.getBoundingClientRect(); return [...stage.querySelectorAll('.ohud,.oslot>*,.ohint')].map((e) => { const r = e.getBoundingClientRect(); return { l: r.left - w.left, t: r.top - w.top, w: r.width, h: r.height }; }); }
   function layoutChips() {
     const items = [];
     const add = (e, ax, ay, anchor, prio, mode) => {
@@ -823,9 +964,9 @@ export function createOffice(api) {
       const [cls, html] = chipFor(a, m);
       if (a.chipKey !== cls + html) { a.chipKey = cls + html; a.chip.className = cls; a.chip.innerHTML = html; }
     }
-    const sel = hovered && agents.get(hovered.split('#')[0]);
+    const sel = (hovered && agents.get(hovered.split('#')[0])) || (selected && agents.get(selected));
     ring.visible = !!sel; if (sel) { ring.position.set(sel.pos[0], 0.05, sel.pos[1]); ring.scale.setScalar(sel.size * (1 + 0.06 * Math.sin(t * 4))); ring.material.opacity = 0.55 + 0.25 * Math.sin(t * 4); }
-    if (dirtyPlates || now - lastPlates > 500) { dirtyPlates = false; lastPlates = now; plates(); screens(); }
+    if (dirtyPlates || now - lastPlates > 500) { dirtyPlates = false; lastPlates = now; plates(); screens(); sideCard(); }
     composer.render(dt);
     layoutChips();
     requestAnimationFrame(frame);
@@ -837,6 +978,7 @@ export function createOffice(api) {
   applyTheme();
   return {
     el,
+    slot,   // the page's own buttons, at the top right of the room
     update(p, data) { update(p, data); wake(); },
     wake,
   };

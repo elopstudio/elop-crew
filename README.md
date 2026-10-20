@@ -85,16 +85,20 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
 - **Org chart.** The leader (crowned robot) sits on top; the other agents hang below it.
   Each card shows the session's current action in a speech bubble, how long it has been in its state, and its uptime.
 - **Office.** **Org chart | Office** at the top of a project (on the all-agents tab it goes to the first project) shows its agents instead as clay robots at work in a 3D
-  room (three.js, loaded the first time it is opened). Each agent has a desk with its colour on the chair and mug; what it
-  is doing takes it about the room: reading or searching to the library, the web to the shared browser on the wall, a
-  message to the leader's desk. A request waits at its desk, hand up and turned to you, with a bubble that opens it; a
-  waiting agent dozes at its desk, after a minute goes to the pantry and after five to the lounge; a resting one sleeps,
-  greyed. Running subagents sit small beside the desk. The rows of desks grow with the crew, always with one **+ New seat**
-  free (a click starts a new agent). Drag to move, Ctrl+wheel or − + to zoom (the percentage fits it again); a click on a
-  robot, its label or name plate opens the agent; the browser and artifacts on the walls open theirs. The office takes the
-  whole width: the board and the team chat are not laid out beside or below it but open over the page from **📋 Board** and
-  **💬 Team chat** at its top right (the board on the wall opens it too), with a tab to switch and Esc to close. The choice is
-  kept in the browser; it follows the light or dark theme, and stops drawing while it is not on screen.
+  room (three.js, loaded the first time it is opened), filling the window, with a panel at its right. Each agent has a desk
+  with its colour on the chair and mug; what it is doing takes it about the room: reading or searching to the library, the
+  web to the shared browser on the wall, a message to the desk of the one it is for (the leader's corner for the leader). A
+  request waits at its desk, hand up and turned to you, with a bubble: **Allow** and **Deny** answer a tool request right
+  there, a question or a plan opens its dialog. A waiting agent dozes at its desk, after a minute goes to the pantry and
+  after five to the lounge; a resting one (its session over) sleeps on the sofa, greyed. Running subagents sit small beside
+  the desk. The rows of desks grow with the crew, always with one **+ New seat** free (a click starts a new agent).
+  The panel shows the agent picked — what it is doing, where it is, uptime, today's tokens, how full its context is, with
+  Allow / Deny for a request, **Conversation** and **Message** — then what just happened (moves, requests, state changes,
+  subagents) and what each kind of work looks like. Drag to move, the wheel or − + to zoom (the percentage fits it again); a
+  click on a robot, its label or name plate picks it, a double click opens it; the browser and artifacts on the walls open
+  theirs. The board and the team chat open over the page from **📋 Board** and **💬 Team chat** at the room's top right (the
+  board on the wall opens it too), with a tab to switch and Esc to close. The choice is kept in the browser; it follows the
+  light or dark theme, and stops drawing while it is not on screen.
 - **Browsers.** **Browsers** (the globe) in the header — in the desktop app the globe in the title strip, beside the terminal — (or
   **🌐 N** on an agent's card) opens a panel over the page, which can be
   moved by its title and resized from its corner: the browsers the agents drive to look at what they build (headless
