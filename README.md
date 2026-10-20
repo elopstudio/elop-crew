@@ -105,9 +105,10 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   On the all-agents tab the office is a building: each project a glass-fronted room off one corridor (a room grows with
   its crew; past four projects a second row faces the first), its robots at their desks, a teammate's desk with a message,
   a bean bag when idle for long or done; a room's name over it shows how its crew is doing, and a click on the room goes
-  into that project's office. The assistant sits at the reception desk in the lobby (in a project's office, at a small
+  into that project's office (**← All** at the room's top left comes back out). The assistant sits at the reception desk in the lobby (in a project's office, at a small
   desk by the way in): when it works on an agent — a message, a look at its conversation, a nudge, an answer to its
-  request — it walks to that agent's desk and back; a click on it opens the assistant's chat.
+  request — it walks to that agent's desk and back; a click on it opens the assistant's chat. The chips of docked
+  windows float over the room's corner, so the office still reaches the window's bottom.
   It stops drawing while it is not on screen.
 - **Browsers.** **Browsers** (the globe) in the header — in the desktop app the globe in the title strip, beside the terminal — (or
   **🌐 N** on an agent's card) opens a panel over the page, which can be

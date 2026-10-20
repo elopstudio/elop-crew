@@ -55,6 +55,9 @@ const CSS = `
 .office .ohud button{border:none;background:none;color:inherit;width:24px;height:22px;border-radius:999px;font-weight:900;cursor:pointer}
 .office .ohud button:hover{background:var(--accent-soft, rgba(58,99,216,.12))}
 .office .ohud span{min-width:46px;text-align:center;line-height:22px;cursor:pointer}
+.office .ohud .oback{width:auto;padding:0 10px;font:700 12px var(--sans, inherit);white-space:nowrap}
+.office .ohud .oback[hidden]{display:none}
+.office .ohud .oback:not([hidden])+.oname{border-left:1px solid var(--line)}
 .office .ohint{position:absolute;right:10px;bottom:8px;z-index:3;font-size:11px;color:var(--faint);pointer-events:none}
 .office .onogl{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;padding:20px;text-align:center}
 .office .plate{display:flex;align-items:center;gap:5px;background:color-mix(in srgb,var(--surface) 84%,transparent);backdrop-filter:blur(8px);border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:999px;padding:1px 9px;font:700 10.5px var(--mono, ui-monospace,monospace);white-space:nowrap;box-shadow:0 4px 14px rgba(59,51,96,.12);cursor:pointer;color:var(--text)}
@@ -120,13 +123,17 @@ export function createOffice(api) {
   const t = api.t;
   const el = document.createElement('div');
   el.className = 'office';
-  el.innerHTML = '<div class="ostage"><canvas></canvas><div class="oov"></div><div class="ohudwrap"><div class="ohud"><span class="oname"></span></div><div class="ohud"><button type="button" data-z="out">−</button><span class="ozv"></span><button type="button" data-z="in">+</button></div><div class="oslot"></div></div><div class="ohint"></div></div>'
+  el.innerHTML = '<div class="ostage"><canvas></canvas><div class="oov"></div><div class="ohudwrap"><div class="ohud"><button type="button" class="oback" hidden></button><span class="oname"></span></div><div class="ohud"><button type="button" data-z="out">−</button><span class="ozv"></span><button type="button" data-z="in">+</button></div><div class="oslot"></div></div><div class="ohint"></div></div>'
     + '<aside class="oside"><div class="osel"></div><div class="ofeedbox"><h4></h4><div class="ofeed"></div></div></aside>';
   const stage = el.querySelector('.ostage'), canvas = el.querySelector('canvas'), ov = el.querySelector('.oov'), slot = el.querySelector('.oslot');
   const side = el.querySelector('.oside'), selBox = el.querySelector('.osel'), feedBox = el.querySelector('.ofeed');
   side.querySelector('h4').textContent = t('officeFeed');
   feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`;
   el.querySelector('.ohint').textContent = t('officeHint');
+  // out of a project's office, back to the building
+  const back = el.querySelector('.oback');
+  back.textContent = '← ' + t('officeBack'); back.title = t('officeBackTip');
+  back.addEventListener('click', () => api.leave?.());
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
   catch (e) { el.replaceChildren(Object.assign(document.createElement('div'), { className: 'onogl', textContent: t('officeNoGL') })); return { el, slot: document.createElement('div'), update() {}, wake() {} }; }
@@ -915,7 +922,7 @@ export function createOffice(api) {
   // the page hands in every project on every poll, for the building
   function building(data) {
     const fresh = MODE !== 'bldg';
-    if (fresh) { MODE = 'bldg'; project = null; selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); BL.sig = ''; }
+    if (fresh) { MODE = 'bldg'; back.hidden = true; project = null; selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); BL.sig = ''; }
     approvals = new Map(); for (const x of data?.approvals || []) if (x.session && !approvals.has(x.session)) approvals.set(x.session, x);
     const projects = data?.projects || [], all = projects.flatMap((p) => (p.sessions || []).map((s) => [p, s])), names = new Set(all.map(([, s]) => s.name));
     el.querySelector('.oname').innerHTML = `${esc(t('officeBuilding'))}<small>${esc(t('officeRooms', { n: projects.length }))}${esc(t('officeAgents', { n: all.length }))}</small>`;
@@ -1011,6 +1018,7 @@ export function createOffice(api) {
   function update(p, data) {
     const fresh = MODE !== 'room' || !project || project.key !== p.key;
     if (MODE !== 'room') { MODE = 'room'; L.rows = 0; }
+    back.hidden = !api.leave;
     project = p;
     el.querySelector('.oname').innerHTML = `${esc(api.projName(p))}<small>${esc(t('officeAgents', { n: (p.sessions || []).length }))}</small>`;
     if (fresh) { selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; }
