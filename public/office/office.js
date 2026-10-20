@@ -55,9 +55,6 @@ const CSS = `
 .office .ohud button{border:none;background:none;color:inherit;width:24px;height:22px;border-radius:999px;font-weight:900;cursor:pointer}
 .office .ohud button:hover{background:var(--accent-soft, rgba(58,99,216,.12))}
 .office .ohud span{min-width:46px;text-align:center;line-height:22px;cursor:pointer}
-.office .ohud .oback{width:auto;padding:0 10px;font:700 12px var(--sans, inherit);white-space:nowrap}
-.office .ohud .oback[hidden]{display:none}
-.office .ohud .oback:not([hidden])+.oname{border-left:1px solid var(--line)}
 .office .ohint{position:absolute;right:10px;bottom:8px;z-index:3;font-size:11px;color:var(--faint);pointer-events:none}
 .office .onogl{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;padding:20px;text-align:center}
 .office .plate{display:flex;align-items:center;gap:5px;background:color-mix(in srgb,var(--surface) 84%,transparent);backdrop-filter:blur(8px);border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:999px;padding:1px 9px;font:700 10.5px var(--mono, ui-monospace,monospace);white-space:nowrap;box-shadow:0 4px 14px rgba(59,51,96,.12);cursor:pointer;color:var(--text)}
@@ -123,17 +120,13 @@ export function createOffice(api) {
   const t = api.t;
   const el = document.createElement('div');
   el.className = 'office';
-  el.innerHTML = '<div class="ostage"><canvas></canvas><div class="oov"></div><div class="ohudwrap"><div class="ohud"><button type="button" class="oback" hidden></button><span class="oname"></span></div><div class="ohud"><button type="button" data-z="out">−</button><span class="ozv"></span><button type="button" data-z="in">+</button></div><div class="oslot"></div></div><div class="ohint"></div></div>'
+  el.innerHTML = '<div class="ostage"><canvas></canvas><div class="oov"></div><div class="ohudwrap"><div class="ohud"><span class="oname"></span></div><div class="ohud"><button type="button" data-z="out">−</button><span class="ozv"></span><button type="button" data-z="in">+</button></div><div class="oslot"></div></div><div class="ohint"></div></div>'
     + '<aside class="oside"><div class="osel"></div><div class="ofeedbox"><h4></h4><div class="ofeed"></div></div></aside>';
   const stage = el.querySelector('.ostage'), canvas = el.querySelector('canvas'), ov = el.querySelector('.oov'), slot = el.querySelector('.oslot');
   const side = el.querySelector('.oside'), selBox = el.querySelector('.osel'), feedBox = el.querySelector('.ofeed');
   side.querySelector('h4').textContent = t('officeFeed');
   feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`;
   el.querySelector('.ohint').textContent = t('officeHint');
-  // out of a project's office, back to the building
-  const back = el.querySelector('.oback');
-  back.textContent = '← ' + t('officeBack'); back.title = t('officeBackTip');
-  back.addEventListener('click', () => api.leave?.());
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
   catch (e) { el.replaceChildren(Object.assign(document.createElement('div'), { className: 'onogl', textContent: t('officeNoGL') })); return { el, slot: document.createElement('div'), update() {}, wake() {} }; }
@@ -460,12 +453,28 @@ export function createOffice(api) {
     desk(W, LEAD, -1, () => [...agents.values()].find((x) => x.leader)); chair(W, LEAD.seat[0], LEAD.seat[1], [1, 0], PALETTE[6][0]).userData.leadChair = 1;
     // the assistant's small desk at the way in
     { const d = recDesk(); desk(W, d, -2, () => agents.get(SEC)); chair(W, d.seat[0], d.seat[1], [1, 0], PALETTE[5][0]); pbox(W, d.top.x + d.top.w, d.top.y - 0.02, 0, 0.1, d.top.d + 0.04, 0.98, M('desk', { roughness: 0.45, clearcoat: 0.35 }), 0.03); }
+    // the way out to the building: a door frame on the east side, its door open inward, an exit sign over it, a mat
+    if (api.leave) {
+      const z1 = S(7.4), z2 = S(8.35), H = 2.15, x = GX - 0.16;
+      const fm = keep(new THREE.MeshPhysicalMaterial({ color: '#8a6a4f', roughness: 0.55, clearcoat: 0.3 })), lm = keep(new THREE.MeshPhysicalMaterial({ color: '#c99d74', roughness: 0.5, clearcoat: 0.35 }));
+      exitMats = [fm, lm]; exitHits = [];
+      const hit = (m) => { m.userData.exit = 1; exitHits.push(m); return m; };
+      hit(pbox(W, x, z1 - 0.1, 0, 0.16, 0.1, H, fm, 0.02)); hit(pbox(W, x, z2, 0, 0.16, 0.1, H, fm, 0.02)); hit(pbox(W, x, z1 - 0.1, H, 0.16, z2 - z1 + 0.2, 0.14, fm, 0.03));
+      const leaf = new THREE.Group(); leaf.position.set(GX - 0.08, 0, z2); leaf.rotation.y = 1.15; W.add(leaf);
+      hit(mesh(leaf, rbox(0.05, H - 0.04, z2 - z1, 0.015), lm, 0, (H - 0.04) / 2, -(z2 - z1) / 2));
+      mesh(leaf, sphG(0.035), M('#e8d9a8', { metalness: 0.7, roughness: 0.3 }), -0.05, 1.0, -(z2 - z1) + 0.1);
+      const signTex = keep(tex(256, 96, (g, w, h) => { g.fillStyle = '#1f9d55'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; g.font = `900 ${h * 0.5}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EXIT', w / 2 + 14, h / 2 + 2); g.beginPath(); g.moveTo(26, h / 2); g.lineTo(52, h / 2 - 18); g.lineTo(52, h / 2 + 18); g.closePath(); g.fill(); }));
+      const signMat = keep(new THREE.MeshBasicMaterial({ map: signTex, toneMapped: false })), side = M('#e9ecef');
+      const sign = mesh(W, keep(new THREE.BoxGeometry(0.1, 0.24, 0.64)), [signMat, signMat, side, side, side, side], GX - 0.08, H + 0.32, (z1 + z2) / 2, { cast: false }); sign.userData.noAO = 1; hit(sign);
+      pbox(W, GX - 0.95, z1 + 0.05, 0, 0.8, z2 - z1 - 0.1, 0.02, M('#6b5a4e', { roughness: 0.95, clearcoat: 0 }), 0.01, { cast: false });
+      staticChip('wallbtn', [GX - 0.08, H + 0.5, (z1 + z2) / 2], 'bottom', 4, () => api.leave(), '🚪 ' + t('officeExit')).el.title = t('officeExitTip');
+    } else { exitMats = []; exitHits = []; }
     // desks; the first free one is the "new seat"
     L.desks.forEach((_, i) => { const d = deskOf(i); desk(W, d, i, () => [...agents.values()].find((x) => !x.leader && !x.sec && x.desk === i)); d.chair = chair(W, d.seat[0], d.seat[1], [1, 0], C('chair')); chairsOf.push({ c: d.chair, find: () => [...agents.values()].find((x) => !x.leader && !x.sec && x.desk === i) }); });
     // labels
     L.desks.forEach((_, i) => { const d = deskOf(i); plateOf.set(i, staticChip('plate', [d.top.x + d.top.w / 2 - 0.1, 0, d.top.y + d.top.d + 0.12], 'top', 3, () => plateClick(i))); });
     plateOf.set('lead', staticChip('plate', [LEAD.top.x + LEAD.top.w / 2, 0, LEAD.top.y + LEAD.top.d + 0.12], 'top', 3, () => plateClick('lead')));
-    [[1.7, 6.55, 'officeLib'], [2.9, S(7.95), 'officePantry'], [2.5, S(12.8), 'officeLounge'], [16.6, S(12.75), 'officeMeet'], [16.9, 4.85, 'officeLead'], [9.1, S(11.75), 'officeBreak'], [17.3, S(7.25), 'officeReception']].forEach(([x, y, k]) => staticChip('zone', [x, 0, y], 'center-hide', 5, null, t(k)));
+    [[1.7, 6.55, 'officeLib'], [2.9, S(7.95), 'officePantry'], [2.5, S(12.8), 'officeLounge'], [16.6, S(12.75), 'officeMeet'], [16.9, 4.85, 'officeLead'], [9.1, S(11.75), 'officeBreak'], [16.9, S(7.15), 'officeReception']].forEach(([x, y, k]) => staticChip('zone', [x, 0, y], 'center-hide', 5, null, t(k)));
     staticChip('wallbtn', [4.95, 2.52, 0.05], 'bottom', 4, () => api.board(), t('officeBoard'));
     staticChip('wallbtn', [8.7, 2.62, 0.05], 'bottom', 4, () => api.browsers(), '🌐 ' + t('officeBrowser'));
     staticChip('wallbtn', [0.05, 2.58, S(7.8)], 'bottom', 4, () => api.artifacts(), t('officeArtifacts'));
@@ -661,14 +670,19 @@ export function createOffice(api) {
       if (drag.moved) { pan.x = drag.px - dx / VW * fit.fw / zoom; pan.y = drag.py + dy / VH * fit.fh / zoom; applyCamera(); }
       return;
     }
-    hovered = pick(e); const room = hovered ? null : pickRoom(e); canvas.classList.toggle('hot', !!hovered || !!room);
+    hovered = pick(e); const room = hovered ? null : pickRoom(e), out = !hovered && pickExit(e); canvas.classList.toggle('hot', !!hovered || !!room || out);
+    if (out !== hoverExit) { hoverExit = out; for (const m of exitMats) m.emissive.set(out ? '#3a63d8' : '#000000').multiplyScalar(out ? 0.25 : 0); }
     if (room !== hoverRoom) { hoverRoom = room; for (const [k, m] of BL.rugs) m.emissive.set(k === room ? '#3a63d8' : '#000000').multiplyScalar(k === room ? 0.14 : 0); }
   });
-  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a?.sec) api.openAssistant?.(); else if (a) select(a); else { const k = pickRoom(e); if (k) api.enter?.(k); } } });
-  canvas.addEventListener('dblclick', (e) => { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a && !a.sec) api.open(a.s); });
+  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a?.sec) api.openAssistant?.(); else if (a) talk(a); else if (pickExit(e)) api.leave?.(); else { const k = pickRoom(e); if (k) api.enter?.(k); } } });
   canvas.addEventListener('pointerleave', () => { hovered = null; });
   // a room of the building, under the pointer: its project
-  let hoverRoom = null;
+  let hoverRoom = null, exitHits = [], exitMats = [], hoverExit = false;
+  function pickExit(e) {
+    if (MODE !== 'room' || !exitHits.length) return false;
+    const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
+    return ray.intersectObjects(exitHits, false).length > 0;
+  }
   function pickRoom(e) {
     if (MODE !== 'bldg') return null;
     const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
@@ -690,7 +704,7 @@ export function createOffice(api) {
     a.chip.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-a]'), ask = approvals.get(a.name);
       if (b && ask) { for (const x of a.chip.querySelectorAll('button')) x.disabled = true; answer(a, ask, b.dataset.a); return; }
-      if (a.sec) api.openAssistant?.(); else if (ask) api.open(a.s); else select(a);
+      if (a.sec) api.openAssistant?.(); else if (ask) api.open(a.s); else talk(a);
     });
     return a;
   }
@@ -804,7 +818,7 @@ export function createOffice(api) {
   }
   const plateClick = (i) => {
     const a = [...agents.values()].find((x) => (i === 'lead' ? x.leader : !x.leader && x.desk === i));
-    if (a) select(a); else if (i === newSeat) api.newAgent();
+    if (a) talk(a); else if (i === newSeat) api.newAgent();
   };
   let newSeat = -1;
 
@@ -922,7 +936,7 @@ export function createOffice(api) {
   // the page hands in every project on every poll, for the building
   function building(data) {
     const fresh = MODE !== 'bldg';
-    if (fresh) { MODE = 'bldg'; back.hidden = true; project = null; selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); BL.sig = ''; }
+    if (fresh) { MODE = 'bldg'; project = null; selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); BL.sig = ''; }
     approvals = new Map(); for (const x of data?.approvals || []) if (x.session && !approvals.has(x.session)) approvals.set(x.session, x);
     const projects = data?.projects || [], all = projects.flatMap((p) => (p.sessions || []).map((s) => [p, s])), names = new Set(all.map(([, s]) => s.name));
     el.querySelector('.oname').innerHTML = `${esc(t('officeBuilding'))}<small>${esc(t('officeRooms', { n: projects.length }))}${esc(t('officeAgents', { n: all.length }))}</small>`;
@@ -963,6 +977,7 @@ export function createOffice(api) {
   /* ── the side panel: the agent picked, what just happened, where each kind of work is done ── */
   let selected = null, sideKey = '';
   function select(a) { selected = a.name; sideKey = ''; sideCard(); }
+  function talk(a) { select(a); api.open(a.s, true, 'conv'); }
   async function answer(a, ask, how) {
     const ok = await api.decide(ask, how).catch(() => false);
     log(a, ok ? (how === 'allow' ? '✓ ' + t('didAllow').replace(/^✓\s*/, '') : '✕ ' + t('didDeny').replace(/^✕\s*/, '')) : t('failed'));
@@ -1018,7 +1033,6 @@ export function createOffice(api) {
   function update(p, data) {
     const fresh = MODE !== 'room' || !project || project.key !== p.key;
     if (MODE !== 'room') { MODE = 'room'; L.rows = 0; }
-    back.hidden = !api.leave;
     project = p;
     el.querySelector('.oname').innerHTML = `${esc(api.projName(p))}<small>${esc(t('officeAgents', { n: (p.sessions || []).length }))}</small>`;
     if (fresh) { selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; }

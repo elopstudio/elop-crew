@@ -95,7 +95,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   The panel shows the agent picked — what it is doing, where it is, uptime, today's tokens, how full its context is, with
   Allow / Deny for a request, and **Conversation** (with the message box ready) — then what just happened (moves, requests, state changes,
   subagents). Drag to move, the wheel or − + to zoom (the percentage fits it again); a
-  click on a robot, its label or name plate picks it, a double click opens it; the browser and artifacts on the walls open
+  click on a robot, its label or name plate picks it and opens its conversation with the message box ready; the browser and artifacts on the walls open
   theirs. The office has no project row: its name is at the room's top left, and **📋 Board**, **💬 Team chat**,
   **+ New agent** and **Org chart | Office** at its top right; the board and the team chat open over the page from there (the
   board on the wall opens it too), with a tab to switch and Esc to close; its left edge drags it wider (the board shows more
@@ -105,7 +105,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   On the all-agents tab the office is a building: each project a glass-fronted room off one corridor (a room grows with
   its crew; past four projects a second row faces the first), its robots at their desks, a teammate's desk with a message,
   a bean bag when idle for long or done; a room's name over it shows how its crew is doing, and a click on the room goes
-  into that project's office (**← All** at the room's top left comes back out). The assistant sits at the reception desk in the lobby (in a project's office, at a small
+  into that project's office (the door with the green exit sign by its reception desk goes back out). The assistant sits at the reception desk in the lobby (in a project's office, at a small
   desk by the way in): when it works on an agent — a message, a look at its conversation, a nudge, an answer to its
   request — it walks to that agent's desk and back; a click on it opens the assistant's chat. The chips of docked
   windows float over the room's corner, so the office still reaches the window's bottom.
