@@ -91,18 +91,20 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   request waits at its desk, hand up and turned to you, with a bubble: **Allow** and **Deny** answer a tool request right
   there, a question or a plan opens its dialog. A waiting agent dozes at its desk, after a minute goes to the pantry and
   after five to the lounge; a resting one (its session over) sleeps on the sofa, greyed. Running subagents sit small beside
-  the desk. The rows of desks grow with the crew, always with one **+ New seat** free (a click starts a new agent).
+  the desk. Each place is one robot's at a time, and an office opened afresh shows each where it already is. The rows of desks grow with the crew, always with one **+ New seat** free (a click starts a new agent).
   The panel shows the agent picked — what it is doing, where it is, uptime, today's tokens, how full its context is, with
-  Allow / Deny for a request, **Conversation** and **Message** — then what just happened (moves, requests, state changes,
+  Allow / Deny for a request, and **Conversation** (with the message box ready) — then what just happened (moves, requests, state changes,
   subagents) and what each kind of work looks like. Drag to move, the wheel or − + to zoom (the percentage fits it again); a
   click on a robot, its label or name plate picks it, a double click opens it; the browser and artifacts on the walls open
   theirs. The office has no project row: its name is at the room's top left, and **📋 Board**, **💬 Team chat**,
   **+ New agent** and **Org chart | Office** at its top right; the board and the team chat open over the page from there (the
-  board on the wall opens it too), with a tab to switch and Esc to close. The choice is kept in the browser; it follows the
+  board on the wall opens it too), with a tab to switch and Esc to close; its left edge drags it wider (the board shows more
+  columns), a double click there sets it back. The choice is kept in the browser; it follows the
   light or dark theme, and stops drawing while it is not on screen.
 - **Browsers.** **Browsers** (the globe) in the header — in the desktop app the globe in the title strip, beside the terminal — (or
   **🌐 N** on an agent's card) opens a panel over the page, which can be
-  moved by its title and resized from its corner: the browsers the agents drive to look at what they build (headless
+  moved by its title and resized from its corner, or set to the full window and back by the button beside × or a double
+  click on its title: the browsers the agents drive to look at what they build (headless
   Chrome, Edge, Playwright's Chromium), grouped by agent, with the pages open in each, and a live picture of the page
   picked. A browser started with a DevTools port is watched as it is; one Playwright started over a pipe (its default)
   cannot be reached from outside, so the panel offers a **Shared browser**: a headless Chrome or Edge of the monitor's
@@ -117,6 +119,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
 - **Artifacts.** Pages an agent made for you to look at — a mockup, a report, a chart — open in the page. An agent puts
   one up with **show_artifact** (below); the artifacts icon in the header gets a dot, and opens a wide dialog: the list on
   the left (newest first, who put each up and when) and the page on the right, drawn again each time its file is saved.
+  The button beside × (or a double click on the title — on any dialog's) fills the window with it; the artifacts remember it.
   A file of your own opens by its path at the top (`.html`, `.svg`, a picture or `.pdf`); **Open in a window** and
   **Reload** are above the page, **×** on an item takes it off the list (the file stays). The file is read from where it
   is, with what sits beside it (styles, scripts, pictures) — only web files below its folder, never a dot file — and

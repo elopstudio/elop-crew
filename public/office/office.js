@@ -641,11 +641,21 @@ export function createOffice(api) {
     return t({ desk: 'officeAtDesk', lead: a.leader ? 'officeAtDesk' : 'officeLead', lib: 'officeLib', web: 'officeBrowser', pantry: 'officePantry', sofa: 'officeLounge', bean: 'officeBreak', visitlead: 'officeLead' }[k] || 'officeAtDesk');
   }
   const home = (a) => (a.leader ? 'lead' : 'desk');
+  // a place is held by the one in it, then by the one on its way there (or waiting to go)
+  function claims() {
+    const taken = new Map();
+    for (const a of agents.values()) if (a.place) taken.set(a.place, a);
+    for (const a of agents.values()) if (a.want && !taken.has(a.want)) taken.set(a.want, a);
+    return taken;
+  }
+  // straight to where its state calls for, without the walk
+  function settle(a) { const w = wanted(a, claims(), Date.now()); if (w !== a.place) put(a, w); a.want = a.place; }
   // the place a session's state calls for; shared places are handed out one each
   function wanted(a, taken, now) {
     const s = a.s, ask = approvals.get(a.name);
     if (ask) return home(a);
-    const free = (k, n) => { for (let j = 0; j < n; j++) { const id = k + ':' + j; if (a.want === id || !taken.has(id)) return id; } return null; };
+    const mine = (id) => !taken.has(id) || taken.get(id) === a;
+    const free = (k, n) => { for (let j = 0; j < n; j++) { const id = k + ':' + j; if (mine(id)) return id; } return null; };
     if (s.state === 'working') {
       const k = s.activity?.kind;
       if (k === 'read' || k === 'search') return free('lib', LIB.length) || home(a);
@@ -656,7 +666,7 @@ export function createOffice(api) {
         if (to && to !== a) {
           if (to.leader) return free('visitlead', 3) || home(a);
           const id = 'visit:' + to.desk;
-          return a.want === id || !taken.has(id) ? id : home(a);
+          return mine(id) ? id : home(a);
         }
         if (!a.leader && leaderName && agents.has(leaderName)) return free('visitlead', 3) || home(a);
       }
@@ -730,13 +740,12 @@ export function createOffice(api) {
     selBox.innerHTML = `<h4>${esc(t('officeSelected'))}</h4><div class="ocard${ask ? ' asking' : ''}">
       <div class="who"><div class="av"></div><div><div class="nm">${esc(api.name(s))}</div>${s.desc ? `<div class="role">${esc(s.desc)}</div>` : a.leader ? `<div class="role">${esc(t('leader'))}</div>` : ''}<span class="badge ${badge[0]}">${esc(badge[1])}</span></div></div>
       <dl>${rows.map(([k, v, m]) => `<dt>${esc(k)}</dt><dd${m ? ' class="m"' : ''} title="${esc(v)}">${esc(v)}</dd>`).join('')}${ctx ? `<dt>${esc(t('officeCtx'))}</dt><dd>${ctx}%<div class="meter"><b style="width:${ctx}%"></b></div></dd>` : ''}</dl>
-      <div class="acts">${tool ? `<button type="button" class="yes" data-a="allow">${esc(t('allow'))}</button><button type="button" data-a="deny">${esc(t('deny'))}</button>` : ask ? `<button type="button" class="yes" data-a="open">${esc(t('answer'))}</button>` : ''}<button type="button" data-a="conv">${esc(t('tabConv'))}</button><button type="button" data-a="msg">${esc(t('officeMsg'))}</button></div></div>`;
+      <div class="acts">${tool ? `<button type="button" class="yes" data-a="allow">${esc(t('allow'))}</button><button type="button" data-a="deny">${esc(t('deny'))}</button>` : ask ? `<button type="button" class="yes" data-a="open">${esc(t('answer'))}</button>` : ''}<button type="button" data-a="conv">${esc(t('tabConv'))}</button></div></div>`;
     selBox.querySelector('.av').append(api.robot(s, st));
     selBox.querySelector('.who').addEventListener('click', () => api.open(s));
     for (const b of selBox.querySelectorAll('button[data-a]')) b.addEventListener('click', () => {
       const how = b.dataset.a;
-      if (how === 'conv') api.open(s, false, 'conv');
-      else if (how === 'msg') api.open(s, true);
+      if (how === 'conv') api.open(s, true, 'conv');
       else if (how === 'open') api.open(s);
       else if (ask) { for (const x of selBox.querySelectorAll('.acts button')) x.disabled = true; answer(a, ask, how); }
     });
@@ -773,6 +782,7 @@ export function createOffice(api) {
       // a message: who it went to (the newest one it sent since this started)
       a.talkTo = null;
       if (s.activity?.kind === 'talk') a.talkTo = (p.messages || []).find((m) => m.from === s.name && m.at >= (s.activityAt || 0) - 120000)?.to || null;
+      if (born && !rebuild) settle(a);
       const ask = approvals.get(s.name), subs = (s.subagents || []).filter((x) => x.running).length;
       const now = { state: s.state, ask: ask?.id || '', subs };
       if (born && !fresh && !a.prev) log(a, t('officeLogJoin'));
@@ -789,7 +799,7 @@ export function createOffice(api) {
       }
       a.prev = now;
     }
-    if (rebuild) for (const a of agents.values()) { a.path = []; put(a, home(a)); a.want = a.place; }
+    if (rebuild) { for (const a of agents.values()) { a.path = []; a.arrive = null; put(a, home(a)); a.want = a.place; } for (const a of agents.values()) settle(a); }
     dirtyPlates = true;
   }
 
@@ -944,12 +954,12 @@ export function createOffice(api) {
     if (!el.isConnected || document.hidden) { running = false; return; }
     const dt = Math.min(0.05, (now - last) / 1000), t = now / 1000; last = now;
     // where each one wants to be; a move waits a moment, so a quick look at a file does not send it across the room
-    const taken = new Set([...agents.values()].map((a) => a.place).filter(Boolean));
+    const taken = claims();
     for (const a of agents.values()) {
       const w = wanted(a, taken, Date.now());
-      if (w !== a.want) { a.want = w; a.wantSince = now; }
+      if (w !== a.want) { if (taken.get(a.want) === a && a.want !== a.place) taken.delete(a.want); a.want = w; a.wantSince = now; taken.set(w, a); }
       const urgent = approvals.has(a.name);
-      if (a.want !== a.place && !a.path.length && (urgent || (now - a.wantSince > 2500 && now - a.arrivedAt > 3500))) { taken.delete(a.place); go(a, a.want); taken.add(a.want); }
+      if (a.want !== a.place && !a.path.length && (urgent || (now - a.wantSince > 2500 && now - a.arrivedAt > 3500))) { if (taken.get(a.place) === a) taken.delete(a.place); go(a, a.want); }
       if (a.path.length) {
         const [tx, ty] = a.path[0], dx = tx - a.pos[0], dy = ty - a.pos[1], d = Math.hypot(dx, dy), step = SPEED * dt;
         if (d > 0.001) a.angTo = Math.atan2(dx, dy);
