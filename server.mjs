@@ -1977,22 +1977,44 @@ function localHost(host) {
   const h = String(host || '').toLowerCase().replace(/:\d+$/, '')
   return LOCAL_HOSTS.has(h)
 }
-// the weather outside, for the office's windows: the city in this PC's time zone name (Asia/Seoul → Seoul; nothing
-// about where the person is), its weather now from Open-Meteo (free, no key); asked at most every 20 minutes, kept in
-// memory only
-let weatherNow = null, weatherAt = 0, weatherPlace = null, weatherAsking = null
+// where this PC is, from Windows' location service (when it is on and allowed for desktop apps), rounded to a tenth
+// of a degree (about 10 km) before it leaves PowerShell; null when it gives none
+function pcPlace() {
+  if (process.platform !== 'win32') return Promise.resolve(null)
+  const ps = "Add-Type -AssemblyName System.Device; $w = New-Object System.Device.Location.GeoCoordinateWatcher; " +
+    "if ($w.TryStart($false, [TimeSpan]::FromSeconds(8))) { $n = 0; while ($w.Status -ne 'Ready' -and $n -lt 40) { Start-Sleep -Milliseconds 200; $n++ }; " +
+    "$c = $w.Position.Location; if (-not $c.IsUnknown) { [string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:F1} {1:F1}', $c.Latitude, $c.Longitude) } }; $w.Stop()"
+  return new Promise((resolve) => {
+    let out = '', child
+    try { child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { cwd: os.tmpdir(), windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }) } catch { resolve(null); return }
+    const timer = setTimeout(() => { try { child.kill() } catch {} }, 20000)
+    const done = () => { clearTimeout(timer); const m = /^(-?\d+\.\d) (-?\d+\.\d)/.exec(out.trim()); resolve(m ? { lat: +m[1], lon: +m[2], city: null } : null) }
+    child.stdout.on('data', (d) => { out += d })
+    child.on('error', done); child.on('close', done)
+  })
+}
+// the city in this PC's time zone name (Asia/Seoul → Seoul), when Windows gives no location
+let tzPlaceOf = null
+async function tzPlace() {
+  if (tzPlaceOf) return tzPlaceOf
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+  const city = tz.includes('/') ? tz.split('/').pop().replace(/_/g, ' ') : ''
+  if (!city) throw new Error('no city')
+  const g = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&name=' + encodeURIComponent(city), { signal: AbortSignal.timeout(8000) })).json()
+  const r = g.results?.[0]
+  if (!r) throw new Error('no place')
+  return tzPlaceOf = { lat: +r.latitude.toFixed(2), lon: +r.longitude.toFixed(2), city: r.name }
+}
+// the weather outside, for the office's windows: at this PC's place (above; looked up again each hour, in case a laptop
+// moved), its weather now from Open-Meteo (free, no key); asked at most every 20 minutes, kept in memory only
+let weatherNow = null, weatherAt = 0, weatherPlace = null, weatherPlaceAt = 0, weatherAsking = null
 function weather() {
   if (weatherNow && Date.now() - weatherAt < 20 * 60000) return weatherNow
   return weatherAsking ||= (async () => {
     try {
-      if (!weatherPlace) {
-        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
-        const city = tz.includes('/') ? tz.split('/').pop().replace(/_/g, ' ') : ''
-        if (!city) throw new Error('no city')
-        const g = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&name=' + encodeURIComponent(city), { signal: AbortSignal.timeout(8000) })).json()
-        const r = g.results?.[0]
-        if (!r) throw new Error('no place')
-        weatherPlace = { lat: +r.latitude.toFixed(2), lon: +r.longitude.toFixed(2), city: r.name }
+      if (!weatherPlace || Date.now() - weatherPlaceAt > 60 * 60000) {
+        weatherPlace = (await pcPlace()) || await tzPlace()
+        weatherPlaceAt = Date.now()
       }
       const q = `https://api.open-meteo.com/v1/forecast?latitude=${weatherPlace.lat}&longitude=${weatherPlace.lon}&current=temperature_2m,weather_code,is_day,cloud_cover,wind_speed_10m`
       const c = (await (await fetch(q, { signal: AbortSignal.timeout(8000) })).json()).current

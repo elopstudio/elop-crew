@@ -107,8 +107,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   lightning in a storm, and the sunlight in the room as strong as they leave it; over the whole scene as well — rain or
   snow falling all round the building and past its edges, the backdrop grey under clouds, fog over everything, snow on
   the tops of the walls, the room lit up by the lightning. It comes from Open-Meteo (free, no key)
-  for the city in the PC's time zone name (Asia/Seoul → Seoul; nothing about where you are is sent), asked at most every
-  20 minutes and kept in memory only; offline, the sky stays clear.
+  for where the PC is, from Windows' location service, rounded to about 10 km before it is sent (the precise spot never
+  leaves the PC); with the location service off, for the city in the PC's time zone name (Asia/Seoul → Seoul). Asked at
+  most every 20 minutes (the place once an hour), kept in memory only; offline, the sky stays clear.
   On the all-agents tab the office is a building: each project a glass-fronted room off one corridor (a room grows with
   its crew; past four projects a second row faces the first), its robots at their desks, a teammate's desk with a message,
   a bean bag when idle for long or done; a room's name over it shows how its crew is doing, and a click on the room goes
