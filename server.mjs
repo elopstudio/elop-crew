@@ -2136,6 +2136,15 @@ const server = http.createServer(async (req, res) => {
       try { res.writeHead(200, { 'content-type': type, 'cache-control': 'max-age=3600' }).end(await fsp.readFile(file)) } catch { res.writeHead(404).end() }
       return
     }
+    // the office view's scripts (three.js and the room), only .js files below public/office
+    if (url.pathname.startsWith('/office/') && url.pathname.endsWith('.js')) {
+      const base = path.join(ROOT, 'public', 'office')
+      let file
+      try { file = path.resolve(base, '.' + decodeURIComponent(url.pathname.slice('/office'.length))) } catch { file = '' }
+      if (!file.startsWith(base + path.sep)) { res.writeHead(404).end(); return }
+      try { res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' }).end(await fsp.readFile(file)) } catch { res.writeHead(404).end() }
+      return
+    }
     if (url.pathname === '/' || url.pathname === '/index.html') {
       // the page gets the token inline; only a same-origin page can read it
       const html = (await fsp.readFile(INDEX, 'utf8')).replace('__MONITOR_TOKEN__', TOKEN)
