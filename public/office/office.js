@@ -34,13 +34,12 @@ const CSS = `
 .office .ocard .acts button,.office .askb .b button{flex:1;appearance:none;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);border-radius:8px;padding:6px 0;font:700 12px var(--sans, inherit);cursor:pointer}
 .office .ocard .acts .yes,.office .askb .b .yes{background:var(--accent);border-color:var(--accent);color:#fff}
 .office .ocard .acts button:disabled,.office .askb .b button:disabled{opacity:.5;cursor:default}
-.office .ofeed{display:flex;flex-direction:column;gap:4px;font-size:12px;max-height:200px;overflow:hidden}
+.office .ofeedbox{flex:1;min-height:0;display:flex;flex-direction:column}
+.office .ofeed{display:flex;flex-direction:column;gap:4px;font-size:12px;min-height:0;overflow:hidden}
 .office .ofeed div{color:var(--muted);animation:ofeedin .3s ease-out;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.office .ofeed div b{color:var(--text)}
 .office .ofeed time{font:11px var(--mono, ui-monospace,monospace);color:var(--faint);margin-right:6px}
 .office .ofeed .none{color:var(--faint)}
 @keyframes ofeedin{from{opacity:0;transform:translateY(-4px)}}
-.office .oplaces{display:grid;gap:5px;font-size:12px;color:var(--muted)}
-.office .oplaces div{display:grid;grid-template-columns:22px 1fr;gap:4px;align-items:start}.office .oplaces b{color:var(--text);font-weight:700}
 .office .ohud .oname{font:700 12px var(--mono, ui-monospace,monospace);color:var(--muted);padding:0 10px;line-height:22px;white-space:nowrap}
 .office .ohud .oname small{font-family:var(--sans, inherit);font-weight:500;color:var(--faint);margin-left:6px}
 .office .ohudwrap{position:absolute;top:10px;left:10px;right:10px;z-index:3;display:flex;gap:8px;align-items:center;pointer-events:none}
@@ -109,13 +108,10 @@ export function createOffice(api) {
   const el = document.createElement('div');
   el.className = 'office';
   el.innerHTML = '<div class="ostage"><canvas></canvas><div class="oov"></div><div class="ohudwrap"><div class="ohud"><span class="oname"></span></div><div class="ohud"><button type="button" data-z="out">−</button><span class="ozv"></span><button type="button" data-z="in">+</button></div><div class="oslot"></div></div><div class="ohint"></div></div>'
-    + '<aside class="oside"><div class="osel"></div><div><h4></h4><div class="ofeed"></div></div><div><h4></h4><div class="oplaces"></div></div></aside>';
+    + '<aside class="oside"><div class="osel"></div><div class="ofeedbox"><h4></h4><div class="ofeed"></div></div></aside>';
   const stage = el.querySelector('.ostage'), canvas = el.querySelector('canvas'), ov = el.querySelector('.oov'), slot = el.querySelector('.oslot');
   const side = el.querySelector('.oside'), selBox = el.querySelector('.osel'), feedBox = el.querySelector('.ofeed');
-  const [feedH, legendH] = side.querySelectorAll('h4');
-  feedH.textContent = t('officeFeed'); legendH.textContent = t('officeLegend');
-  side.querySelector('.oplaces').innerHTML = [['⌨', 'edit'], ['🔍', 'read'], ['🌐', 'web'], ['💬', 'talk'], ['❗', 'ask'], ['💤', 'wait'], ['🛋', 'rest']]
-    .map(([i, k]) => `<div><span>${i}</span><span><b>${esc(t('officeL_' + k))}</b> — ${esc(t('officeL_' + k + 'D'))}</span></div>`).join('');
+  side.querySelector('h4').textContent = t('officeFeed');
   feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`;
   el.querySelector('.ohint').textContent = t('officeHint');
   let renderer;
@@ -714,7 +710,7 @@ export function createOffice(api) {
     d.innerHTML = `<time>${hhmmss(new Date())}</time><b>${esc(api.name(a.s))}</b> ${esc(text)}`;
     d.title = d.textContent;
     feedBox.prepend(d);
-    while (feedBox.children.length > 12) feedBox.lastChild.remove();
+    while (feedBox.children.length > 40) feedBox.lastChild.remove();
   }
   function stateOf(a) { return approvals.has(a.name) ? 'asking' : a.s.state; }
   function sideCard() {

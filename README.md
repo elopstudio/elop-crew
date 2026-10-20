@@ -94,7 +94,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   the desk. Each place is one robot's at a time, and an office opened afresh shows each where it already is. The rows of desks grow with the crew, always with one **+ New seat** free (a click starts a new agent).
   The panel shows the agent picked — what it is doing, where it is, uptime, today's tokens, how full its context is, with
   Allow / Deny for a request, and **Conversation** (with the message box ready) — then what just happened (moves, requests, state changes,
-  subagents) and what each kind of work looks like. Drag to move, the wheel or − + to zoom (the percentage fits it again); a
+  subagents). Drag to move, the wheel or − + to zoom (the percentage fits it again); a
   click on a robot, its label or name plate picks it, a double click opens it; the browser and artifacts on the walls open
   theirs. The office has no project row: its name is at the room's top left, and **📋 Board**, **💬 Team chat**,
   **+ New agent** and **Org chart | Office** at its top right; the board and the team chat open over the page from there (the
