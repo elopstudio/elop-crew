@@ -165,7 +165,26 @@ body{background:radial-gradient(1400px 520px at 50% -140px,var(--bg-grad),transp
 .viewsw button{appearance:none;border:0;background:none;color:var(--muted);font:700 12px var(--sans);padding:3px 11px;border-radius:999px;cursor:pointer}
 .viewsw button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:0 1px 3px var(--shadow)}
 .viewsw button:hover{color:var(--text)}
-.officewrap{min-width:0}
+.officewrap{min-width:0;position:relative}
+.pbody.office-on{grid-template-columns:minmax(0,1fr)}
+.officewrap .otools{position:absolute;top:10px;right:10px;z-index:4;display:flex;gap:6px}
+.officewrap .otools button{appearance:none;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(8px);color:var(--text);font:700 12px var(--sans);padding:4px 11px;border-radius:999px;cursor:pointer;box-shadow:0 2px 8px var(--shadow)}
+.officewrap .otools button:hover{border-color:var(--accent);color:var(--accent)}
+.officewrap .otools button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.officewrap .otools .n{font-family:var(--mono);font-weight:500;opacity:.75;margin-left:5px}
+.odrawer{position:fixed;top:190px;right:24px;bottom:16px;width:min(620px,calc(100vw - 48px));z-index:40;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px var(--bot-shadow);overflow:hidden}
+.odrawer[hidden]{display:none}
+.odrawer .odhead{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line)}
+.odrawer .odhead .tab{appearance:none;border:0;background:none;color:var(--muted);font:700 13px var(--sans);padding:5px 10px;border-radius:8px;cursor:pointer}
+.odrawer .odhead .tab[aria-pressed="true"]{background:var(--surface-2);color:var(--text)}
+.odrawer .odhead .x{margin-left:auto;appearance:none;width:28px;height:28px;padding:0;display:inline-grid;place-items:center;flex:none;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text);border-radius:8px;cursor:pointer}
+.odrawer .odhead .x svg{width:14px;height:14px}
+.odrawer .odhead .x:hover{border-color:var(--text)}
+.odrawer .odbody{flex:1;overflow:auto;min-height:0}
+.odrawer .odbody>.kanban{border-top:0}
+.odrawer .odbody>.kanban .kcols{grid-template-columns:repeat(2,minmax(0,1fr))}
+.odrawer .odbody>.panel{border:0;border-radius:0;background:none}
+.odrawer .odbody>.panel .feed{max-height:none}
 .officewrap .oload{height:clamp(440px,calc(100vh - 250px),900px);display:grid;place-items:center;color:var(--faint);font-size:13px;border:1px solid var(--line);border-radius:14px}
 
 /* Org chart */
@@ -4885,7 +4904,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     officeKey = p.key;
     if (office) { office.update(p, last); return; }
     if (!officeLoad) {
-      officeWrap.replaceChildren(el('div', 'oload', '…'));
+      officeWrap.replaceChildren(el('div', 'oload', '…'), officeBar);
       officeLoad = import('/office/office.js').then((m) => {
         office = m.createOffice({
           t, actText,
@@ -4894,17 +4913,60 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
           name: (s) => nickFor(s) || str(s.short) || str(s.name),
           open: (s) => showDetail(sessionByName(s.name) || s),
           newAgent: () => { const q = (last?.projects || []).find((x) => x.key === officeKey); if (q) showNewAgent(q); },
-          board: () => document.querySelector('.project .kanban')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+          board: () => officeShow('board!'),
           browsers: () => showBrowsers(),
           artifacts: () => showArtifacts(),
         });
-        officeWrap.replaceChildren(office.el);
+        officeWrap.replaceChildren(office.el, officeBar);
         const q = (last?.projects || []).find((x) => x.key === officeKey);
         if (q) office.update(q, last);
       }).catch(() => { officeLoad = null; officeWrap.replaceChildren(el('div', 'oload', t('officeNoGL'))); });
     }
   }
   // on the all-agents tab (always the org chart) Office goes to the first project's tab, in the office
+  // the office's board and team chat: not laid out beside it, shown over the page when asked for (kept out of the
+  // redrawn part of the page, so a board form being typed in is never taken out of it)
+  let officePanel = null;
+  const officeDrawer = el('div', 'odrawer');
+  officeDrawer.hidden = true;
+  document.body.append(officeDrawer);
+  function officeShow(kind) { officePanel = officePanel === kind && kind !== 'board!' ? null : kind.replace('!', ''); if (last) render(last); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && officePanel && !document.querySelector('dialog[open]')) { officePanel = null; officeDrawer.hidden = true; } });
+  const officeBar = el('div', 'otools');
+  function officeTools(p) {
+    const bar = officeBar;
+    bar.replaceChildren();
+    for (const [k, label, n] of [['board', '📋 ' + t('board'), null], ['chat', '💬 ' + t('chat'), (p.messages || []).length]]) {
+      const b = el('button', null, label);
+      if (n) b.append(el('span', 'n', String(n)));
+      b.type = 'button'; b.setAttribute('aria-pressed', String(officePanel === k));
+      b.addEventListener('click', () => officeShow(k));
+      bar.append(b);
+    }
+    return bar;
+  }
+  function officeDrawerFill(p) {
+    officeDrawer.hidden = !officePanel;
+    if (!officePanel) { officeDrawer.replaceChildren(); return; }
+    if (officeDrawer.querySelector('[data-editing]')) return;   // a board form is open: left as it is until it closes
+    const top = officeDrawer.querySelector('.odbody')?.scrollTop || 0;
+    const head = el('div', 'odhead');
+    for (const [k, label] of [['board', '📋 ' + t('board')], ['chat', '💬 ' + t('chat')]]) {
+      const b = el('button', 'tab', label);
+      b.type = 'button'; b.setAttribute('aria-pressed', String(officePanel === k));
+      b.addEventListener('click', () => { if (officePanel !== k) officeShow(k); });
+      head.append(b);
+    }
+    const x = iconButton('close', t('close'));
+    x.classList.add('x');
+    x.addEventListener('click', () => { officePanel = null; officeDrawer.hidden = true; });
+    head.append(x);
+    const body = el('div', 'odbody');
+    body.append(officePanel === 'board' ? boardPanel(p) : feedPanel(p));
+    officeDrawer.replaceChildren(head, body);
+    body.scrollTop = top;
+  }
+
   function viewSwitch(allTab) {
     const w = el('div', 'viewsw');
     w.setAttribute('role', 'group'); w.title = t('viewTip');
@@ -4962,10 +5024,11 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const body = el('div', 'pbody');
     if (view === 'office') {
       officeFor(p);
-      const side = el('div', 'side');
-      side.append(feedPanel(p));
-      body.append(officeWrap, side);
-      sec.append(body, boardPanel(p));
+      officeTools(p);
+      officeDrawerFill(p);
+      body.classList.add('office-on');
+      body.append(officeWrap);
+      sec.append(body);
       return sec;
     }
     const org = el('div', 'org');
@@ -5374,6 +5437,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       for (const c of [...box.children]) if (c !== home) c.remove();
     } else box.replaceChildren(...next);
     if (!data.projects.length) box.append(el('div', 'notice', t('noSessions')));
+    if (!officeWrap.isConnected && officePanel) { officePanel = null; officeDrawer.hidden = true; }
     const feed = document.querySelector('.feed'); if (feed) feed.scrollTop = feedTop;
 
     const d = new Date(data.now), p2 = (x) => String(x).padStart(2, '0');

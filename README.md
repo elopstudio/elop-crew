@@ -91,7 +91,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   waiting agent dozes at its desk, after a minute goes to the pantry and after five to the lounge; a resting one sleeps,
   greyed. Running subagents sit small beside the desk. The rows of desks grow with the crew, always with one **+ New seat**
   free (a click starts a new agent). Drag to move, Ctrl+wheel or − + to zoom (the percentage fits it again); a click on a
-  robot, its label or name plate opens the agent; the board, browser and artifacts on the walls open theirs. The choice is
+  robot, its label or name plate opens the agent; the browser and artifacts on the walls open theirs. The office takes the
+  whole width: the board and the team chat are not laid out beside or below it but open over the page from **📋 Board** and
+  **💬 Team chat** at its top right (the board on the wall opens it too), with a tab to switch and Esc to close. The choice is
   kept in the browser; it follows the light or dark theme, and stops drawing while it is not on screen.
 - **Browsers.** **Browsers** (the globe) in the header — in the desktop app the globe in the title strip, beside the terminal — (or
   **🌐 N** on an agent's card) opens a panel over the page, which can be
