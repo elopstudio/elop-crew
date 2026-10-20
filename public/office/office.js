@@ -36,9 +36,10 @@ const CSS = `
 .office .ocard .acts button:disabled,.office .askb .b button:disabled{opacity:.5;cursor:default}
 .office .ofeedbox{flex:1;min-height:0;display:flex;flex-direction:column}
 .office .ofeed{display:flex;flex-direction:column;gap:4px;font-size:12px;min-height:0;overflow:hidden}
-.office .ofeed div{color:var(--muted);animation:ofeedin .3s ease-out;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.office .ofeed div b{color:var(--text)}
+.office .ofeed div{flex:none;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.office .ofeed div b{color:var(--text)}
 .office .ofeed time{font:11px var(--mono, ui-monospace,monospace);color:var(--faint);margin-right:6px}
 .office .ofeed .none{color:var(--faint)}
+.office .ofeed .in{animation:ofeedin .3s ease-out}
 @keyframes ofeedin{from{opacity:0;transform:translateY(-4px)}}
 .office .ohud .oname{font:700 12px var(--mono, ui-monospace,monospace);color:var(--muted);padding:0 10px;line-height:22px;white-space:nowrap}
 .office .ohud .oname small{font-family:var(--sans, inherit);font-weight:500;color:var(--faint);margin-left:6px}
@@ -208,17 +209,29 @@ export function createOffice(api) {
 
   /* ── the plan: desk rows grow with the crew; everything south of them moves down ── */
   const L = { rows: 0, GY: 13, dy: 0, desks: [], ROWS: [] };
+  const B = { w: GX, d: 13 };   // what is drawn: the room (GX × L.GY) or the building
+  let MODE = 'room';            // 'room': one project's office; 'bldg': every project a room in one building
   const S = (y) => y + L.dy;   // a place south of the desks
   function layout(rows) {
-    L.rows = rows; L.dy = 2.8 * (rows - 2); L.GY = 13 + L.dy;
+    L.rows = rows; L.dy = 2.8 * (rows - 2); L.GY = 13 + L.dy; B.w = GX; B.d = L.GY;
     L.desks = []; for (let r = 0; r < rows; r++) for (let c = 0; c < PER_ROW; c++) L.desks.push([3.8 + c * 2.4, 2.2 + r * 2.8]);
     L.ROWS = [...Array.from({ length: rows }, (_, r) => 1.0 + r * 2.8), S(6.7)];
   }
   // each desk: the seat on its left, the top to its right, the screen beside the face (so it never hides it)
   const deskOf = (i) => { const [X, Y] = L.desks[i]; return { X, Y, seat: [X + 0.25, Y + 0.4], top: { x: X + 0.6, y: Y - 0.15, w: 0.9, d: 1.1 }, mon: [X + 1.02, Y + 0.4] }; };
   const PANTRY = () => [[1.55, S(8.75)], [1.55, S(9.85)]], SOFA = () => [[1.65, S(12.1)], [3.05, S(12.1)]], BEAN = () => [[7.6, S(9.3)], [9.0, S(9.9)], [8.1, S(10.9)]];
+  // the assistant's desk in the room: by the way in, on the east side
+  const recDesk = () => { const X = 16.2, Y = S(5.9); return { X, Y, seat: [X + 0.25, Y + 0.4], top: { x: X + 0.6, y: Y - 0.15, w: 0.9, d: 1.1 }, mon: [X + 1.02, Y + 0.4] }; };
   function spotOf(a, place) {
-    const [k, arg] = place.split(':'), i = +arg;
+    if (MODE === 'bldg') return bspot(a, place);
+    const k = place.split(':')[0], arg = place.slice(k.length + 1), i = +arg;
+    if (k === 'reception') { const d = recDesk(); return { p: d.seat, via: [[d.X - 0.4, d.seat[1]], [d.X - 0.4, L.ROWS.at(-1)]], face: [1, 0], lift: SEAT_H, seat: true }; }
+    if (k === 'secvisit') {
+      // beside the one it came about: at the leader's corner, or by the desk
+      const to = agents.get(arg);
+      if (!to || to.leader) return { p: [16.75, 4.4], via: [[15.95, 4.4], [15.95, L.ROWS.at(-1)]], face: [0, -1], lift: 0 };
+      const d = deskOf(to.desk); return { p: [d.seat[0] + 0.7, d.Y + 1.2], via: [[d.X - 0.4, d.Y + 1.2]], face: [0, -1], lift: 0 };
+    }
     if (k === 'desk') { const d = deskOf(a.desk); return { p: d.seat, via: [[d.X - 0.4, d.seat[1]]], face: [1, 0], lift: SEAT_H, seat: true }; }
     if (k === 'lead') return { p: LEAD.seat, via: [[15.95, LEAD.seat[1]], [15.95, L.ROWS.at(-1)]], face: [1, 0], lift: SEAT_H, seat: true };
     if (k === 'lib') { const p = LIB[i]; return { p, via: [[COLS[0], p[1]]], face: [-1, 0], lift: 0 }; }
@@ -257,18 +270,20 @@ export function createOffice(api) {
     const s = { el: e, at, anchor, prio, html: '' }; statics.push(s); return s;
   }
   const plateOf = new Map();
-  function buildRoom() {
+  let chairsOf = [];   // {c: a chair, find: who sits in it}
+  function clearWorld() {
     if (world) { scene.remove(world); world.traverse((o) => { if (o.isMesh && o.geometry && !o.geometry.userData.cached) { if (![...gcache.values()].includes(o.geometry)) o.geometry.dispose(); } }); }
+    for (let i = themed.length - 1; i >= 0; i--) if (trash.includes(themed[i][0])) themed.splice(i, 1);
     for (const x of trash) x.dispose(); trash = [];
     for (const s of statics) s.el.remove(); statics.length = 0; plateOf.clear();
-    deskScreens = []; ghostDesk = null;
+    deskScreens = []; ghostDesk = null; chairsOf = [];
     const W = world = new THREE.Group(); scene.add(W);
-    const GY = L.GY, keep = (x) => { trash.push(x); return x; };
-    sunAt();
-    const half = Math.max(15, GY / 2 + 7.5);
-    Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 1, far: 70 + L.dy }); sun.shadow.camera.updateProjectionMatrix();
-    // floor: soft planks, neutral so the theme colour tints them
-    const floorTex = keep(tex(2048, Math.round(2048 * GY / GX), (g, w, h) => {
+    sunAt(); shadowFit();
+    return W;
+  }
+  // floor: soft planks, neutral so the theme colour tints them
+  function planks(GW, GY, keep) {
+    const floorTex = keep(tex(2048, Math.min(4096, Math.round(2048 * GY / GW)), (g, w, h) => {
       g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); seed = 7;
       const pw = h / GY * 0.36;
       for (let y = 0; y < h; y += pw) {
@@ -280,8 +295,13 @@ export function createOffice(api) {
       }
     }));
     const floorMat = keep(new THREE.MeshPhysicalMaterial({ map: floorTex, roughness: 0.7, clearcoat: 0.12, clearcoatRoughness: 0.6 })); floorMat.color.set(C('floor')); themed.push([floorMat, 'floor']);
-    const slabG = keep(new THREE.BoxGeometry(GX, 0.32, GY));
-    const slab = new THREE.Mesh(slabG, [M('slab'), M('slab'), floorMat, M('slab'), M('slab'), M('slab')]); slab.position.set(GX / 2, -0.16, GY / 2); slab.receiveShadow = true; W.add(slab);
+    const slabG = keep(new THREE.BoxGeometry(GW, 0.32, GY));
+    const slab = new THREE.Mesh(slabG, [M('slab'), M('slab'), floorMat, M('slab'), M('slab'), M('slab')]); slab.position.set(GW / 2, -0.16, GY / 2); slab.receiveShadow = true; world.add(slab);
+  }
+  function buildRoom() {
+    const W = clearWorld();
+    const GY = L.GY, keep = (x) => { trash.push(x); return x; };
+    planks(GX, GY, keep);
     // rugs: a soft mat with a stitched edge
     const rug = (x, y, w, d, key) => {
       const tx = keep(tex(Math.round(w * 90), Math.round(d * 90), (g, cw, ch) => { g.fillStyle = '#ececec'; g.fillRect(0, 0, cw, ch); g.strokeStyle = '#fff'; g.lineWidth = 3; g.setLineDash([2, 9]); g.lineCap = 'round'; rr(g, 16, 16, cw - 32, ch - 32, 14); g.stroke(); }));
@@ -430,21 +450,22 @@ export function createOffice(api) {
     [[14.3, 10.0], [16.4, 9.7], [14.1, 11.6], [15.9, 12.25], [17.1, 11.2]].forEach(([x, y]) => chair(W, x, S(y), [MC[0] - x, MC[1] - S(y)], C('chair')));
     // the lead's corner: low glass, a door gap on the left
     glassX(15.6, 0, 5.2, 0.95); glassY(5.2, 16.5, 18, 0.95);
-    desk(W, LEAD, -1); chair(W, LEAD.seat[0], LEAD.seat[1], [1, 0], PALETTE[6][0]).userData.leadChair = 1;
+    desk(W, LEAD, -1, () => [...agents.values()].find((x) => x.leader)); chair(W, LEAD.seat[0], LEAD.seat[1], [1, 0], PALETTE[6][0]).userData.leadChair = 1;
+    // the assistant's small desk at the way in
+    { const d = recDesk(); desk(W, d, -2, () => agents.get(SEC)); chair(W, d.seat[0], d.seat[1], [1, 0], PALETTE[5][0]); pbox(W, d.top.x + d.top.w, d.top.y - 0.02, 0, 0.1, d.top.d + 0.04, 0.98, M('desk', { roughness: 0.45, clearcoat: 0.35 }), 0.03); }
     // desks; the first free one is the "new seat"
-    L.desks.forEach((_, i) => { const d = deskOf(i); desk(W, d, i); d.chair = chair(W, d.seat[0], d.seat[1], [1, 0], C('chair')); deskChairs[i] = d.chair; });
+    L.desks.forEach((_, i) => { const d = deskOf(i); desk(W, d, i, () => [...agents.values()].find((x) => !x.leader && !x.sec && x.desk === i)); d.chair = chair(W, d.seat[0], d.seat[1], [1, 0], C('chair')); chairsOf.push({ c: d.chair, find: () => [...agents.values()].find((x) => !x.leader && !x.sec && x.desk === i) }); });
     // labels
     L.desks.forEach((_, i) => { const d = deskOf(i); plateOf.set(i, staticChip('plate', [d.top.x + d.top.w / 2 - 0.1, 0, d.top.y + d.top.d + 0.12], 'top', 3, () => plateClick(i))); });
     plateOf.set('lead', staticChip('plate', [LEAD.top.x + LEAD.top.w / 2, 0, LEAD.top.y + LEAD.top.d + 0.12], 'top', 3, () => plateClick('lead')));
-    [[1.7, 6.55, 'officeLib'], [2.9, S(7.95), 'officePantry'], [2.5, S(12.8), 'officeLounge'], [16.6, S(12.75), 'officeMeet'], [16.9, 4.85, 'officeLead'], [9.1, S(11.75), 'officeBreak']].forEach(([x, y, k]) => staticChip('zone', [x, 0, y], 'center-hide', 5, null, t(k)));
+    [[1.7, 6.55, 'officeLib'], [2.9, S(7.95), 'officePantry'], [2.5, S(12.8), 'officeLounge'], [16.6, S(12.75), 'officeMeet'], [16.9, 4.85, 'officeLead'], [9.1, S(11.75), 'officeBreak'], [17.3, S(7.25), 'officeReception']].forEach(([x, y, k]) => staticChip('zone', [x, 0, y], 'center-hide', 5, null, t(k)));
     staticChip('wallbtn', [4.95, 2.52, 0.05], 'bottom', 4, () => api.board(), t('officeBoard'));
     staticChip('wallbtn', [8.7, 2.62, 0.05], 'bottom', 4, () => api.browsers(), '🌐 ' + t('officeBrowser'));
     staticChip('wallbtn', [0.05, 2.58, S(7.8)], 'bottom', 4, () => api.artifacts(), t('officeArtifacts'));
     fitCamera(); dirtyPlates = true;
   }
-  const deskChairs = [];
-  // a desk: a top on two clay panels, a screen turned to the seat, a keyboard, a mug or a little plant
-  function desk(W, d, i) {
+  // a desk: a top on two clay panels, a screen turned to the seat, a keyboard, a mug or a little plant; find: who works at it
+  function desk(W, d, i, find) {
     const { x, y, w, d: dd } = d.top, leg = M('deskLeg'), top = M('desk', { roughness: 0.45, clearcoat: 0.35 });
     pbox(W, x + 0.04, y + 0.05, 0, 0.07, dd - 0.1, DESK_H - 0.04, leg, 0.03); pbox(W, x + w - 0.11, y + 0.05, 0, 0.07, dd - 0.1, DESK_H - 0.04, leg, 0.03); pbox(W, x + 0.06, y + 0.08, 0.25, w - 0.12, 0.04, 0.25, leg, 0.015);
     pbox(W, x, y, DESK_H - 0.05, w, dd, 0.06, top, 0.025);
@@ -467,7 +488,7 @@ export function createOffice(api) {
     if (i < 0 || i % 2 === 0) pcyl(W, x + w - 0.18, y + 0.18, DESK_H + 0.01, 0.05, 0.1, mugMat);
     else { pcyl(W, x + w - 0.18, y + 0.18, DESK_H + 0.01, 0.06, 0.09, M('pot')); const l = mesh(W, sphG(0.09), M('leaf'), x + w - 0.18, DESK_H + 0.17, y + 0.18); l.scale.set(1, 1.2, 1); }
     if (i < 0) pbox(W, x + 0.5, y + 1.1, DESK_H + 0.01, 0.3, 0.22, 0.03, M('#ffd166'), 0.01);
-    deskScreens.push({ i, scrMat, glowMat, ledMat, mugMat });
+    deskScreens.push({ i, find, scrMat, glowMat, ledMat, mugMat });
   }
   // a chair: seat, back, a stem on a star of wheels; front faces dir
   function chair(W, x, y, dir, col) {
@@ -575,10 +596,10 @@ export function createOffice(api) {
   let VW = 1, VH = 1, zoom = 1; const pan = new THREE.Vector2(); let fit = { cx: 0, cy: 0, fw: 1, fh: 1 };
   const zv = el.querySelector('.ozv');
   function fitCamera() {
-    const target = new THREE.Vector3(GX / 2, 0.5, L.GY / 2);
+    const target = new THREE.Vector3(B.w / 2, 0.5, B.d / 2);
     camera.position.copy(target).addScaledVector(CAM_DIR, 80); camera.lookAt(target); camera.updateMatrixWorld();
     const v = new THREE.Vector3(); let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-    for (const x of [-0.3, GX]) for (const h of [-0.35, WALL_H + 0.1]) for (const z of [-0.3, L.GY]) { v.set(x, h, z).applyMatrix4(camera.matrixWorldInverse); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y); }
+    for (const x of [-0.3, B.w]) for (const h of [-0.35, WALL_H + 0.1]) for (const z of [-0.3, B.d]) { v.set(x, h, z).applyMatrix4(camera.matrixWorldInverse); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y); }
     let fw = (x1 - x0) * 1.03, fh = (y1 - y0) * 1.06; const asp = VW / VH; if (fw / fh < asp) fw = fh * asp; else fh = fw / asp;
     fit = { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, fw, fh }; applyCamera();
   }
@@ -633,18 +654,26 @@ export function createOffice(api) {
       if (drag.moved) { pan.x = drag.px - dx / VW * fit.fw / zoom; pan.y = drag.py + dy / VH * fit.fh / zoom; applyCamera(); }
       return;
     }
-    hovered = pick(e); canvas.classList.toggle('hot', !!hovered);
+    hovered = pick(e); const room = hovered ? null : pickRoom(e); canvas.classList.toggle('hot', !!hovered || !!room);
+    if (room !== hoverRoom) { hoverRoom = room; for (const [k, m] of BL.rugs) m.emissive.set(k === room ? '#3a63d8' : '#000000').multiplyScalar(k === room ? 0.14 : 0); }
   });
-  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a) select(a); } });
-  canvas.addEventListener('dblclick', (e) => { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a) api.open(a.s); });
+  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a?.sec) api.openAssistant?.(); else if (a) select(a); else { const k = pickRoom(e); if (k) api.enter?.(k); } } });
+  canvas.addEventListener('dblclick', (e) => { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a && !a.sec) api.open(a.s); });
   canvas.addEventListener('pointerleave', () => { hovered = null; });
+  // a room of the building, under the pointer: its project
+  let hoverRoom = null;
+  function pickRoom(e) {
+    if (MODE !== 'bldg') return null;
+    const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
+    return ray.intersectObjects(BL.floors, false)[0]?.object.userData.room || null;
+  }
   stage.addEventListener('wheel', (e) => { e.preventDefault(); const r = canvas.getBoundingClientRect(); setZoom(zoom * Math.exp(-e.deltaY * 0.0012), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
 
   /* ── the agents ── */
   const agents = new Map();   // session name → agent
   const seats = new Map();    // session name → desk index (kept while it is on the page)
   let leaderName = null, project = null, dirtyPlates = true, approvals = new Map();
-  const FACE = { walking: 'working', typing: 'working', reading: 'working', web: 'working', sip: 'working', visit: 'working', doze: 'waiting', sofadoze: 'waiting', sleep: 'resting', ask: 'asking' };
+  const FACE = { idle: 'working', walking: 'working', typing: 'working', reading: 'working', web: 'working', sip: 'working', visit: 'working', doze: 'waiting', sofadoze: 'waiting', sleep: 'resting', ask: 'asking' };
   function newAgent(s, leader) {
     const look = api.look(s, leader);
     const a = { name: s.name, s, leader, look, lookKey: look.c + look.acc, pos: [0, 0], path: [], lift: 0, liftTo: 0, size: leader ? 1.34 : 1.2, mode: 'typing', ang: 0, angTo: 0, vis: 0, phase: Math.random() * 10, place: null, spot: null, want: null, wantSince: 0, arrivedAt: 0, minis: [] };
@@ -654,7 +683,7 @@ export function createOffice(api) {
     a.chip.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-a]'), ask = approvals.get(a.name);
       if (b && ask) { for (const x of a.chip.querySelectorAll('button')) x.disabled = true; answer(a, ask, b.dataset.a); return; }
-      if (ask) api.open(a.s); else select(a);
+      if (a.sec) api.openAssistant?.(); else if (ask) api.open(a.s); else select(a);
     });
     return a;
   }
@@ -663,20 +692,21 @@ export function createOffice(api) {
   function go(a, place) {
     const tgt = spotOf(a, place), cur = a.spot || { p: a.pos, via: [] };
     const fromNet = cur.via.length ? cur.via[cur.via.length - 1] : cur.p, toNet = tgt.via.length ? tgt.via[tgt.via.length - 1] : tgt.p;
-    a.path = [...cur.via, ...lanePath(fromNet, toNet), ...[...tgt.via].reverse().slice(1), tgt.p].filter((p, i, arr) => (i === 0 ? Math.hypot(p[0] - a.pos[0], p[1] - a.pos[1]) > 0.01 : Math.hypot(p[0] - arr[i - 1][0], p[1] - arr[i - 1][1]) > 0.01));
+    a.path = (MODE === 'bldg' ? bpath(cur, tgt) : [...cur.via, ...lanePath(fromNet, toNet), ...[...tgt.via].reverse().slice(1), tgt.p]).filter((p, i, arr) => (i === 0 ? Math.hypot(p[0] - a.pos[0], p[1] - a.pos[1]) > 0.01 : Math.hypot(p[0] - arr[i - 1][0], p[1] - arr[i - 1][1]) > 0.01));
     a.spot = null; a.place = place; a.liftTo = 0;
     a.arrive = () => { a.spot = tgt; a.angTo = angOf(tgt.face); a.liftTo = tgt.lift; a.arrivedAt = performance.now(); dirtyPlates = true; };
     dirtyPlates = true;
     const k = place.split(':')[0];
-    if (k !== 'desk' && k !== 'lead') log(a, '→ ' + placeName(a, place) + (a.s.state === 'working' && a.s.activity ? ' · ' + (ICON[a.s.activity.kind] || '') + ' ' + api.actText(a.s.activity) : ''));
+    if (!['desk', 'lead', 'bdesk', 'reception'].includes(k)) log(a, '→ ' + placeName(a, place) + (a.s.state === 'working' && a.s.activity ? ' · ' + (ICON[a.s.activity.kind] || '') + ' ' + api.actText(a.s.activity) : ''));
   }
   // where an agent is, in words
   function placeName(a, place) {
     const [k, i] = (place || '').split(':');
+    if (k === 'secvisit' || k === 'bvisit') { const to = agents.get(place.slice(k.length + 1)); return to ? t('officeAtOf', { x: api.name(to.s) }) : t('officeAtVisit'); }
     if (k === 'visit') { const to = [...agents.values()].find((x) => !x.leader && x.desk === +i); return to ? t('officeAtOf', { x: api.name(to.s) }) : t('officeAtVisit'); }
-    return t({ desk: 'officeAtDesk', lead: a.leader ? 'officeAtDesk' : 'officeLead', lib: 'officeLib', web: 'officeBrowser', pantry: 'officePantry', sofa: 'officeLounge', bean: 'officeBreak', visitlead: 'officeLead' }[k] || 'officeAtDesk');
+    return t({ desk: 'officeAtDesk', bdesk: 'officeAtDesk', lead: a.leader ? 'officeAtDesk' : 'officeLead', lib: 'officeLib', web: 'officeBrowser', pantry: 'officePantry', sofa: 'officeLounge', bean: 'officeBreak', bbean: 'officeLounge', visitlead: 'officeLead', reception: 'officeReception' }[k] || 'officeAtDesk');
   }
-  const home = (a) => (a.leader ? 'lead' : 'desk');
+  const home = (a) => (a.sec ? 'reception' : MODE === 'bldg' ? 'bdesk' : a.leader ? 'lead' : 'desk');
   // a place is held by the one in it, then by the one on its way there (or waiting to go)
   function claims() {
     const taken = new Map();
@@ -692,6 +722,21 @@ export function createOffice(api) {
     if (ask) return home(a);
     const mine = (id) => !taken.has(id) || taken.get(id) === a;
     const free = (k, n) => { for (let j = 0; j < n; j++) { const id = k + ':' + j; if (mine(id)) return id; } return null; };
+    if (a.sec) { const to = secTarget(); return to && mine('secvisit:' + to) ? 'secvisit:' + to : 'reception'; }
+    if (MODE === 'bldg') {
+      // in its project's room: at its desk, by a teammate's desk with a message, on a bean bag when idle for long or done
+      const bean = () => free('bbean:' + (BL.byKey.get(a.room)?.i ?? 0), 2);
+      if (s.state === 'working') {
+        const to = s.activity?.kind === 'talk' && a.talkTo && agents.get(a.talkTo);
+        if (to && to !== a && to.room === a.room && !to.sec) { const id = 'bvisit:' + to.name; return mine(id) ? id : home(a); }
+        return home(a);
+      }
+      if (s.state === 'waiting') {
+        if (!a.waitSince) a.waitSince = Math.min(now, s.activityAt || now);
+        return now - a.waitSince > 5 * 60000 ? bean() || home(a) : home(a);
+      }
+      return bean() || home(a);
+    }
     if (s.state === 'working') {
       const k = s.activity?.kind;
       if (k === 'read' || k === 'search') return free('lib', LIB.length) || home(a);
@@ -721,13 +766,34 @@ export function createOffice(api) {
   function modeAt(a) {
     if (a.path.length) return 'walking';
     const k = (a.place || '').split(':')[0], st = approvals.has(a.name) ? 'ask' : a.s.state;
-    if (k === 'desk' || k === 'lead') return st === 'ask' ? 'ask' : st === 'working' ? 'typing' : st === 'waiting' ? 'doze' : 'sleep';
+    if (a.sec) return st === 'ask' ? 'ask' : k !== 'reception' ? 'visit' : st === 'working' ? 'typing' : st === 'resting' ? 'doze' : 'idle';
+    if (k === 'desk' || k === 'lead' || k === 'bdesk') return st === 'ask' ? 'ask' : st === 'working' ? 'typing' : st === 'waiting' ? 'doze' : 'sleep';
     if (k === 'lib') return 'reading';
     if (k === 'web') return 'web';
     if (k === 'pantry') return 'sip';
-    if (k === 'sofa' || k === 'bean') return st === 'resting' ? 'sleep' : 'sofadoze';
-    if (k === 'visitlead' || k === 'visit') return 'visit';
+    if (k === 'sofa' || k === 'bean' || k === 'bbean') return st === 'resting' ? 'sleep' : 'sofadoze';
+    if (k === 'visitlead' || k === 'visit' || k === 'bvisit') return 'visit';
     return 'typing';
+  }
+  /* ── the assistant (the monitor's secretary): at its desk by the way in (the lobby's, in the building); when it
+     works on an agent (a message, a look at its conversation, a nudge, an answer to its request) it goes to that
+     agent's desk while it is at it, then back ── */
+  const SEC = 'monitor-assistant';
+  function secSync() {
+    const info = api.assistant?.(); let a = agents.get(SEC);
+    if (!info) { if (a) { dropAgent(a); agents.delete(SEC); } return; }
+    const s = { name: SEC, nick: 'Assistant', nickKo: t('assistTitle'), short: t('assistTitle'), state: info.state === 'working' ? 'working' : info.exists ? 'waiting' : 'resting' };
+    const look = api.look(s, false);
+    if (a && a.lookKey !== look.c + look.acc) { dropAgent(a); agents.delete(SEC); a = null; }
+    if (!a) { a = newAgent(s, false); a.sec = true; agents.set(SEC, a); put(a, 'reception'); a.want = a.place; }
+    a.s = s; a.info = info;
+  }
+  // the agent it is busy with: while its turn lasts, or a little after the last thing it did about it
+  function secTarget() {
+    const info = agents.get(SEC)?.info, act = info?.act, now = Date.now();
+    if (!act?.agent || act.agent === SEC || !agents.has(act.agent)) return null;
+    const age = now - act.at;
+    return age < 120000 && (age < 15000 || info.state === 'working') ? act.agent : null;
   }
   const plateClick = (i) => {
     const a = [...agents.values()].find((x) => (i === 'lead' ? x.leader : !x.leader && x.desk === i));
@@ -735,6 +801,158 @@ export function createOffice(api) {
   };
   let newSeat = -1;
 
+
+  /* ── the building: every project a glass-fronted room off one corridor, the assistant at the lobby's desk; a room
+     grows with its crew, a second row of rooms faces the first across the corridor once there are more than four ── */
+  const DX = 2.4, DZ = 1.9;
+  let BL = { rooms: [], byKey: new Map(), rugs: new Map(), floors: [], CY: 0, sig: '' };
+  function bplan(projects) {
+    const sized = projects.map((p, i) => { const n = Math.max(1, (p.sessions || []).length), cols = n <= 4 ? 2 : n <= 9 ? 3 : 4; return { p, key: p.key, i, cols, rows: Math.ceil(n / cols), w: cols * DX + 0.45 }; });
+    const nA = sized.length > 4 ? Math.ceil(sized.length / 2) : sized.length, A = sized.slice(0, nA), Bq = sized.slice(nA);
+    const RA = Math.max(1, ...A.map((r) => r.rows)), RB = Bq.length ? Math.max(1, ...Bq.map((r) => r.rows)) : 0;
+    const DA = 3.15 + (RA - 1) * DZ, CW = 1.7, zB = DA + CW, DB = RB ? 3.45 + (RB - 1) * DZ : 0;
+    const rooms = []; let x = 0;
+    for (const r of A) { rooms.push({ ...r, x0: x, x1: x + r.w, z0: 0, z1: DA, front: 's', aisle: DA - 1.3, beansZ: DA - 0.6 }); x += r.w; }
+    const xa = x; x = 0;
+    for (const r of Bq) { rooms.push({ ...r, x0: x, x1: x + r.w, z0: zB, z1: zB + DB, front: 'n', aisle: zB + 1.3, beansZ: zB + 0.6 }); x += r.w; }
+    for (const r of rooms) { r.doorX = r.x0 + 0.85; r.beans = [[r.x1 - 0.8, r.beansZ], [r.x1 - 1.85, r.beansZ]]; }
+    const XE = Math.max(xa, x, 4), LW = 4.9, CY = DA + CW / 2;
+    const recX = XE + 1.7;
+    return { rooms, byKey: new Map(rooms.map((r) => [r.key, r])), rugs: new Map(), floors: [], CY, DA, zB, XE, W: XE + LW, D: Math.max(zB + DB, DA + CW + 1.6),
+      rec: { X: recX, Y: CY - 0.4, seat: [recX + 0.25, CY], top: { x: recX + 0.6, y: CY - 0.55, w: 0.9, d: 1.1 }, mon: [recX + 1.02, CY] }, lobbyDoor: [XE + 0.6, CY],
+      sig: rooms.map((r) => r.key + ':' + r.cols + 'x' + r.rows).join('|') };
+  }
+  function bdeskOf(room, i) {
+    const c = i % room.cols, r = Math.floor(i / room.cols), X = room.x0 + 0.75 + c * DX, Y = room.front === 's' ? room.z0 + 0.6 + r * DZ : room.z0 + 1.85 + r * DZ;
+    return { X, Y, seat: [X + 0.25, Y + 0.4], top: { x: X + 0.6, y: Y - 0.15, w: 0.9, d: 1.1 }, mon: [X + 1.02, Y + 0.4] };
+  }
+  function bspot(a, place) {
+    const k = place.split(':')[0], arg = place.slice(k.length + 1);
+    if (k === 'reception') return { p: BL.rec.seat, via: [BL.lobbyDoor], face: [1, 0], lift: SEAT_H, seat: true, room: 'lobby' };
+    if (k === 'bdesk') {
+      const room = BL.byKey.get(a.room); if (!room) return { p: a.pos, via: [], face: TO_VIEWER, lift: 0 };
+      const d = bdeskOf(room, a.desk); return { p: d.seat, via: [[d.X - 0.4, d.seat[1]], [d.X - 0.4, room.aisle]], face: [1, 0], lift: SEAT_H, seat: true, room: room.key };
+    }
+    if (k === 'bbean') {
+      const [ri, j] = arg.split(':').map(Number), room = BL.rooms.find((r) => r.i === ri); if (!room) return { p: a.pos, via: [], face: TO_VIEWER, lift: 0 };
+      const q = room.beans[j]; return { p: [q[0] + 0.05, q[1] + 0.05], via: [[q[0] + 0.05, room.aisle]], face: TO_VIEWER, lift: 0.3, room: room.key };
+    }
+    if (k === 'bvisit' || k === 'secvisit') {
+      const to = agents.get(arg), room = to && BL.byKey.get(to.room); if (!room) return { p: a.pos, via: [], face: TO_VIEWER, lift: 0 };
+      const d = bdeskOf(room, to.desk), y = d.Y + 1.25;
+      return { p: [d.seat[0] + (k === 'secvisit' ? 0.7 : 0.05), y], via: [[d.X - 0.4, y], [d.X - 0.4, room.aisle]], face: [0, -1], lift: 0, room: room.key };
+    }
+    return { p: a.pos, via: [], face: TO_VIEWER, lift: 0 };
+  }
+  // out along its room's aisle to the door, down the corridor, in at the other door
+  const doorWay = (key) => { const r = BL.byKey.get(key); return r ? [[r.doorX, r.aisle], [r.doorX, BL.CY]] : []; };
+  function bpath(cur, tgt) {
+    const out = [...cur.via];
+    if (cur.room !== tgt.room) out.push(...doorWay(cur.room), ...doorWay(tgt.room).reverse());
+    return [...out, ...[...tgt.via].reverse(), tgt.p];
+  }
+  function buildBuilding() {
+    const W = clearWorld(), keep = (x) => { trash.push(x); return x; };
+    const { rooms, CY, DA, XE } = BL, GW = B.w, GD = B.d;
+    planks(GW, GD, keep);
+    const rug = (x, y, w, d, key, room) => {
+      const tx = keep(tex(Math.min(2048, Math.round(w * 90)), Math.min(2048, Math.round(d * 90)), (g, cw, ch) => { g.fillStyle = '#ececec'; g.fillRect(0, 0, cw, ch); g.strokeStyle = '#fff'; g.lineWidth = 3; g.setLineDash([2, 9]); g.lineCap = 'round'; rr(g, 16, 16, cw - 32, ch - 32, 14); g.stroke(); }));
+      const m = keep(new THREE.MeshPhysicalMaterial({ map: tx, roughness: 0.95, sheen: 0.6, sheenRoughness: 0.8 })); m.color.set(C(key)); themed.push([m, key]);
+      const r = pbox(W, x, y, 0, w, d, 0.035, m, 0.017, { cast: false });
+      if (room) { r.userData.room = room; BL.rugs.set(room, m); BL.floors.push(r); }
+    };
+    // the corridor and the lobby
+    rug(0.15, DA + 0.2, XE - 0.3, CY - DA - 0.2 + 0.65, 'rugMid');
+    rug(XE + 0.3, 0.35, GW - XE - 0.6, GD - 0.7, 'rugLead');
+    const KEYS = ['rugMeet', 'rugLib', 'rugLounge', 'rugPantry', 'rugMid', 'rugLead'];
+    for (const r of rooms) rug(r.x0 + 0.2, r.z0 + 0.2, r.w - 0.4, r.z1 - r.z0 - 0.4, KEYS[r.i % KEYS.length], r.key);
+    // the back wall (north) and the side wall (west), a window in each room's
+    const T = 0.22, wallR = M('wallR', { roughness: 0.85, clearcoat: 0 }), wallL = M('wallL', { roughness: 0.85, clearcoat: 0 });
+    const WZ = [0.85, 2.45], winsY = rooms.filter((r) => r.front === 's').map((r) => { const c = (r.x0 + r.x1) / 2, h = Math.min(1.3, r.w / 2 - 0.9); return [c - h, c + h]; });
+    winsY.push([XE + 1.0, GW - 1.0]);
+    const winsX = [[0.9, DA - 0.9]], rowB = rooms.filter((r) => r.front === 'n'); if (rowB.length) winsX.push([BL.zB + 1.0, GD - 0.9]);
+    const wallRun = (len, wins, zz, put) => { let s = 0; for (const [a, b] of wins) { put(s, a, 0, WALL_H); put(a, b, 0, zz[0]); put(a, b, zz[1], WALL_H); s = b; } put(s, len, 0, WALL_H); };
+    const piece = (len, h) => keep(new THREE.BoxGeometry(len, h, T));
+    wallRun(GW, winsY, WZ, (a, b, z1, z2) => { if (b - a > 0.001) mesh(W, piece(b - a, z2 - z1), wallR, (a + b) / 2, (z1 + z2) / 2, -T / 2); });
+    wallRun(GD, winsX, WZ, (a, b, z1, z2) => { if (b - a > 0.001) { const m = mesh(W, piece(b - a, z2 - z1), wallL, -T / 2, (z1 + z2) / 2, (a + b) / 2); m.rotation.y = Math.PI / 2; } });
+    pbox(W, -T, -T, 0, T, T, WALL_H, wallL, 0.005);
+    pbox(W, -T - 0.04, -T - 0.04, WALL_H, GW + T + 0.04, T + 0.08, 0.09, M('cap'), 0.03); pbox(W, -T - 0.04, -0.04, WALL_H, T + 0.08, GD + 0.04, 0.09, M('cap'), 0.03);
+    const skyBasic = keep(new THREE.MeshBasicMaterial({ map: skyTex, toneMapped: false })), frame = M('frame', { roughness: 0.4, clearcoat: 0.4 });
+    for (const [a, b] of winsY) { mesh(W, keep(new THREE.PlaneGeometry(b - a, WZ[1] - WZ[0])), skyBasic, (a + b) / 2, (WZ[0] + WZ[1]) / 2, -T + 0.02, { cast: false, recv: false }); pbox(W, a - 0.04, -T - 0.02, WZ[0] - 0.06, b - a + 0.08, T + 0.08, 0.07, frame, 0.025); pbox(W, a - 0.04, -T - 0.02, WZ[1] - 0.01, b - a + 0.08, T + 0.04, 0.07, frame, 0.025); }
+    for (const [a, b] of winsX) { const pl = mesh(W, keep(new THREE.PlaneGeometry(b - a, WZ[1] - WZ[0])), skyBasic, -T + 0.02, (WZ[0] + WZ[1]) / 2, (a + b) / 2, { cast: false, recv: false }); pl.rotation.y = Math.PI / 2; pbox(W, -T - 0.02, a - 0.04, WZ[0] - 0.06, T + 0.08, b - a + 0.08, 0.07, frame, 0.025); pbox(W, -T - 0.02, a - 0.04, WZ[1] - 0.01, T + 0.04, b - a + 0.08, 0.07, frame, 0.025); }
+    const beamMat = keep(new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: day.beam[0], color: day.beam[1] })); beamMat.userData.beam = 1;
+    for (const [a, b] of winsY) { const g = keep(new THREE.BufferGeometry()); g.setAttribute('position', new THREE.Float32BufferAttribute([[a, 0], [b, 0], [b + 1.2, 2.6], [a + 1.2, 2.6]].flatMap(([x, y]) => [x, 0.045, y]), 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 0], 2)); g.setIndex([0, 2, 1, 0, 3, 2]); const m = new THREE.Mesh(g, beamMat); m.userData.noAO = 1; W.add(m); }
+    // glass between the rooms and on their fronts, a door gap in each front
+    const glassMat = keep(new THREE.MeshPhysicalMaterial({ color: C('glass'), roughness: 0.08, transparent: true, opacity: 0.16, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide })); themed.push([glassMat, 'glass']);
+    const rail = M('frame', { roughness: 0.4, clearcoat: 0.4 }), GH = 1.9;
+    const glassY = (y, x1, x2) => { if (x2 - x1 < 0.05) return; const g = mesh(W, keep(new THREE.PlaneGeometry(x2 - x1, GH)), glassMat, (x1 + x2) / 2, GH / 2, y, { cast: false, recv: false }); g.userData.noAO = 1; pbox(W, x1, y - 0.03, GH - 0.02, x2 - x1, 0.06, 0.06, rail, 0.025); pbox(W, x1, y - 0.03, 0, x2 - x1, 0.06, 0.05, rail, 0.02); [x1, x2].forEach((x) => pbox(W, x - 0.03, y - 0.03, 0, 0.06, 0.06, GH, rail, 0.02)); };
+    const glassX = (x, y1, y2) => { const g = mesh(W, keep(new THREE.PlaneGeometry(y2 - y1, GH)), glassMat, x, GH / 2, (y1 + y2) / 2, { cast: false, recv: false }); g.rotation.y = Math.PI / 2; g.userData.noAO = 1; pbox(W, x - 0.03, y1, GH - 0.02, 0.06, y2 - y1, 0.06, rail, 0.025); pbox(W, x - 0.03, y1, 0, 0.06, y2 - y1, 0.05, rail, 0.02); [y1, y2].forEach((y) => pbox(W, x - 0.03, y - 0.03, 0, 0.06, 0.06, GH, rail, 0.02)); };
+    for (const r of rooms) {
+      const fz = r.front === 's' ? r.z1 : r.z0;
+      glassY(fz, r.x0 + 0.05, r.doorX - 0.55); glassY(fz, r.doorX + 0.55, r.x1 - 0.05);
+      glassX(r.x1, r.z0, r.z1);
+      // desks, bean bags, a plant
+      for (let i = 0; i < r.cols * r.rows; i++) {
+        const d = bdeskOf(r, i), find = () => [...agents.values()].find((x) => !x.sec && x.room === r.key && x.desk === i);
+        desk(W, d, i, find); chairsOf.push({ c: chair(W, d.seat[0], d.seat[1], [1, 0], C('chair')), find });
+      }
+      r.beans.forEach(([x, y], j) => { const c = ['#ffd7a8', '#cfe0ff', '#cdeedd'][(r.i + j) % 3]; const m = mesh(W, sphG(0.42), M(c, { roughness: 0.95, clearcoat: 0, sheen: 0.7, sheenRoughness: 0.7, sheenColor: new THREE.Color('#ffffff') }), x, 0.26, y); m.scale.set(1, 0.6, 1); const tp = mesh(W, sphG(0.28), m.material, x - 0.06, 0.48, y - 0.06); tp.scale.set(1, 0.55, 1); });
+      const py = r.front === 's' ? r.z0 + 0.4 : r.z1 - 0.4; pcyl(W, r.x1 - 0.4, py, 0, 0.17, 0.32, M('pot', { roughness: 0.7 })); mesh(W, sphG(0.24), M('leaf', { roughness: 0.7 }), r.x1 - 0.4, 0.58, py).scale.set(1, 1.15, 1);
+      // its name over the room: a click goes in
+      const lz = r.front === 's' ? 0.05 : r.z0;
+      r.chip = staticChip('wallbtn', [(r.x0 + r.x1) / 2, r.front === 's' ? WALL_H - 0.2 : GH + 0.12, lz], 'bottom', 4, () => api.enter?.(r.key), '');
+    }
+    // the lobby: the assistant's counter, plants, the way in
+    const d = BL.rec;
+    desk(W, d, -2, () => agents.get(SEC)); chair(W, d.seat[0], d.seat[1], [1, 0], PALETTE[5][0]);
+    const counter = M('desk', { roughness: 0.45, clearcoat: 0.35 });
+    pbox(W, d.top.x + d.top.w, d.top.y - 0.25, 0, 0.12, d.top.d + 0.5, 1.0, counter, 0.04); pbox(W, d.top.x - 0.1, d.top.y - 0.25, 0, d.top.w + 0.22, 0.12, 1.0, counter, 0.04); pbox(W, d.top.x - 0.1, d.top.y + d.top.d + 0.13, 0, d.top.w + 0.22, 0.12, 1.0, counter, 0.04);
+    pbox(W, d.top.x + d.top.w - 0.05, d.top.y - 0.3, 1.0, 0.24, d.top.d + 0.6, 0.05, M('#f9f7f3', { roughness: 0.3, clearcoat: 0.5 }), 0.02);
+    for (const [x, y, k] of [[GW - 0.5, 0.5, 1.1], [XE + 0.5, 0.5, 0.9], [GW - 0.5, GD - 0.6, 1]]) { pcyl(W, x, y, 0, 0.2 * k, 0.38 * k, M('pot', { roughness: 0.7 })); mesh(W, sphG(+(0.3 * k).toFixed(3)), M('leaf', { roughness: 0.7 }), x, 0.72 * k, y).scale.set(1, 1.2, 1); mesh(W, sphG(+(0.2 * k).toFixed(3)), M('leafD', { roughness: 0.7 }), x + 0.08, 1.0 * k, y - 0.05); }
+    staticChip('zone', [d.seat[0] + 0.5, 0, d.top.y + d.top.d + 0.75], 'center-hide', 5, null, t('officeReception'));
+    fitCamera(); dirtyPlates = true;
+  }
+  // the page hands in every project on every poll, for the building
+  function building(data) {
+    const fresh = MODE !== 'bldg';
+    if (fresh) { MODE = 'bldg'; project = null; selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); BL.sig = ''; }
+    approvals = new Map(); for (const x of data?.approvals || []) if (x.session && !approvals.has(x.session)) approvals.set(x.session, x);
+    const projects = data?.projects || [], all = projects.flatMap((p) => (p.sessions || []).map((s) => [p, s])), names = new Set(all.map(([, s]) => s.name));
+    el.querySelector('.oname').innerHTML = `${esc(t('officeBuilding'))}<small>${esc(t('officeRooms', { n: projects.length }))}${esc(t('officeAgents', { n: all.length }))}</small>`;
+    for (const [n, a] of agents) if (n !== SEC && !names.has(n)) { log(a, t('officeLogLeave')); dropAgent(a); agents.delete(n); seats.delete(n); }
+    const plan = bplan(projects), rebuild = plan.sig !== BL.sig;
+    if (rebuild) { const rugs = BL.rugs; BL = plan; B.w = plan.W; B.d = plan.D; rugs.clear(); hoverRoom = null; }
+    else for (const r of plan.rooms) { const o = BL.byKey.get(r.key); if (o) o.p = r.p; }
+    // desks: each keeps the one it had in its room
+    for (const r of BL.rooms) {
+      const ss = r.p.sessions || [], cap = r.cols * r.rows, used = new Set();
+      for (const s of ss) { const d = seats.get(s.name); if (d != null && d < cap && !used.has(d)) used.add(d); else seats.delete(s.name); }
+      for (const s of ss) if (!seats.has(s.name)) { let d = 0; while (used.has(d)) d++; seats.set(s.name, d); used.add(d); }
+    }
+    if (rebuild) buildBuilding();
+    for (const [p, s] of all) {
+      let a = agents.get(s.name);
+      const leader = !!s.isLeader, look = api.look(s, leader);
+      if (a && (a.leader !== leader || a.lookKey !== look.c + look.acc)) { dropAgent(a); agents.delete(s.name); a = null; }
+      const born = !a;
+      if (!a) { a = newAgent(s, leader); agents.set(s.name, a); a.room = p.key; a.desk = seats.get(s.name); put(a, home(a)); a.want = a.place; a.vis = fresh ? 1 : 0; }
+      a.s = s; a.room = p.key; a.desk = seats.get(s.name);
+      if (s.state !== 'waiting') a.waitSince = 0;
+      a.talkTo = null;
+      if (s.activity?.kind === 'talk') a.talkTo = (p.messages || []).find((m) => m.from === s.name && m.at >= (s.activityAt || 0) - 120000)?.to || null;
+      if (born && !rebuild) settle(a);
+      track(a, s, fresh, born);
+    }
+    secSync();
+    if (rebuild) { for (const a of agents.values()) { a.path = []; a.arrive = null; put(a, home(a)); a.want = a.place; } for (const a of agents.values()) settle(a); }
+    // each room's name with how its crew is doing
+    for (const r of BL.rooms) {
+      const c = r.p.counts || {}, bits = [c.working ? '▶' + c.working : '', c.waiting ? '○' + c.waiting : '', approvals.size && (r.p.sessions || []).some((x) => approvals.has(x.name)) ? '❗' : ''].filter(Boolean).join(' ');
+      const text = api.projName(r.p) + (bits ? '  ' + bits : '');
+      if (r.chip && r.chip.el.textContent !== text) { r.chip.el.textContent = text; r.chip.el.title = t('officeEnter'); }
+    }
+    dirtyPlates = true;
+  }
   /* ── the side panel: the agent picked, what just happened, where each kind of work is done ── */
   let selected = null, sideKey = '';
   function select(a) { selected = a.name; sideKey = ''; sideCard(); }
@@ -749,6 +967,8 @@ export function createOffice(api) {
     const d = document.createElement('div');
     d.innerHTML = `<time>${hhmmss(new Date())}</time><b>${esc(api.name(a.s))}</b> ${esc(text)}`;
     d.title = d.textContent;
+    // only the new line slides in: the page puts the office back on every poll, which would start every line's animation again
+    d.className = 'in'; d.addEventListener('animationend', () => d.classList.remove('in'), { once: true });
     feedBox.prepend(d);
     while (feedBox.children.length > 40) feedBox.lastChild.remove();
   }
@@ -756,7 +976,7 @@ export function createOffice(api) {
   function sideCard() {
     let a = selected && agents.get(selected);
     if (!a) {
-      const all = [...agents.values()];
+      const all = [...agents.values()].filter((x) => !x.sec);
       a = all.find((x) => approvals.has(x.name)) || all.find((x) => x.s.state === 'working' && !x.leader) || all.find((x) => x.leader) || all[0];
     }
     if (!a) { if (sideKey !== '-') { sideKey = '-'; selBox.innerHTML = `<h4>${esc(t('officeSelected'))}</h4><div class="ocard"><div class="role">${esc(t('officePickHint'))}</div></div>`; } return; }
@@ -789,14 +1009,15 @@ export function createOffice(api) {
 
   // the page hands in the project on every poll
   function update(p, data) {
-    const fresh = !project || project.key !== p.key;
+    const fresh = MODE !== 'room' || !project || project.key !== p.key;
+    if (MODE !== 'room') { MODE = 'room'; L.rows = 0; }
     project = p;
     el.querySelector('.oname').innerHTML = `${esc(api.projName(p))}<small>${esc(t('officeAgents', { n: (p.sessions || []).length }))}</small>`;
     if (fresh) { selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; }
     approvals = new Map(); for (const x of data?.approvals || []) if (x.session && !approvals.has(x.session)) approvals.set(x.session, x);
     const sessions = p.sessions || [], names = new Set(sessions.map((s) => s.name));
     if (fresh) { for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); }
-    for (const [n, a] of agents) if (!names.has(n)) { log(a, t('officeLogLeave')); dropAgent(a); agents.delete(n); seats.delete(n); }
+    for (const [n, a] of agents) if (n !== SEC && !names.has(n)) { log(a, t('officeLogLeave')); dropAgent(a); agents.delete(n); seats.delete(n); }
     const lead = sessions.find((s) => s.isLeader); leaderName = lead ? lead.name : null;
     const crew = sessions.filter((s) => !s.isLeader);
     // desks: each keeps the one it had; rows grow so that one desk stays free for a new agent
@@ -819,6 +1040,14 @@ export function createOffice(api) {
       a.talkTo = null;
       if (s.activity?.kind === 'talk') a.talkTo = (p.messages || []).find((m) => m.from === s.name && m.at >= (s.activityAt || 0) - 120000)?.to || null;
       if (born && !rebuild) settle(a);
+      track(a, s, fresh, born);
+    }
+    if (rebuild) { for (const a of agents.values()) { a.path = []; a.arrive = null; put(a, home(a)); a.want = a.place; } for (const a of agents.values()) settle(a); }
+    secSync();
+    dirtyPlates = true;
+  }
+  // what changed for an agent since the last poll, in the feed
+  function track(a, s, fresh, born) {
       const ask = approvals.get(s.name), subs = (s.subagents || []).filter((x) => x.running).length;
       const now = { state: s.state, ask: ask?.id || '', subs };
       if (born && !fresh && !a.prev) log(a, t('officeLogJoin'));
@@ -834,9 +1063,6 @@ export function createOffice(api) {
         else if (!subs && was.subs) log(a, '🤖 ' + t('officeLogSubsDone'));
       }
       a.prev = now;
-    }
-    if (rebuild) { for (const a of agents.values()) { a.path = []; a.arrive = null; put(a, home(a)); a.want = a.place; } for (const a of agents.values()) settle(a); }
-    dirtyPlates = true;
   }
 
   /* ── posing, each frame ── */
@@ -856,6 +1082,7 @@ export function createOffice(api) {
       case 'visit': y = Math.sin(T * 2.6) * 0.012; hx = Math.sin(T * 7) * 0.05; aR = -0.6 + Math.sin(T * 4) * 0.35; aL = -0.1; break;
       case 'doze': case 'sofadoze': sy = 1 + Math.sin(T * 1.7) * 0.025; hx = 0.32 + Math.sin(T * 0.85) * 0.08; hy = m === 'sofadoze' ? 0.25 : 0; rz = m === 'sofadoze' ? 0.12 : 0; break;
       case 'sleep': sy = 1 + Math.sin(T * 1.2) * 0.02; hx = 0.42; rz = 0.2; break;
+      case 'idle': y = Math.sin(T * 2) * 0.008; hx = 0.04; hy = Math.sin(T * 0.45) * 0.3; aL = aR = -0.4; break;
       case 'ask': { const ph = (T * 0.9) % 1; y = ph < 0.3 ? Math.sin(ph / 0.3 * Math.PI) * 0.11 : 0; aL = -2.75 + Math.sin(T * 8) * 0.18; aLz = -0.25; aR = -0.1; break; }
     }
     r.rig.position.y = lerp(r.rig.position.y, y, m === 'walking' || m === 'ask' ? 1 : k);
@@ -891,6 +1118,12 @@ export function createOffice(api) {
   const PAD = 6;
   function chipFor(a, m) {
     const s = a.s, ask = approvals.get(a.name), nm = esc(api.name(s));
+    if (a.sec && !ask) {
+      const to = secTarget() && agents.get(secTarget()), act = a.info?.act;
+      if (to && (m === 'walking' || m === 'visit')) return ['act', `<b>${nm}</b>→ ${esc(api.name(to.s))}${act?.label ? ' · ' + esc(act.label) : ''}`];
+      if (s.state === 'working') return ['act', `<b>${nm}</b>✎ ${esc(act && Date.now() - act.at < 60000 && act.label ? act.label : t('working'))}`];
+      return m === 'walking' ? ['act dim', `<b>${nm}</b>🚶`] : ['act hide', ''];
+    }
     if (ask) {
       const kind = ask.questions ? t('questionKind') : ask.plan ? t('planKind') : t('askTitle');
       const what = String(ask.what || ask.code || ask.tool || '').split('\n')[0];
@@ -921,15 +1154,15 @@ export function createOffice(api) {
   function screens() {
     const RUN = new THREE.Color('#5b83ff'), WAIT = new THREE.Color('#f0b429'), OFF = new THREE.Color('#1f232c'), LED = new THREE.Color('#59606e');
     for (const sc of deskScreens) {
-      const a = [...agents.values()].find((x) => (sc.i < 0 ? x.leader : !x.leader && x.desk === sc.i));
-      const here = a && (a.place === 'desk' || a.place === 'lead') && !a.path.length;
+      const a = sc.find?.();
+      const here = a && a.place === home(a) && !a.path.length;
       const ask = a && approvals.has(a.name), on = here && (a.s.state === 'working' || ask), col = ask ? WAIT : RUN;
       sc.scrMat.color.copy(on ? col : OFF).multiplyScalar(on ? 1 + 0.25 * day.n : 1);
       sc.glowMat.color.copy(col); sc.glowMat.opacity = on ? 0.35 + 0.2 * day.n : 0;
       sc.ledMat.color.copy(on ? col : LED);
       sc.mugMat.color.set(a ? PALETTE[a.look.c][0] : '#e6e2da');
     }
-    deskChairs.forEach((c, i) => { const a = [...agents.values()].find((x) => !x.leader && x.desk === i); c?.userData.mat?.color.set(a ? PALETTE[a.look.c][0] : C('chair')); });
+    for (const { c, find } of chairsOf) { const a = find(); c.userData.mat?.color.set(a ? PALETTE[a.look.c][0] : C('chair')); }
   }
   function hudRects() { const w = stage.getBoundingClientRect(); return [...stage.querySelectorAll('.ohud,.oslot>*,.ohint')].map((e) => { const r = e.getBoundingClientRect(); return { l: r.left - w.left, t: r.top - w.top, w: r.width, h: r.height }; }); }
   function layoutChips() {
@@ -975,8 +1208,12 @@ export function createOffice(api) {
   /* ── the time of day ── */
   // the sun comes in low from the front left in the morning, high at noon, low from the right at the sunset; the moon stays put
   function sunAt() {
-    const GY = L.GY, up = Math.min(1, Math.max(-1, (day.h - 12.5) / 6.5)), t = day.n > 0.7 ? 0.35 : up;
-    sun.position.set(GX / 2 + 8 + 6 * t, 16 - 7 * Math.abs(t), GY / 2 + 11 - 5 * t); sun.target.position.set(GX / 2, 0, GY / 2);
+    const up = Math.min(1, Math.max(-1, (day.h - 12.5) / 6.5)), t = day.n > 0.7 ? 0.35 : up;
+    sun.position.set(B.w / 2 + 8 + 6 * t, 16 - 7 * Math.abs(t), B.d / 2 + 11 - 5 * t); sun.target.position.set(B.w / 2, 0, B.d / 2);
+  }
+  function shadowFit() {
+    const half = Math.max(15, Math.max(B.w, B.d) / 2 + 7.5);
+    Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 1, far: 70 + Math.max(B.w, B.d) }); sun.shadow.camera.updateProjectionMatrix();
   }
   function applyTheme() {
     day = dayAt(hourNow()); theme = day.n > 0.5 ? 'dark' : 'light';
@@ -999,7 +1236,7 @@ export function createOffice(api) {
     for (const a of agents.values()) {
       const w = wanted(a, taken, Date.now());
       if (w !== a.want) { if (taken.get(a.want) === a && a.want !== a.place) taken.delete(a.want); a.want = w; a.wantSince = now; taken.set(w, a); }
-      const urgent = approvals.has(a.name);
+      const urgent = approvals.has(a.name) || a.sec;
       if (a.want !== a.place && !a.path.length && (urgent || (now - a.wantSince > 2500 && now - a.arrivedAt > 3500))) { if (taken.get(a.place) === a) taken.delete(a.place); go(a, a.want); }
       if (a.path.length) {
         const [tx, ty] = a.path[0], dx = tx - a.pos[0], dy = ty - a.pos[1], d = Math.hypot(dx, dy), step = SPEED * dt;
@@ -1017,7 +1254,7 @@ export function createOffice(api) {
     }
     const sel = (hovered && agents.get(hovered.split('#')[0])) || (selected && agents.get(selected));
     ring.visible = !!sel; if (sel) { ring.position.set(sel.pos[0], 0.05, sel.pos[1]); ring.scale.setScalar(sel.size * (1 + 0.06 * Math.sin(t * 4))); ring.material.opacity = 0.55 + 0.25 * Math.sin(t * 4); }
-    if (dirtyPlates || now - lastPlates > 500) { dirtyPlates = false; lastPlates = now; plates(); screens(); sideCard(); }
+    if (dirtyPlates || now - lastPlates > 500) { dirtyPlates = false; lastPlates = now; secSync(); plates(); screens(); sideCard(); }
     composer.render(dt);
     layoutChips();
     requestAnimationFrame(frame);
@@ -1030,7 +1267,7 @@ export function createOffice(api) {
   return {
     el,
     slot,   // the page's own buttons, at the top right of the room
-    update(p, data) { update(p, data); wake(); },
+    update(p, data) { if (p) update(p, data); else building(data); wake(); },   // no project: the building
     wake,
   };
 }

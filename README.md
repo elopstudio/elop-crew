@@ -84,7 +84,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   is pointed at. Emptied, the folder's name is back.
 - **Org chart.** The leader (crowned robot) sits on top; the other agents hang below it.
   Each card shows the session's current action in a speech bubble, how long it has been in its state, and its uptime.
-- **Office.** **Org chart | Office** at the top of a project (on the all-agents tab it goes to the first project) shows its agents instead as clay robots at work in a 3D
+- **Office.** **Org chart | Office** at the top of a project shows its agents instead as clay robots at work in a 3D
   room (three.js, loaded the first time it is opened), filling the window, with a panel at its right. Each agent has a desk
   with its colour on the chair and mug; what it is doing takes it about the room: reading or searching to the library, the
   web to the shared browser on the wall, a message to the desk of the one it is for (the leader's corner for the leader). A
@@ -102,6 +102,12 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   columns), a double click there sets it back. The choice is kept in the browser. Its light follows the
   local time, not the page's theme: dawn, morning, noon, afternoon, a golden hour and the sunset, evening and night, each
   easing into the next — the sky in the windows, the sun's way across it and the beams it casts, the city lit at night.
+  On the all-agents tab the office is a building: each project a glass-fronted room off one corridor (a room grows with
+  its crew; past four projects a second row faces the first), its robots at their desks, a teammate's desk with a message,
+  a bean bag when idle for long or done; a room's name over it shows how its crew is doing, and a click on the room goes
+  into that project's office. The assistant sits at the reception desk in the lobby (in a project's office, at a small
+  desk by the way in): when it works on an agent — a message, a look at its conversation, a nudge, an answer to its
+  request — it walks to that agent's desk and back; a click on it opens the assistant's chat.
   It stops drawing while it is not on screen.
 - **Browsers.** **Browsers** (the globe) in the header — in the desktop app the globe in the title strip, beside the terminal — (or
   **🌐 N** on an agent's card) opens a panel over the page, which can be
