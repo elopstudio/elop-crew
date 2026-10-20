@@ -4952,9 +4952,14 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     if (!officeWrap.isConnected) return;
     const top = officeWrap.getBoundingClientRect().top + scrollY;
     const below = parseFloat(getComputedStyle(document.querySelector('.wrap')).paddingBottom) || 0;
-    officeWrap.style.setProperty('--ofh', Math.max(480, Math.floor(innerHeight - top - below - 2)) + 'px');
+    let h = Math.max(480, Math.floor(innerHeight - top - below - 2));
+    officeWrap.style.setProperty('--ofh', h + 'px');
+    // whatever else the page holds below it (its height depends on what is open): the office gives up that much too
+    const over = Math.ceil(document.documentElement.scrollHeight - innerHeight);
+    if (over > 0 && h > 480) { h = Math.max(480, h - over); officeWrap.style.setProperty('--ofh', h + 'px'); }
   }
   addEventListener('resize', () => officeFit());
+  new ResizeObserver(() => officeFit()).observe(document.querySelector('.wrap'));
   function officeFor(p) {
     officeKey = p.key;
     if (office) { office.update(p, last); return; }
