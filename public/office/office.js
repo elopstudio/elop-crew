@@ -83,13 +83,25 @@ const PALETTE = [['#8fb4ff', '#5b83dc'], ['#86dcb0', '#48a878'], ['#c7a8ff', '#9
 const TH = {
   light: { bg1: '#f6f4fb', bg2: '#d9d5e8', floor: '#ead8c0', slab: '#d8c6ae', wallL: '#ede9f6', wallR: '#e3def1', cap: '#fbfaff', base: '#d8d2e6', frame: '#fbfaf8',
     desk: '#fbf8f3', deskLeg: '#ddd5c8', shelf: '#e6d6c0', sofa: '#a9b8ee', cushion: '#c6d0f6', counter: '#f3efe8', machine: '#e8e5ee', pot: '#e3a07c', leaf: '#7fcf96', leafD: '#57b277',
-    rugMeet: '#dde5fb', rugLounge: '#f8e2d0', rugLead: '#f6eed5', rugLib: '#e2eedc', rugPantry: '#f3e8d6', rugMid: '#ebe5f6', chair: '#dcd8e2', metal: '#3d4352', glass: '#dfe8ff',
-    hemi: [1.05, '#ffffff', '#d9c9b4'], sun: [2.3, '#fff3e2'], env: 0.55, beam: 0.32, screen: 1 },
+    rugMeet: '#dde5fb', rugLounge: '#f8e2d0', rugLead: '#f6eed5', rugLib: '#e2eedc', rugPantry: '#f3e8d6', rugMid: '#ebe5f6', chair: '#dcd8e2', metal: '#3d4352', glass: '#dfe8ff', },
   dark: { bg1: '#1d2230', bg2: '#0c0e14', floor: '#3b3f4c', slab: '#262a35', wallL: '#2e3344', wallR: '#282d3c', cap: '#3a4052', base: '#20242f', frame: '#41485a',
     desk: '#555b6b', deskLeg: '#424756', shelf: '#4c443a', sofa: '#4d5c95', cushion: '#62719f', counter: '#525867', machine: '#454a59', pot: '#a86a4c', leaf: '#4f9e69', leafD: '#3c8455',
-    rugMeet: '#2f3a5c', rugLounge: '#45382f', rugLead: '#433d2c', rugLib: '#2f3d33', rugPantry: '#3e362b', rugMid: '#342f45', chair: '#4a4f5d', metal: '#2a2e38', glass: '#8fa6e6',
-    hemi: [0.42, '#9aa8d8', '#1c1f28'], sun: [0.75, '#b9c6ff'], env: 0.28, beam: 0.07, screen: 1.25 },
+    rugMeet: '#2f3a5c', rugLounge: '#45382f', rugLead: '#433d2c', rugLib: '#2f3d33', rugPantry: '#3e362b', rugMid: '#342f45', chair: '#4a4f5d', metal: '#2a2e38', glass: '#8fa6e6', },
 };
+// the office follows the local time, not the page's theme: dawn, morning, noon, afternoon, the sunset, evening, night
+// h: the hour; n: how far the room's colours are towards night; sky: top, horizon; sun: strength, colour, path (−1 morning … 1 evening)
+const DAY = [
+  { h: 0, n: 1, sky: ['#0a1130', '#24305a'], stars: 1, sun: [0.6, '#9fb2ff'], hemi: [0.36, '#8a99d0', '#1a1d26'], env: 0.26, beam: [0.06, '#b9c6ff'], bg: ['#1a1f2d', '#0a0c12'], lights: 1 },
+  { h: 4.6, n: 1, sky: ['#0d1534', '#2c3762'], stars: 1, sun: [0.6, '#9fb2ff'], hemi: [0.36, '#8a99d0', '#1a1d26'], env: 0.26, beam: [0.06, '#b9c6ff'], bg: ['#1a1f2d', '#0a0c12'], lights: 1 },
+  { h: 5.8, n: 0.6, sky: ['#2e3a6e', '#f0a79c'], stars: 0.3, sun: [1.05, '#ffc2a6'], hemi: [0.62, '#c8b9e2', '#3a3040'], env: 0.36, beam: [0.14, '#ffc9ae'], bg: ['#3b3652', '#191726'], lights: 0.5 },
+  { h: 7.2, n: 0.08, sky: ['#8cbef5', '#fde3c8'], stars: 0, sun: [2.0, '#ffeedd'], hemi: [0.95, '#fff6ee', '#dac9b6'], env: 0.5, beam: [0.3, '#fff0d6'], bg: ['#f4f1f8', '#d7d2e5'], lights: 0 },
+  { h: 12, n: 0, sky: ['#79b4f7', '#e9f5ff'], stars: 0, sun: [2.4, '#ffffff'], hemi: [1.1, '#ffffff', '#d9c9b4'], env: 0.56, beam: [0.34, '#fff8ea'], bg: ['#f6f4fb', '#d9d5e8'], lights: 0 },
+  { h: 15.2, n: 0, sky: ['#8fc0f4', '#f4efe2'], stars: 0, sun: [2.3, '#fff0d4'], hemi: [1.02, '#fffaf2', '#d9c9b4'], env: 0.54, beam: [0.33, '#ffefcf'], bg: ['#f6f3f6', '#dad3e2'], lights: 0 },
+  { h: 17.4, n: 0.14, sky: ['#7d9ee0', '#ffd197'], stars: 0, sun: [2.05, '#ffcf8c'], hemi: [0.86, '#ffe6c8', '#d6bea6'], env: 0.48, beam: [0.42, '#ffc784'], bg: ['#f6ebe2', '#dbc8c2'], lights: 0 },
+  { h: 18.7, n: 0.45, sky: ['#4a4c92', '#ff8758'], stars: 0.1, sun: [1.45, '#ff985a'], hemi: [0.64, '#eab6a6', '#3e3036'], env: 0.4, beam: [0.32, '#ff9c66'], bg: ['#4c3b50', '#1f1a26'], lights: 0.4 },
+  { h: 20, n: 0.86, sky: ['#18214c', '#594a80'], stars: 0.7, sun: [0.72, '#a9b4ff'], hemi: [0.42, '#98a6d8', '#1c1f28'], env: 0.3, beam: [0.08, '#b9c6ff'], bg: ['#1d2230', '#0c0e14'], lights: 1 },
+  { h: 24, n: 1, sky: ['#0a1130', '#24305a'], stars: 1, sun: [0.6, '#9fb2ff'], hemi: [0.36, '#8a99d0', '#1a1d26'], env: 0.26, beam: [0.06, '#b9c6ff'], bg: ['#1a1f2d', '#0a0c12'], lights: 1 },
+];
 const FONT = '"Noto Sans KR",system-ui,"Segoe UI",sans-serif';
 const GX = 18, WALL_H = 2.8, DESK_H = 0.62, SEAT_H = 0.38, PER_ROW = 5, SPEED = 2.3;
 const COLS = [3.4, 5.8, 8.2, 10.6, 13.0, 15.2];
@@ -120,9 +132,19 @@ export function createOffice(api) {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.NeutralToneMapping;
-  const isDark = () => api.dark();
-  let theme = isDark() ? 'dark' : 'light';
-  const C = (k) => TH[theme][k];
+  // the hour (?officeHour=18.7 shows another one), and the light it gives: each value eased between the two marks around it
+  const hourNow = () => { const q = +new URLSearchParams(location.search).get('officeHour'); if (q >= 0 && q < 24 && location.search.includes('officeHour')) return q; const d = new Date(); return d.getHours() + d.getMinutes() / 60; };
+  const ca = new THREE.Color(), cb = new THREE.Color();
+  const mixC = (x, y, f) => '#' + ca.set(x).lerp(cb.set(y), f).getHexString();
+  function dayAt(h) {
+    let i = 0; while (i < DAY.length - 2 && DAY[i + 1].h <= h) i++;
+    const A = DAY[i], B = DAY[i + 1], f0 = Math.min(1, Math.max(0, (h - A.h) / (B.h - A.h))), f = f0 * f0 * (3 - 2 * f0);
+    const mix = (x, y) => (typeof x === 'number' ? x + (y - x) * f : typeof x === 'string' ? mixC(x, y, f) : x.map((v, k) => mix(v, y[k])));
+    const o = {}; for (const k of Object.keys(A)) o[k] = mix(A[k], B[k]);
+    o.h = h; return o;
+  }
+  let day = dayAt(hourNow()), theme = day.n > 0.5 ? 'dark' : 'light';
+  const C = (k) => (day.n <= 0 ? TH.light[k] : day.n >= 1 ? TH.dark[k] : mixC(TH.light[k], TH.dark[k], day.n));
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -147,15 +169,32 @@ export function createOffice(api) {
   const glowTex = tex(128, 128, (g, w, h) => { const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.45, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
   const beamTex = tex(64, 256, (g, w, h) => { const r = g.createLinearGradient(0, 0, 0, h); r.addColorStop(0, 'rgba(255,255,255,.9)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
   function skyDraw(g, w, h) {
-    const dark = theme === 'dark', r = g.createLinearGradient(0, 0, 0, h);
-    r.addColorStop(0, dark ? '#141d3c' : '#a9cdfb'); r.addColorStop(1, dark ? '#3a4a80' : '#eef6ff'); g.fillStyle = r; g.fillRect(0, 0, w, h);
+    const r = g.createLinearGradient(0, 0, 0, h);
+    r.addColorStop(0, day.sky[0]); r.addColorStop(1, day.sky[1]); g.fillStyle = r; g.fillRect(0, 0, w, h);
     seed = 11;
-    if (dark) { g.fillStyle = '#fff'; for (let i = 0; i < 40; i++) { g.globalAlpha = 0.3 + rnd() * 0.6; g.fillRect(rnd() * w, rnd() * h * 0.7, 1.5, 1.5); } g.globalAlpha = 1; }
-    else { g.fillStyle = 'rgba(255,255,255,.85)'; for (let i = 0; i < 5; i++) { const x = rnd() * w, y = h * 0.25 + rnd() * h * 0.4, s = 18 + rnd() * 22; for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(x + k * s * 0.6, y - (k % 2) * s * 0.3, s * 0.55, 0, 7); g.fill(); } } }
-    g.fillStyle = dark ? '#232c4c' : '#c9d9ee'; for (let i = 0; i < 9; i++) { const bw = 30 + rnd() * 50, bh = 40 + rnd() * 90; g.fillRect(i * w / 8 - 10, h - bh, bw, bh); }
+    if (day.stars > 0.02) { g.fillStyle = '#fff'; for (let i = 0; i < 40; i++) { g.globalAlpha = (0.3 + rnd() * 0.6) * day.stars; g.fillRect(rnd() * w, rnd() * h * 0.7, 1.5, 1.5); } g.globalAlpha = 1; }
+    // the sun crosses from left to right between six and seven; the moon after dark
+    const up = (day.h - 6) / 13, night = day.n > 0.7;
+    if (night || (up > -0.05 && up < 1.05)) {
+      const u = night ? 0.72 : Math.min(1, Math.max(0, up)), x = w * (0.1 + 0.8 * u), y = night ? h * 0.22 : h * (0.75 - Math.sin(Math.PI * u) * 0.6);
+      const glow = g.createRadialGradient(x, y, 0, x, y, night ? 26 : 46);
+      glow.addColorStop(0, night ? 'rgba(235,240,255,.55)' : 'rgba(255,250,235,.9)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = glow; g.fillRect(x - 50, y - 50, 100, 100);
+      g.fillStyle = night ? '#eef1ff' : mixC('#fff7e0', '#ffb070', Math.max(0, Math.abs(u - 0.5) * 2 - 0.5) * 2); g.beginPath(); g.arc(x, y, night ? 9 : 12, 0, 7); g.fill();
+      if (night) { g.fillStyle = day.sky[0]; g.beginPath(); g.arc(x + 4, y - 3, 8, 0, 7); g.fill(); }
+    }
+    seed = 23;
+    if (day.n < 0.6) { g.fillStyle = `rgba(255,255,255,${0.85 * (1 - day.n / 0.6)})`; for (let i = 0; i < 5; i++) { const x = rnd() * w, y = h * 0.25 + rnd() * h * 0.4, s = 18 + rnd() * 22; for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(x + k * s * 0.6, y - (k % 2) * s * 0.3, s * 0.55, 0, 7); g.fill(); } } }
+    seed = 37;
+    const city = mixC('#c9d9ee', '#1f2745', day.n);
+    for (let i = 0; i < 9; i++) {
+      const bw = 30 + rnd() * 50, bh = 40 + rnd() * 90, bx = i * w / 8 - 10;
+      g.fillStyle = city; g.fillRect(bx, h - bh, bw, bh);
+      if (day.lights > 0.02) for (let yy = h - bh + 6; yy < h - 6; yy += 9) for (let xx = bx + 4; xx < bx + bw - 6; xx += 8) if (rnd() < 0.42) { g.fillStyle = `rgba(255,214,140,${(0.45 + rnd() * 0.5) * day.lights})`; g.fillRect(xx, yy, 4, 5); }
+    }
   }
   const skyTex = tex(512, 256, skyDraw);
-  function bgDraw(g, w, h) { const r = g.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, w * 0.75); r.addColorStop(0, C('bg1')); r.addColorStop(1, C('bg2')); g.fillStyle = r; g.fillRect(0, 0, w, h); }
+  function bgDraw(g, w, h) { const r = g.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, w * 0.75); r.addColorStop(0, day.bg[0]); r.addColorStop(1, day.bg[1]); g.fillStyle = r; g.fillRect(0, 0, w, h); }
   const bgTex = tex(512, 512, bgDraw);
   scene.background = bgTex;
 
@@ -225,8 +264,9 @@ export function createOffice(api) {
     deskScreens = []; ghostDesk = null;
     const W = world = new THREE.Group(); scene.add(W);
     const GY = L.GY, keep = (x) => { trash.push(x); return x; };
-    sun.position.set(GX / 2 + 8, 16, GY / 2 + 11); sun.target.position.set(GX / 2, 0, GY / 2);
-    Object.assign(sun.shadow.camera, { left: -15, right: 15, top: GY / 2 + 6.5, bottom: -GY / 2 - 6.5, near: 1, far: 60 + L.dy }); sun.shadow.camera.updateProjectionMatrix();
+    sunAt();
+    const half = Math.max(15, GY / 2 + 7.5);
+    Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 1, far: 70 + L.dy }); sun.shadow.camera.updateProjectionMatrix();
     // floor: soft planks, neutral so the theme colour tints them
     const floorTex = keep(tex(2048, Math.round(2048 * GY / GX), (g, w, h) => {
       g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); seed = 7;
@@ -276,7 +316,7 @@ export function createOffice(api) {
       pbox(W, -T - 0.02, a - 0.05, z1, T + 0.04, 0.06, z2 - z1, frame, 0.02); pbox(W, -T - 0.02, b - 0.01, z1, T + 0.04, 0.06, z2 - z1, frame, 0.02); pbox(W, -0.12, m - 0.025, z1, 0.06, 0.05, z2 - z1, frame, 0.015);
     }
     // sunlight through the windows, laid on the floor
-    const beamMat = keep(new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: C('beam'), color: '#fff6e0' })); beamMat.userData.beam = 1;
+    const beamMat = keep(new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: day.beam[0], color: day.beam[1] })); beamMat.userData.beam = 1;
     const beam = (p) => { const g = keep(new THREE.BufferGeometry()); g.setAttribute('position', new THREE.Float32BufferAttribute(p.flatMap(([x, y]) => [x, 0.045, y]), 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 0], 2)); g.setIndex([0, 2, 1, 0, 3, 2]); const m = new THREE.Mesh(g, beamMat); m.userData.noAO = 1; W.add(m); };
     for (const [a, b] of WINS_Y) beam([[a, 0], [b, 0], [b + 1.5, 3.3], [a + 1.5, 3.3]]);
     for (const [a, b] of WINS_X) beam([[0, a], [0, b], [3.2, b + 1.1], [3.2, a + 1.1]]);
@@ -884,8 +924,8 @@ export function createOffice(api) {
       const a = [...agents.values()].find((x) => (sc.i < 0 ? x.leader : !x.leader && x.desk === sc.i));
       const here = a && (a.place === 'desk' || a.place === 'lead') && !a.path.length;
       const ask = a && approvals.has(a.name), on = here && (a.s.state === 'working' || ask), col = ask ? WAIT : RUN;
-      sc.scrMat.color.copy(on ? col : OFF).multiplyScalar(on ? TH[theme].screen : 1);
-      sc.glowMat.color.copy(col); sc.glowMat.opacity = on ? (theme === 'dark' ? 0.55 : 0.35) : 0;
+      sc.scrMat.color.copy(on ? col : OFF).multiplyScalar(on ? 1 + 0.25 * day.n : 1);
+      sc.glowMat.color.copy(col); sc.glowMat.opacity = on ? 0.35 + 0.2 * day.n : 0;
       sc.ledMat.color.copy(on ? col : LED);
       sc.mugMat.color.set(a ? PALETTE[a.look.c][0] : '#e6e2da');
     }
@@ -932,17 +972,22 @@ export function createOffice(api) {
     }
   }
 
-  /* ── theme ── */
+  /* ── the time of day ── */
+  // the sun comes in low from the front left in the morning, high at noon, low from the right at the sunset; the moon stays put
+  function sunAt() {
+    const GY = L.GY, up = Math.min(1, Math.max(-1, (day.h - 12.5) / 6.5)), t = day.n > 0.7 ? 0.35 : up;
+    sun.position.set(GX / 2 + 8 + 6 * t, 16 - 7 * Math.abs(t), GY / 2 + 11 - 5 * t); sun.target.position.set(GX / 2, 0, GY / 2);
+  }
   function applyTheme() {
-    theme = isDark() ? 'dark' : 'light';
+    day = dayAt(hourNow()); theme = day.n > 0.5 ? 'dark' : 'light';
     for (const [m, key] of themed) m.color.set(C(key));
-    const th = TH[theme]; hemi.intensity = th.hemi[0]; hemi.color.set(th.hemi[1]); hemi.groundColor.set(th.hemi[2]); sun.intensity = th.sun[0]; sun.color.set(th.sun[1]); scene.environmentIntensity = th.env;
-    scene.traverse((o) => { if (o.material?.userData?.beam) o.material.opacity = th.beam; });
+    hemi.intensity = day.hemi[0]; hemi.color.set(day.hemi[1]); hemi.groundColor.set(day.hemi[2]); sun.intensity = day.sun[0]; sun.color.set(day.sun[1]); scene.environmentIntensity = day.env;
+    sunAt();
+    scene.traverse((o) => { if (o.material?.userData?.beam) { o.material.opacity = day.beam[0]; o.material.color.set(day.beam[1]); } });
     skyDraw(skyTex.image.getContext('2d'), 512, 256); skyTex.needsUpdate = true;
     bgDraw(bgTex.image.getContext('2d'), 512, 512); bgTex.needsUpdate = true;
   }
-  new MutationObserver(() => { if ((isDark() ? 'dark' : 'light') !== theme) applyTheme(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if ((isDark() ? 'dark' : 'light') !== theme) applyTheme(); });
+  setInterval(() => { if (el.isConnected && !document.hidden) applyTheme(); }, 60000);
 
   /* ── the frame: only while the office is on the page and shown ── */
   let last = performance.now(), running = false, lastPlates = 0;

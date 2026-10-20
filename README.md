@@ -99,8 +99,10 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   theirs. The office has no project row: its name is at the room's top left, and **📋 Board**, **💬 Team chat**,
   **+ New agent** and **Org chart | Office** at its top right; the board and the team chat open over the page from there (the
   board on the wall opens it too), with a tab to switch and Esc to close; its left edge drags it wider (the board shows more
-  columns), a double click there sets it back. The choice is kept in the browser; it follows the
-  light or dark theme, and stops drawing while it is not on screen.
+  columns), a double click there sets it back. The choice is kept in the browser. Its light follows the
+  local time, not the page's theme: dawn, morning, noon, afternoon, a golden hour and the sunset, evening and night, each
+  easing into the next — the sky in the windows, the sun's way across it and the beams it casts, the city lit at night.
+  It stops drawing while it is not on screen.
 - **Browsers.** **Browsers** (the globe) in the header — in the desktop app the globe in the title strip, beside the terminal — (or
   **🌐 N** on an agent's card) opens a panel over the page, which can be
   moved by its title and resized from its corner, or set to the full window and back by the button beside × or a double
