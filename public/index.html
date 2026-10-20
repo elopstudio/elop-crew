@@ -3642,7 +3642,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       body.append(g);
     }
     if (!body.children.length && stateFilter) body.append(el('div', 'fnone', t('filterNone', { x: t(stateFilter) })));
-    head.append(nb);
+    head.append(viewSwitch(true), nb);
     sec.append(head, body);
     return sec;
   }
@@ -4904,13 +4904,20 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       }).catch(() => { officeLoad = null; officeWrap.replaceChildren(el('div', 'oload', t('officeNoGL'))); });
     }
   }
-  function viewSwitch() {
+  // on the all-agents tab (always the org chart) Office goes to the first project's tab, in the office
+  function viewSwitch(allTab) {
     const w = el('div', 'viewsw');
     w.setAttribute('role', 'group'); w.title = t('viewTip');
     for (const v of ['org', 'office']) {
       const b = el('button', null, t(v === 'org' ? 'viewOrg' : 'viewOffice'));
-      b.type = 'button'; b.setAttribute('aria-pressed', String(view === v));
-      b.addEventListener('click', () => { if (view === v) return; view = v; try { localStorage.setItem('am.view', v); } catch (e) {} if (last) render(last); });
+      const on = allTab ? v === 'org' : view === v;
+      b.type = 'button'; b.setAttribute('aria-pressed', String(on));
+      b.addEventListener('click', () => {
+        if (on) return;
+        view = v; try { localStorage.setItem('am.view', v); } catch (e) {}
+        const first = allTab && (last?.projects || [])[0];
+        if (first) select(first.key); else if (last) render(last);
+      });
       w.append(b);
     }
     return w;
