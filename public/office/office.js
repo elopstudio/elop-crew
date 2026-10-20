@@ -230,7 +230,37 @@ export function createOffice(api) {
   const rainTex = wrap(tex(128, 256, (g, w, h) => { seed = 41; g.strokeStyle = 'rgba(225,235,255,.8)'; g.lineWidth = 4; g.lineCap = 'round'; for (let i = 0; i < 20; i++) { const x = rnd() * w, y = rnd() * h, l = 34 + rnd() * 26; g.beginPath(); g.moveTo(x, y); g.lineTo(x - l * 0.22, y + l); g.stroke(); } }));
   const snowTex = wrap(tex(128, 128, (g, w, h) => { seed = 43; g.fillStyle = 'rgba(255,255,255,.92)'; for (let i = 0; i < 16; i++) { g.beginPath(); g.arc(rnd() * w, rnd() * h, 4 + rnd() * 4, 0, 7); g.fill(); } }));
   const wxMat = new THREE.MeshBasicMaterial({ map: rainTex, transparent: true, depthWrite: false, toneMapped: false });
-  let wxPlanes = [], skyMats = [], flashAt = 0, flashNext = 0;
+  let wxPlanes = [], skyMats = [], flashAt = 0, flashNext = 0, hemiBase = 1;
+  const RAIN_N = 1500, SNOW_N = 1000;
+  const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(RAIN_N * 6), 3));
+  const rainLines = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: '#8c9ab3', transparent: true, opacity: 0.5, depthWrite: false }));
+  const snowGeo = new THREE.BufferGeometry(); snowGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SNOW_N * 3), 3));
+  const snowPts = new THREE.Points(snowGeo, new THREE.PointsMaterial({ map: glowTex, color: '#ffffff', size: 10, sizeAttenuation: false, transparent: true, depthWrite: false }));
+  for (const o of [rainLines, snowPts]) { o.frustumCulled = false; o.visible = false; o.userData.noAO = 1; scene.add(o); }
+  let drops = [];
+  // where they fall: a wide box round the building, none inside it (it has walls, not a roof, but no rain indoors)
+  function wxField() {
+    const n = wx.snow ? SNOW_N : wx.rain ? Math.round(RAIN_N * Math.min(1, 0.6 + 0.25 * wx.rain)) : 0;
+    drops = [];
+    for (let i = 0; i < n; i++) {
+      let x, z; do { x = -14 + Math.random() * (B.w + 28); z = -14 + Math.random() * (B.d + 28); } while (x > -0.7 && x < B.w + 0.5 && z > -0.7 && z < B.d + 0.5);
+      drops.push({ x, z, y: -4 + Math.random() * 17, v: 0.8 + Math.random() * 0.4, p: Math.random() * 6 });
+    }
+    rainLines.visible = !!wx.rain && n > 0; snowPts.visible = !!wx.snow && n > 0;
+    rainGeo.setDrawRange(0, wx.rain ? n * 2 : 0); snowGeo.setDrawRange(0, wx.snow ? n : 0);
+  }
+  function wxStep(dt, t) {
+    if (!drops.length) return;
+    if (wx.rain) {
+      const a = rainGeo.attributes.position.array, sp = 13 * wx.rain;
+      drops.forEach((d, i) => { d.y -= sp * d.v * dt; d.x += 0.9 * dt; if (d.y < -4) { d.y += 17; d.x -= 15 * 0.9 / sp; } const j = i * 6; a[j] = d.x; a[j + 1] = d.y; a[j + 2] = d.z; a[j + 3] = d.x - 0.07; a[j + 4] = d.y + 0.5; a[j + 5] = d.z; });
+      rainGeo.attributes.position.needsUpdate = true;
+    } else if (wx.snow) {
+      const a = snowGeo.attributes.position.array;
+      drops.forEach((d, i) => { d.y -= 1.0 * d.v * dt; if (d.y < -4) d.y += 17; const j = i * 3; a[j] = d.x + Math.sin(t * 0.8 + d.p) * 0.35; a[j + 1] = d.y; a[j + 2] = d.z + Math.cos(t * 0.6 + d.p) * 0.25; });
+      snowGeo.attributes.position.needsUpdate = true;
+    }
+  }
   // a window's sheet of weather, just inside its sky (nx, nz: towards the room)
   function wxOver(W, sky, nx, nz) { const m = new THREE.Mesh(sky.geometry, wxMat); m.position.copy(sky.position); m.position.x += nx; m.position.z += nz; m.rotation.copy(sky.rotation); m.userData.noAO = 1; m.renderOrder = 2; m.visible = !!(wx.rain || wx.snow); W.add(m); wxPlanes.push(m); }
   // a digital clock on the wall: the real time in seven-segment digits, the eyes' colour, the colon blinking each second
@@ -264,7 +294,8 @@ export function createOffice(api) {
     mesh(g, geo, mat, 0, 0, 0.042, { cast: false }).userData.noAO = 1;
     g.position.set((x1 + x2) / 2, (z1 + z2) / 2, 0.04); W.add(g);
   }
-  function bgDraw(g, w, h) { const r = g.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, w * 0.75); r.addColorStop(0, day.bg[0]); r.addColorStop(1, day.bg[1]); g.fillStyle = r; g.fillRect(0, 0, w, h); }
+  const bgGrey = () => mixC(wx.fog ? '#e4e7ec' : wx.snow ? '#a9b4c4' : '#aeb5bf', '#191c23', day.n);
+  function bgDraw(g, w, h) { const r = g.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, w * 0.75), k = Math.min(0.85, wx.grey * 0.9); r.addColorStop(0, mixC(day.bg[0], bgGrey(), k)); r.addColorStop(1, mixC(day.bg[1], bgGrey(), k)); g.fillStyle = r; g.fillRect(0, 0, w, h); }
   const bgTex = tex(512, 512, bgDraw);
   scene.background = bgTex;
 
@@ -548,7 +579,7 @@ export function createOffice(api) {
     staticChip('wallbtn', [4.95, 2.52, 0.05], 'bottom', 4, () => api.board(), t('officeBoard'));
     staticChip('wallbtn', [8.7, 2.62, 0.05], 'bottom', 4, () => api.browsers(), '🌐 ' + t('officeBrowser'));
     staticChip('wallbtn', [0.05, 2.58, S(7.8)], 'bottom', 4, () => api.artifacts(), t('officeArtifacts'));
-    fitCamera(); dirtyPlates = true;
+    fitCamera(); wxField(); dirtyPlates = true;
   }
   // a desk: a top on two clay panels, a screen turned to the seat, a keyboard, a mug or a little plant; find: who works at it
   function desk(W, d, i, find) {
@@ -1002,7 +1033,7 @@ export function createOffice(api) {
     pbox(W, d.top.x + d.top.w - 0.05, d.top.y - 0.3, 1.0, 0.24, d.top.d + 0.6, 0.05, M('#f9f7f3', { roughness: 0.3, clearcoat: 0.5 }), 0.02);
     for (const [x, y, k] of [[GW - 0.5, 0.5, 1.1], [XE + 0.5, 0.5, 0.9], [GW - 0.5, GD - 0.6, 1]]) { pcyl(W, x, y, 0, 0.2 * k, 0.38 * k, M('pot', { roughness: 0.7 })); mesh(W, sphG(+(0.3 * k).toFixed(3)), M('leaf', { roughness: 0.7 }), x, 0.72 * k, y).scale.set(1, 1.2, 1); mesh(W, sphG(+(0.2 * k).toFixed(3)), M('leafD', { roughness: 0.7 }), x + 0.08, 1.0 * k, y - 0.05); }
     staticChip('zone', [d.seat[0] + 0.5, 0, d.top.y + d.top.d + 0.75], 'center-hide', 5, null, t('officeReception'));
-    fitCamera(); dirtyPlates = true;
+    fitCamera(); wxField(); dirtyPlates = true;
   }
   // the page hands in every project on every poll, for the building
   function building(data) {
@@ -1310,13 +1341,16 @@ export function createOffice(api) {
   }
   function applyTheme() {
     day = dayAt(hourNow()); theme = day.n > 0.5 ? 'dark' : 'light';
-    for (const [m, key] of themed) m.color.set(C(key));
-    hemi.intensity = day.hemi[0] * (0.8 + 0.2 * wx.sun); hemi.color.set(day.hemi[1]); hemi.groundColor.set(day.hemi[2]); sun.intensity = day.sun[0] * wx.sun; sun.color.set(wx.grey > 0.5 ? mixC(day.sun[1], '#dfe6f0', 0.5) : day.sun[1]); scene.environmentIntensity = day.env;
+    for (const [m, key] of themed) m.color.set(key === 'cap' && wx.snow ? '#f2f5f9' : C(key));
+    hemi.intensity = hemiBase = day.hemi[0] * (0.8 + 0.2 * wx.sun); hemi.color.set(day.hemi[1]); hemi.groundColor.set(day.hemi[2]); sun.intensity = day.sun[0] * wx.sun; sun.color.set(wx.grey > 0.5 ? mixC(day.sun[1], '#dfe6f0', 0.5) : day.sun[1]); scene.environmentIntensity = day.env;
     sunAt();
     scene.traverse((o) => { if (o.material?.userData?.beam) { o.material.opacity = day.beam[0] * wx.beam; o.material.color.set(day.beam[1]); } });
     wxMat.map = wx.snow ? snowTex : rainTex; wxMat.opacity = wx.snow ? 0.95 : Math.min(1, 0.55 + 0.3 * (wx.rain || 0)); wxMat.needsUpdate = true;
     for (const m of wxPlanes) m.visible = !!(wx.rain || wx.snow);
     for (const m of skyMats) m.color.setScalar(1);
+    rainLines.material.color.set(mixC('#7d8ba5', '#a6b5d4', day.n));
+    scene.fog = wx.fog ? new THREE.Fog(mixC('#e6e9ee', '#2a2e37', day.n), 62, 112) : null;
+    wxField();
     skyDraw(skyTex.image.getContext('2d'), 512, 256); skyTex.needsUpdate = true;
     bgDraw(bgTex.image.getContext('2d'), 512, 512); bgTex.needsUpdate = true;
   }
@@ -1328,12 +1362,14 @@ export function createOffice(api) {
     if (!el.isConnected || document.hidden) { running = false; return; }
     const dt = Math.min(0.05, (now - last) / 1000), t = now / 1000; last = now;
     const sec = Math.floor(Date.now() / 1000); if (sec !== clockSec) { clockSec = sec; drawClock(new Date()); }
+    wxStep(dt, t);
     if (wx.rain) { rainTex.offset.y += dt * 2.4 * wx.rain; rainTex.offset.x += dt * 0.5; }
     if (wx.snow) { snowTex.offset.y += dt * 0.22; snowTex.offset.x = Math.sin(t * 0.7) * 0.06; }
     if (wx.flash) {
       if (now > flashNext) { flashAt = now; flashNext = now + 6000 + Math.random() * 12000; }
       const f = now - flashAt < 90 || (now - flashAt > 170 && now - flashAt < 240) ? 2.6 : 1;
       for (const m of skyMats) m.color.setScalar(f);
+      hemi.intensity = hemiBase * (f > 1 ? 2.3 : 1);   // the whole room lit for a moment
     }
     // where each one wants to be; a move waits a moment, so a quick look at a file does not send it across the room
     const taken = claims();

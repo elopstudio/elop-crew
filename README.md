@@ -104,7 +104,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   easing into the next — the sky in the windows, the sun's way across it and the beams it casts, the city lit at night.
   A digital clock on the wall (the lobby's, in the building) shows the time, its colon blinking each second, and the
   temperature outside. The weather is real too: clouds, an overcast sky, fog, rain and snow falling past the windows,
-  lightning in a storm, and the sunlight in the room as strong as they leave it. It comes from Open-Meteo (free, no key)
+  lightning in a storm, and the sunlight in the room as strong as they leave it; over the whole scene as well — rain or
+  snow falling all round the building and past its edges, the backdrop grey under clouds, fog over everything, snow on
+  the tops of the walls, the room lit up by the lightning. It comes from Open-Meteo (free, no key)
   for the city in the PC's time zone name (Asia/Seoul → Seoul; nothing about where you are is sent), asked at most every
   20 minutes and kept in memory only; offline, the sky stays clear.
   On the all-agents tab the office is a building: each project a glass-fronted room off one corridor (a room grows with
