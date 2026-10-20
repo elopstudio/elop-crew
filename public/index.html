@@ -121,13 +121,13 @@ body{background:radial-gradient(1400px 520px at 50% -140px,var(--bg-grad),transp
 
 /* Project tabs */
 .tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin;margin:0 0 -1px;padding:0 4px;position:relative;z-index:1}
-.tab{appearance:none;flex:none;display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;border-bottom:0;background:transparent;color:var(--muted);font:500 13px var(--sans);padding:9px 14px 10px 8px;border-radius:12px 12px 0 0;cursor:pointer;transition:background .15s,color .15s}
+.tab{appearance:none;flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;border-bottom:0;background:transparent;color:var(--muted);font:500 12.5px var(--sans);padding:5px 11px 6px 6px;border-radius:10px 10px 0 0;cursor:pointer;transition:background .15s,color .15s}
 .tab:hover{background:var(--surface-2);color:var(--text)}
 .tab[aria-selected="true"]{background:var(--surface);border-color:var(--line);color:var(--text);font-weight:700}
 .tab.dragging{opacity:.45}
 .tab.drop-before{box-shadow:inset 3px 0 0 var(--accent)}
 .tab.drop-after{box-shadow:inset -3px 0 0 var(--accent)}
-.tab svg{width:26px;height:26px;flex:none}
+.tab svg{width:20px;height:20px;flex:none}
 .tab .tname{font-family:var(--mono)}
 /* the "all agents" label is words, not a folder name */
 .tab .tname.all,.project .folder.all{font-family:var(--sans)}
@@ -139,7 +139,7 @@ body{background:radial-gradient(1400px 520px at 50% -140px,var(--bg-grad),transp
 .tab .tc span{font-size:10.5px;font-weight:700;border-radius:999px;padding:0 6px;line-height:17px}
 .tab .tc .r{color:var(--run);background:var(--run-soft)}
 .tab .tc .w{color:var(--wait);background:var(--wait-soft)}
-.tab .all-ico{width:26px;height:26px;display:grid;place-items:center;font-size:15px;border-radius:7px;background:var(--surface-2);border:1px solid var(--line)}
+.tab .all-ico{width:20px;height:20px;display:grid;place-items:center;font-size:12px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line)}
 .tab .tc .z{color:var(--faint);border:1px dashed var(--line-strong);line-height:15px}
 
 /* Project */
@@ -170,7 +170,7 @@ body{background:radial-gradient(1400px 520px at 50% -140px,var(--bg-grad),transp
 .viewsw button:hover{color:var(--text)}
 .officewrap{min-width:0;position:relative}
 .pbody.office-on{grid-template-columns:minmax(0,1fr);padding:0}
-.pbody.office-on .office{border:0;border-radius:0;height:max(480px,calc(100vh - 122px))}
+.pbody.office-on .office{border:0;border-radius:0;height:max(480px,calc(100vh - 110px))}
 .officewrap .otools .viewsw{background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(8px);box-shadow:0 2px 8px var(--shadow)}
 .officewrap .otools .onew{border-style:dashed}
 .officewrap .otools .viewsw button{border:0;box-shadow:none;background:none;backdrop-filter:none;padding:3px 11px;color:var(--muted)}
@@ -180,7 +180,7 @@ body{background:radial-gradient(1400px 520px at 50% -140px,var(--bg-grad),transp
 .officewrap .otools button:hover{border-color:var(--accent);color:var(--accent)}
 .officewrap .otools button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 .officewrap .otools .n{font-family:var(--mono);font-weight:500;opacity:.75;margin-left:5px}
-.odrawer{position:fixed;top:112px;right:340px;bottom:16px;width:min(620px,calc(100vw - 380px));z-index:40;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px var(--bot-shadow);overflow:hidden}
+.odrawer{position:fixed;top:100px;right:340px;bottom:16px;width:min(620px,calc(100vw - 380px));z-index:40;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px var(--bot-shadow);overflow:hidden}
 .odrawer[hidden]{display:none}
 .odrawer .odhead{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line)}
 .odrawer .odhead .tab{appearance:none;border:0;background:none;color:var(--muted);font:700 13px var(--sans);padding:5px 10px;border-radius:8px;cursor:pointer}
