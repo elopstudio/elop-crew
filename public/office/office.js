@@ -228,6 +228,7 @@ export function createOffice(api) {
   const skyTex = tex(512, 256, skyDraw);
   const wrap = (tx) => { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; return tx; };
   const rainTex = wrap(tex(128, 256, (g, w, h) => { seed = 41; g.strokeStyle = 'rgba(225,235,255,.8)'; g.lineWidth = 4; g.lineCap = 'round'; for (let i = 0; i < 20; i++) { const x = rnd() * w, y = rnd() * h, l = 34 + rnd() * 26; g.beginPath(); g.moveTo(x, y); g.lineTo(x - l * 0.22, y + l); g.stroke(); } }));
+  rainTex.repeat.set(1, 0.5);   // its tile is twice as tall as wide
   const snowTex = wrap(tex(128, 128, (g, w, h) => { seed = 43; g.fillStyle = 'rgba(255,255,255,.92)'; for (let i = 0; i < 16; i++) { g.beginPath(); g.arc(rnd() * w, rnd() * h, 4 + rnd() * 4, 0, 7); g.fill(); } }));
   const wxMat = new THREE.MeshBasicMaterial({ map: rainTex, transparent: true, depthWrite: false, toneMapped: false });
   let wxPlanes = [], skyMats = [], flashAt = 0, flashNext = 0, hemiBase = 1;
@@ -262,7 +263,12 @@ export function createOffice(api) {
     }
   }
   // a window's sheet of weather, just inside its sky (nx, nz: towards the room)
-  function wxOver(W, sky, nx, nz) { const m = new THREE.Mesh(sky.geometry, wxMat); m.position.copy(sky.position); m.position.x += nx; m.position.z += nz; m.rotation.copy(sky.rotation); m.userData.noAO = 1; m.renderOrder = 2; m.visible = !!(wx.rain || wx.snow); W.add(m); wxPlanes.push(m); }
+  // its texture tiled at one size on every window (stretched once over each, a wide one smeared its drops sideways)
+  const WX_TILE = 0.8;
+  function wxOver(W, sky, nx, nz) {
+    const geo = sky.geometry.clone(), uv = geo.attributes.uv, { width, height } = sky.geometry.parameters; trash.push(geo);
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * width / WX_TILE, uv.getY(i) * height / WX_TILE);
+    const m = new THREE.Mesh(geo, wxMat); m.position.copy(sky.position); m.position.x += nx; m.position.z += nz; m.rotation.copy(sky.rotation); m.userData.noAO = 1; m.renderOrder = 2; m.visible = !!(wx.rain || wx.snow); W.add(m); wxPlanes.push(m); }
   // a digital clock on the wall: the real time in seven-segment digits, the eyes' colour, the colon blinking each second
   const SEG = ['abcdef', 'bc', 'abged', 'abgcd', 'fgbc', 'afgcd', 'afgedc', 'abc', 'abcdefg', 'abcdfg'];
   function seg7(g, x, y, w, h, th, d, on, off) {
