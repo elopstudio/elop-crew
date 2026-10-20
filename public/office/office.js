@@ -103,6 +103,27 @@ const DAY = [
   { h: 20, n: 0.86, sky: ['#18214c', '#594a80'], stars: 0.7, sun: [0.72, '#a9b4ff'], hemi: [0.42, '#98a6d8', '#1c1f28'], env: 0.3, beam: [0.08, '#b9c6ff'], bg: ['#1d2230', '#0c0e14'], lights: 1 },
   { h: 24, n: 1, sky: ['#0a1130', '#24305a'], stars: 1, sun: [0.6, '#9fb2ff'], hemi: [0.36, '#8a99d0', '#1a1d26'], env: 0.26, beam: [0.06, '#b9c6ff'], bg: ['#1a1f2d', '#0a0c12'], lights: 1 },
 ];
+// the weather outside (from the server's /api/weather; ?officeWeather=rain shows another): the sun's strength, how
+// cloudy and grey the sky is, how much of the beams on the floor are left, rain, snow, fog, lightning
+const WX = {
+  clear: { sun: 1, cloud: 0, grey: 0, beam: 1 },
+  cloudy: { sun: 0.8, cloud: 0.6, grey: 0.15, beam: 0.65 },
+  overcast: { sun: 0.55, cloud: 1, grey: 0.55, beam: 0.2 },
+  fog: { sun: 0.55, cloud: 0.5, grey: 0.6, beam: 0.15, fog: 1 },
+  rain: { sun: 0.45, cloud: 1, grey: 0.62, beam: 0.1, rain: 1 },
+  storm: { sun: 0.35, cloud: 1, grey: 0.78, beam: 0.04, rain: 1.7, flash: 1 },
+  snow: { sun: 0.65, cloud: 1, grey: 0.45, beam: 0.2, snow: 1 },
+};
+function wxKind(w) {
+  const q = new URLSearchParams(location.search).get('officeWeather'); if (WX[q]) return q;
+  if (!w?.ok) return 'clear';
+  const c = w.code;
+  if (c >= 95) return 'storm';
+  if ((c >= 71 && c <= 77) || c === 85 || c === 86) return 'snow';
+  if ((c >= 51 && c <= 67) || (c >= 80 && c <= 82)) return 'rain';
+  if (c === 45 || c === 48) return 'fog';
+  return c === 3 ? 'overcast' : c === 1 || c === 2 ? 'cloudy' : 'clear';
+}
 const FONT = '"Noto Sans KR",system-ui,"Segoe UI",sans-serif';
 const GX = 18, WALL_H = 2.8, DESK_H = 0.62, SEAT_H = 0.38, PER_ROW = 5, SPEED = 2.3;
 const COLS = [3.4, 5.8, 8.2, 10.6, 13.0, 15.2];
@@ -145,6 +166,8 @@ export function createOffice(api) {
     o.h = h; return o;
   }
   let day = dayAt(hourNow()), theme = day.n > 0.5 ? 'dark' : 'light';
+  let wxNow = null, wx = WX[wxKind(null)], wxAt = 0;
+  async function wxFetch() { wxAt = Date.now(); try { wxNow = await (await fetch('/api/weather')).json(); } catch (e) { wxNow = null; } wx = WX[wxKind(wxNow)]; applyTheme(); clockSec = -1; }
   const C = (k) => (day.n <= 0 ? TH.light[k] : day.n >= 1 ? TH.dark[k] : mixC(TH.light[k], TH.dark[k], day.n));
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -170,13 +193,13 @@ export function createOffice(api) {
   const glowTex = tex(128, 128, (g, w, h) => { const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.45, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
   const beamTex = tex(64, 256, (g, w, h) => { const r = g.createLinearGradient(0, 0, 0, h); r.addColorStop(0, 'rgba(255,255,255,.9)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
   function skyDraw(g, w, h) {
-    const r = g.createLinearGradient(0, 0, 0, h);
-    r.addColorStop(0, day.sky[0]); r.addColorStop(1, day.sky[1]); g.fillStyle = r; g.fillRect(0, 0, w, h);
+    const r = g.createLinearGradient(0, 0, 0, h), grey = mixC('#a9b1bc', '#262a33', day.n);
+    r.addColorStop(0, mixC(day.sky[0], grey, wx.grey)); r.addColorStop(1, mixC(day.sky[1], grey, wx.grey)); g.fillStyle = r; g.fillRect(0, 0, w, h);
     seed = 11;
-    if (day.stars > 0.02) { g.fillStyle = '#fff'; for (let i = 0; i < 40; i++) { g.globalAlpha = (0.3 + rnd() * 0.6) * day.stars; g.fillRect(rnd() * w, rnd() * h * 0.7, 1.5, 1.5); } g.globalAlpha = 1; }
+    if (day.stars > 0.02 && wx.cloud < 0.9) { g.fillStyle = '#fff'; for (let i = 0; i < 40; i++) { g.globalAlpha = (0.3 + rnd() * 0.6) * day.stars; g.fillRect(rnd() * w, rnd() * h * 0.7, 1.5, 1.5); } g.globalAlpha = 1; }
     // the sun crosses from left to right between six and seven; the moon after dark
     const up = (day.h - 6) / 13, night = day.n > 0.7;
-    if (night || (up > -0.05 && up < 1.05)) {
+    if (wx.grey < 0.5 && (night || (up > -0.05 && up < 1.05))) {
       const u = night ? 0.72 : Math.min(1, Math.max(0, up)), x = w * (0.1 + 0.8 * u), y = night ? h * 0.22 : h * (0.75 - Math.sin(Math.PI * u) * 0.6);
       const glow = g.createRadialGradient(x, y, 0, x, y, night ? 26 : 46);
       glow.addColorStop(0, night ? 'rgba(235,240,255,.55)' : 'rgba(255,250,235,.9)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
@@ -185,7 +208,13 @@ export function createOffice(api) {
       if (night) { g.fillStyle = day.sky[0]; g.beginPath(); g.arc(x + 4, y - 3, 8, 0, 7); g.fill(); }
     }
     seed = 23;
-    if (day.n < 0.6) { g.fillStyle = `rgba(255,255,255,${0.85 * (1 - day.n / 0.6)})`; for (let i = 0; i < 5; i++) { const x = rnd() * w, y = h * 0.25 + rnd() * h * 0.4, s = 18 + rnd() * 22; for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(x + k * s * 0.6, y - (k % 2) * s * 0.3, s * 0.55, 0, 7); g.fill(); } } }
+    // clouds: a few white ones on a clear day; more, bigger and greyer as it clouds over, dark ones at night
+    const ca = wx.cloud ? 0.85 : 0.85 * Math.max(0, 1 - day.n / 0.6);
+    if (ca > 0.01) {
+      g.fillStyle = mixC(mixC('#ffffff', '#4a5163', day.n), mixC('#9ea5af', '#3a3f4a', day.n), wx.grey * 0.7); g.globalAlpha = ca;
+      for (let i = 0, n = 5 + Math.round(wx.cloud * 11); i < n; i++) { const x = rnd() * w * 1.1 - 20, y = h * (0.12 + rnd() * (0.3 + wx.cloud * 0.25)), s = (18 + rnd() * 22) * (1 + wx.cloud * 0.6); for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(x + k * s * 0.6, y - (k % 2) * s * 0.3, s * 0.55, 0, 7); g.fill(); } }
+      g.globalAlpha = 1;
+    }
     seed = 37;
     const city = mixC('#c9d9ee', '#1f2745', day.n);
     for (let i = 0; i < 9; i++) {
@@ -193,8 +222,48 @@ export function createOffice(api) {
       g.fillStyle = city; g.fillRect(bx, h - bh, bw, bh);
       if (day.lights > 0.02) for (let yy = h - bh + 6; yy < h - 6; yy += 9) for (let xx = bx + 4; xx < bx + bw - 6; xx += 8) if (rnd() < 0.42) { g.fillStyle = `rgba(255,214,140,${(0.45 + rnd() * 0.5) * day.lights})`; g.fillRect(xx, yy, 4, 5); }
     }
+    if (wx.fog) { const f = g.createLinearGradient(0, h * 0.2, 0, h); f.addColorStop(0, 'rgba(0,0,0,0)'); f.addColorStop(1, mixC('#e9ecf0', '#4a505c', day.n)); g.fillStyle = f; g.fillRect(0, 0, w, h); }
+    if (wx.snow) { g.fillStyle = mixC('#f6f8fb', '#9aa3b4', day.n); g.fillRect(0, h - 5, w, 5); }
   }
   const skyTex = tex(512, 256, skyDraw);
+  const wrap = (tx) => { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; return tx; };
+  const rainTex = wrap(tex(128, 256, (g, w, h) => { seed = 41; g.strokeStyle = 'rgba(225,235,255,.8)'; g.lineWidth = 4; g.lineCap = 'round'; for (let i = 0; i < 20; i++) { const x = rnd() * w, y = rnd() * h, l = 34 + rnd() * 26; g.beginPath(); g.moveTo(x, y); g.lineTo(x - l * 0.22, y + l); g.stroke(); } }));
+  const snowTex = wrap(tex(128, 128, (g, w, h) => { seed = 43; g.fillStyle = 'rgba(255,255,255,.92)'; for (let i = 0; i < 16; i++) { g.beginPath(); g.arc(rnd() * w, rnd() * h, 4 + rnd() * 4, 0, 7); g.fill(); } }));
+  const wxMat = new THREE.MeshBasicMaterial({ map: rainTex, transparent: true, depthWrite: false, toneMapped: false });
+  let wxPlanes = [], skyMats = [], flashAt = 0, flashNext = 0;
+  // a window's sheet of weather, just inside its sky (nx, nz: towards the room)
+  function wxOver(W, sky, nx, nz) { const m = new THREE.Mesh(sky.geometry, wxMat); m.position.copy(sky.position); m.position.x += nx; m.position.z += nz; m.rotation.copy(sky.rotation); m.userData.noAO = 1; m.renderOrder = 2; m.visible = !!(wx.rain || wx.snow); W.add(m); wxPlanes.push(m); }
+  // a digital clock on the wall: the real time in seven-segment digits, the eyes' colour, the colon blinking each second
+  const SEG = ['abcdef', 'bc', 'abged', 'abgcd', 'fgbc', 'afgcd', 'afgedc', 'abc', 'abcdefg', 'abcdfg'];
+  function seg7(g, x, y, w, h, th, d, on, off) {
+    const H = h / 2, s = { a: [x + th * 0.6, y, w - th * 1.2, th], d: [x + th * 0.6, y + h - th, w - th * 1.2, th], g: [x + th * 0.6, y + H - th / 2, w - th * 1.2, th],
+      f: [x, y + th * 0.6, th, H - th * 0.9], b: [x + w - th, y + th * 0.6, th, H - th * 0.9], e: [x, y + H + th * 0.3, th, H - th * 0.9], c: [x + w - th, y + H + th * 0.3, th, H - th * 0.9] };
+    for (const k of 'abcdefg') { const lit = SEG[d].includes(k); g.fillStyle = lit ? on : off; g.shadowColor = on; g.shadowBlur = lit ? 16 : 0; rr(g, ...s[k], th / 2); g.fill(); }
+    g.shadowBlur = 0;
+  }
+  const clockTex = tex(512, 200, () => {});
+  let clockSec = -1;
+  function drawClock(now) {
+    const g = clockTex.image.getContext('2d'), w = 512, h = 200, on = '#8ef4ff', off = 'rgba(142,244,255,.07)';
+    g.fillStyle = '#0f1218'; g.fillRect(0, 0, w, h);
+    const p2 = (n) => String(n).padStart(2, '0'), hh = p2(now.getHours()), mm = p2(now.getMinutes()), ss = p2(now.getSeconds());
+    const dw = 70, dh = 130, th = 13, y = 35;
+    let x = 30;
+    seg7(g, x, y, dw, dh, th, +hh[0], on, off); x += dw + 18; seg7(g, x, y, dw, dh, th, +hh[1], on, off); x += dw + 14;
+    g.fillStyle = now.getSeconds() % 2 ? off : on; g.shadowColor = on; g.shadowBlur = now.getSeconds() % 2 ? 0 : 14;
+    rr(g, x + 4, y + dh * 0.28, 15, 15, 4); g.fill(); rr(g, x + 4, y + dh * 0.62, 15, 15, 4); g.fill(); g.shadowBlur = 0; x += 30;
+    seg7(g, x, y, dw, dh, th, +mm[0], on, off); x += dw + 18; seg7(g, x, y, dw, dh, th, +mm[1], on, off); x += dw + 22;
+    seg7(g, x, y + dh - 62, 34, 62, 7, +ss[0], on, off); seg7(g, x + 42, y + dh - 62, 34, 62, 7, +ss[1], on, off);
+    if (wxNow?.ok) { g.fillStyle = on; g.shadowColor = on; g.shadowBlur = 10; g.font = '800 50px ui-monospace,Consolas,monospace'; g.textAlign = 'right'; g.textBaseline = 'top'; g.fillText(Math.round(wxNow.temp) + '°', x + 84, y - 14); g.shadowBlur = 0; g.textAlign = 'left'; }
+    clockTex.needsUpdate = true;
+  }
+  // its case on a wall facing +z (plan x1..x2, height z1..z2)
+  function clockOn(W, x1, x2, z1, z2) {
+    const g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ map: clockTex, toneMapped: false }), geo = new THREE.PlaneGeometry(x2 - x1, z2 - z1); trash.push(mat, geo);
+    mesh(g, rbox(x2 - x1 + 0.12, z2 - z1 + 0.12, 0.08, 0.04), M('#262b36', { roughness: 0.35, clearcoat: 0.6 }), 0, 0, 0);
+    mesh(g, geo, mat, 0, 0, 0.042, { cast: false }).userData.noAO = 1;
+    g.position.set((x1 + x2) / 2, (z1 + z2) / 2, 0.04); W.add(g);
+  }
   function bgDraw(g, w, h) { const r = g.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, w * 0.75); r.addColorStop(0, day.bg[0]); r.addColorStop(1, day.bg[1]); g.fillStyle = r; g.fillRect(0, 0, w, h); }
   const bgTex = tex(512, 512, bgDraw);
   scene.background = bgTex;
@@ -276,7 +345,7 @@ export function createOffice(api) {
     for (let i = themed.length - 1; i >= 0; i--) if (trash.includes(themed[i][0])) themed.splice(i, 1);
     for (const x of trash) x.dispose(); trash = [];
     for (const s of statics) s.el.remove(); statics.length = 0; plateOf.clear();
-    deskScreens = []; ghostDesk = null; chairsOf = [];
+    deskScreens = []; ghostDesk = null; chairsOf = []; wxPlanes = []; skyMats = [];
     const W = world = new THREE.Group(); scene.add(W);
     sunAt(); shadowFit();
     return W;
@@ -321,22 +390,22 @@ export function createOffice(api) {
     pbox(W, -T - 0.04, -T - 0.04, WALL_H, GX + T + 0.04, T + 0.08, 0.09, M('cap'), 0.03); pbox(W, -T - 0.04, -0.04, WALL_H, T + 0.08, GY + 0.04, 0.09, M('cap'), 0.03);
     pbox(W, 0, 0, 0, GX, 0.035, 0.12, M('base'), 0.012, { cast: false }); pbox(W, 0, 0, 0, 0.035, GY, 0.12, M('base'), 0.012, { cast: false });
     // windows: a frame, a mullion, the sky behind
-    const skyBasic = new THREE.MeshBasicMaterial({ map: skyTex, toneMapped: false }); keep(skyBasic);
+    const skyBasic = new THREE.MeshBasicMaterial({ map: skyTex, toneMapped: false }); keep(skyBasic); skyMats.push(skyBasic);
     const frame = M('frame', { roughness: 0.4, clearcoat: 0.4 });
     for (const [a, b] of WINS_Y) {
       const [z1, z2] = WIN_Y_Z, m = (a + b) / 2;
-      mesh(W, keep(new THREE.PlaneGeometry(b - a, z2 - z1)), skyBasic, m, (z1 + z2) / 2, -T + 0.02, { cast: false, recv: false });
+      wxOver(W, mesh(W, keep(new THREE.PlaneGeometry(b - a, z2 - z1)), skyBasic, m, (z1 + z2) / 2, -T + 0.02, { cast: false, recv: false }), 0, 0.03);
       pbox(W, a - 0.04, -T - 0.02, z1 - 0.06, b - a + 0.08, T + 0.08, 0.07, frame, 0.025); pbox(W, a - 0.04, -T - 0.02, z2 - 0.01, b - a + 0.08, T + 0.04, 0.07, frame, 0.025);
       pbox(W, a - 0.05, -T - 0.02, z1, 0.06, T + 0.04, z2 - z1, frame, 0.02); pbox(W, b - 0.01, -T - 0.02, z1, 0.06, T + 0.04, z2 - z1, frame, 0.02); pbox(W, m - 0.025, -0.12, z1, 0.05, 0.06, z2 - z1, frame, 0.015); pbox(W, a, -0.12, (z1 + z2) / 2, b - a, 0.06, 0.045, frame, 0.015);
     }
     for (const [a, b] of WINS_X) {
       const [z1, z2] = WIN_X_Z, m = (a + b) / 2;
-      const p = mesh(W, keep(new THREE.PlaneGeometry(b - a, z2 - z1)), skyBasic, -T + 0.02, (z1 + z2) / 2, m, { cast: false, recv: false }); p.rotation.y = Math.PI / 2;
+      const p = mesh(W, keep(new THREE.PlaneGeometry(b - a, z2 - z1)), skyBasic, -T + 0.02, (z1 + z2) / 2, m, { cast: false, recv: false }); p.rotation.y = Math.PI / 2; wxOver(W, p, 0.03, 0);
       pbox(W, -T - 0.02, a - 0.04, z1 - 0.06, T + 0.08, b - a + 0.08, 0.07, frame, 0.025); pbox(W, -T - 0.02, a - 0.04, z2 - 0.01, T + 0.04, b - a + 0.08, 0.07, frame, 0.025);
       pbox(W, -T - 0.02, a - 0.05, z1, T + 0.04, 0.06, z2 - z1, frame, 0.02); pbox(W, -T - 0.02, b - 0.01, z1, T + 0.04, 0.06, z2 - z1, frame, 0.02); pbox(W, -0.12, m - 0.025, z1, 0.06, 0.05, z2 - z1, frame, 0.015);
     }
     // sunlight through the windows, laid on the floor
-    const beamMat = keep(new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: day.beam[0], color: day.beam[1] })); beamMat.userData.beam = 1;
+    const beamMat = keep(new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: day.beam[0] * wx.beam, color: day.beam[1] })); beamMat.userData.beam = 1;
     const beam = (p) => { const g = keep(new THREE.BufferGeometry()); g.setAttribute('position', new THREE.Float32BufferAttribute(p.flatMap(([x, y]) => [x, 0.045, y]), 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 0], 2)); g.setIndex([0, 2, 1, 0, 3, 2]); const m = new THREE.Mesh(g, beamMat); m.userData.noAO = 1; W.add(m); };
     for (const [a, b] of WINS_Y) beam([[a, 0], [b, 0], [b + 1.5, 3.3], [a + 1.5, 3.3]]);
     for (const [a, b] of WINS_X) beam([[0, a], [0, b], [3.2, b + 1.1], [3.2, a + 1.1]]);
@@ -378,6 +447,7 @@ export function createOffice(api) {
       g.fillStyle = '#e3e9fb'; rr(g, w * 0.72, h * 0.33, w * 0.23, h * 0.58, 10); g.fill(); g.fillStyle = '#c9d4f4'; rr(g, w * 0.75, h * 0.38, w * 0.17, h * 0.2, 8); g.fill();
     }, { bezel: M('#262b36', { roughness: 0.35, clearcoat: 0.6 }), emissive: true, px: 340 });
     browser.color.setScalar(0.92);
+    clockOn(W, 14.35, 15.6, 1.75, 2.24);
     // artifacts: framed posters on the side wall, over the pantry
     wallPanel(S(6.6), S(7.7), 1.05, 2.35, (g, w, h) => { g.fillStyle = '#e9eefc'; g.fillRect(0, 0, w, h); g.strokeStyle = '#3a63d8'; g.lineWidth = 7; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); [[0.1, 0.75], [0.3, 0.5], [0.48, 0.62], [0.7, 0.3], [0.9, 0.42]].forEach(([x, y], i) => (i ? g.lineTo(w * x, h * y) : g.moveTo(w * x, h * y))); g.stroke(); g.fillStyle = '#b9c8f2'; [0.2, 0.4, 0.6, 0.8].forEach((x) => { rr(g, w * x - 12, h * 0.85, 24, h * 0.08, 4); g.fill(); }); }, { side: 'x' });
     wallPanel(S(8.0), S(9.0), 1.6, 2.35, (g, w, h) => { g.fillStyle = '#fde9e1'; g.fillRect(0, 0, w, h); g.fillStyle = '#f2a58a'; g.beginPath(); g.arc(w / 2, h * 0.45, h * 0.26, 0, 7); g.fill(); g.fillStyle = '#f7c6b4'; g.fillRect(0, h * 0.78, w, h * 0.22); }, { side: 'x' });
@@ -890,7 +960,7 @@ export function createOffice(api) {
     // the back wall (north) and the side wall (west), a window in each room's
     const T = 0.22, wallR = M('wallR', { roughness: 0.85, clearcoat: 0 }), wallL = M('wallL', { roughness: 0.85, clearcoat: 0 });
     const WZ = [0.85, 2.45], winsY = rooms.filter((r) => r.front === 's').map((r) => { const c = (r.x0 + r.x1) / 2, h = Math.min(1.3, r.w / 2 - 0.9); return [c - h, c + h]; });
-    winsY.push([XE + 1.0, GW - 1.0]);
+    winsY.push([XE + 1.95, GW - 0.9]);
     const winsX = [[0.9, DA - 0.9]], rowB = rooms.filter((r) => r.front === 'n'); if (rowB.length) winsX.push([BL.zB + 1.0, GD - 0.9]);
     const wallRun = (len, wins, zz, put) => { let s = 0; for (const [a, b] of wins) { put(s, a, 0, WALL_H); put(a, b, 0, zz[0]); put(a, b, zz[1], WALL_H); s = b; } put(s, len, 0, WALL_H); };
     const piece = (len, h) => keep(new THREE.BoxGeometry(len, h, T));
@@ -898,10 +968,10 @@ export function createOffice(api) {
     wallRun(GD, winsX, WZ, (a, b, z1, z2) => { if (b - a > 0.001) { const m = mesh(W, piece(b - a, z2 - z1), wallL, -T / 2, (z1 + z2) / 2, (a + b) / 2); m.rotation.y = Math.PI / 2; } });
     pbox(W, -T, -T, 0, T, T, WALL_H, wallL, 0.005);
     pbox(W, -T - 0.04, -T - 0.04, WALL_H, GW + T + 0.04, T + 0.08, 0.09, M('cap'), 0.03); pbox(W, -T - 0.04, -0.04, WALL_H, T + 0.08, GD + 0.04, 0.09, M('cap'), 0.03);
-    const skyBasic = keep(new THREE.MeshBasicMaterial({ map: skyTex, toneMapped: false })), frame = M('frame', { roughness: 0.4, clearcoat: 0.4 });
-    for (const [a, b] of winsY) { mesh(W, keep(new THREE.PlaneGeometry(b - a, WZ[1] - WZ[0])), skyBasic, (a + b) / 2, (WZ[0] + WZ[1]) / 2, -T + 0.02, { cast: false, recv: false }); pbox(W, a - 0.04, -T - 0.02, WZ[0] - 0.06, b - a + 0.08, T + 0.08, 0.07, frame, 0.025); pbox(W, a - 0.04, -T - 0.02, WZ[1] - 0.01, b - a + 0.08, T + 0.04, 0.07, frame, 0.025); }
-    for (const [a, b] of winsX) { const pl = mesh(W, keep(new THREE.PlaneGeometry(b - a, WZ[1] - WZ[0])), skyBasic, -T + 0.02, (WZ[0] + WZ[1]) / 2, (a + b) / 2, { cast: false, recv: false }); pl.rotation.y = Math.PI / 2; pbox(W, -T - 0.02, a - 0.04, WZ[0] - 0.06, T + 0.08, b - a + 0.08, 0.07, frame, 0.025); pbox(W, -T - 0.02, a - 0.04, WZ[1] - 0.01, T + 0.04, b - a + 0.08, 0.07, frame, 0.025); }
-    const beamMat = keep(new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: day.beam[0], color: day.beam[1] })); beamMat.userData.beam = 1;
+    const skyBasic = keep(new THREE.MeshBasicMaterial({ map: skyTex, toneMapped: false })), frame = M('frame', { roughness: 0.4, clearcoat: 0.4 }); skyMats.push(skyBasic);
+    for (const [a, b] of winsY) { wxOver(W, mesh(W, keep(new THREE.PlaneGeometry(b - a, WZ[1] - WZ[0])), skyBasic, (a + b) / 2, (WZ[0] + WZ[1]) / 2, -T + 0.02, { cast: false, recv: false }), 0, 0.03); pbox(W, a - 0.04, -T - 0.02, WZ[0] - 0.06, b - a + 0.08, T + 0.08, 0.07, frame, 0.025); pbox(W, a - 0.04, -T - 0.02, WZ[1] - 0.01, b - a + 0.08, T + 0.04, 0.07, frame, 0.025); }
+    for (const [a, b] of winsX) { const pl = mesh(W, keep(new THREE.PlaneGeometry(b - a, WZ[1] - WZ[0])), skyBasic, -T + 0.02, (WZ[0] + WZ[1]) / 2, (a + b) / 2, { cast: false, recv: false }); pl.rotation.y = Math.PI / 2; wxOver(W, pl, 0.03, 0); pbox(W, -T - 0.02, a - 0.04, WZ[0] - 0.06, T + 0.08, b - a + 0.08, 0.07, frame, 0.025); pbox(W, -T - 0.02, a - 0.04, WZ[1] - 0.01, T + 0.04, b - a + 0.08, 0.07, frame, 0.025); }
+    const beamMat = keep(new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: day.beam[0] * wx.beam, color: day.beam[1] })); beamMat.userData.beam = 1;
     for (const [a, b] of winsY) { const g = keep(new THREE.BufferGeometry()); g.setAttribute('position', new THREE.Float32BufferAttribute([[a, 0], [b, 0], [b + 1.2, 2.6], [a + 1.2, 2.6]].flatMap(([x, y]) => [x, 0.045, y]), 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 0], 2)); g.setIndex([0, 2, 1, 0, 3, 2]); const m = new THREE.Mesh(g, beamMat); m.userData.noAO = 1; W.add(m); }
     // glass between the rooms and on their fronts, a door gap in each front
     const glassMat = keep(new THREE.MeshPhysicalMaterial({ color: C('glass'), roughness: 0.08, transparent: true, opacity: 0.16, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide })); themed.push([glassMat, 'glass']);
@@ -925,6 +995,7 @@ export function createOffice(api) {
     }
     // the lobby: the assistant's counter, plants, the way in
     const d = BL.rec;
+    clockOn(W, XE + 0.35, XE + 1.6, 1.75, 2.24);
     desk(W, d, -2, () => agents.get(SEC)); chair(W, d.seat[0], d.seat[1], [1, 0], PALETTE[5][0]);
     const counter = M('desk', { roughness: 0.45, clearcoat: 0.35 });
     pbox(W, d.top.x + d.top.w, d.top.y - 0.25, 0, 0.12, d.top.d + 0.5, 1.0, counter, 0.04); pbox(W, d.top.x - 0.1, d.top.y - 0.25, 0, d.top.w + 0.22, 0.12, 1.0, counter, 0.04); pbox(W, d.top.x - 0.1, d.top.y + d.top.d + 0.13, 0, d.top.w + 0.22, 0.12, 1.0, counter, 0.04);
@@ -1240,19 +1311,30 @@ export function createOffice(api) {
   function applyTheme() {
     day = dayAt(hourNow()); theme = day.n > 0.5 ? 'dark' : 'light';
     for (const [m, key] of themed) m.color.set(C(key));
-    hemi.intensity = day.hemi[0]; hemi.color.set(day.hemi[1]); hemi.groundColor.set(day.hemi[2]); sun.intensity = day.sun[0]; sun.color.set(day.sun[1]); scene.environmentIntensity = day.env;
+    hemi.intensity = day.hemi[0] * (0.8 + 0.2 * wx.sun); hemi.color.set(day.hemi[1]); hemi.groundColor.set(day.hemi[2]); sun.intensity = day.sun[0] * wx.sun; sun.color.set(wx.grey > 0.5 ? mixC(day.sun[1], '#dfe6f0', 0.5) : day.sun[1]); scene.environmentIntensity = day.env;
     sunAt();
-    scene.traverse((o) => { if (o.material?.userData?.beam) { o.material.opacity = day.beam[0]; o.material.color.set(day.beam[1]); } });
+    scene.traverse((o) => { if (o.material?.userData?.beam) { o.material.opacity = day.beam[0] * wx.beam; o.material.color.set(day.beam[1]); } });
+    wxMat.map = wx.snow ? snowTex : rainTex; wxMat.opacity = wx.snow ? 0.95 : Math.min(1, 0.55 + 0.3 * (wx.rain || 0)); wxMat.needsUpdate = true;
+    for (const m of wxPlanes) m.visible = !!(wx.rain || wx.snow);
+    for (const m of skyMats) m.color.setScalar(1);
     skyDraw(skyTex.image.getContext('2d'), 512, 256); skyTex.needsUpdate = true;
     bgDraw(bgTex.image.getContext('2d'), 512, 512); bgTex.needsUpdate = true;
   }
-  setInterval(() => { if (el.isConnected && !document.hidden) applyTheme(); }, 60000);
+  setInterval(() => { if (el.isConnected && !document.hidden) { if (Date.now() - wxAt > 10 * 60000) wxFetch(); else applyTheme(); } }, 60000);
 
   /* ── the frame: only while the office is on the page and shown ── */
   let last = performance.now(), running = false, lastPlates = 0;
   function frame(now) {
     if (!el.isConnected || document.hidden) { running = false; return; }
     const dt = Math.min(0.05, (now - last) / 1000), t = now / 1000; last = now;
+    const sec = Math.floor(Date.now() / 1000); if (sec !== clockSec) { clockSec = sec; drawClock(new Date()); }
+    if (wx.rain) { rainTex.offset.y += dt * 2.4 * wx.rain; rainTex.offset.x += dt * 0.5; }
+    if (wx.snow) { snowTex.offset.y += dt * 0.22; snowTex.offset.x = Math.sin(t * 0.7) * 0.06; }
+    if (wx.flash) {
+      if (now > flashNext) { flashAt = now; flashNext = now + 6000 + Math.random() * 12000; }
+      const f = now - flashAt < 90 || (now - flashAt > 170 && now - flashAt < 240) ? 2.6 : 1;
+      for (const m of skyMats) m.color.setScalar(f);
+    }
     // where each one wants to be; a move waits a moment, so a quick look at a file does not send it across the room
     const taken = claims();
     for (const a of agents.values()) {
@@ -1285,7 +1367,7 @@ export function createOffice(api) {
   function wake() { if (running) return; running = true; last = performance.now(); requestAnimationFrame((now) => { if (el.isConnected) resize(); frame(now); }); }
   document.addEventListener('visibilitychange', wake);
 
-  applyTheme();
+  applyTheme(); wxFetch();
   return {
     el,
     slot,   // the page's own buttons, at the top right of the room

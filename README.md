@@ -102,6 +102,11 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   columns), a double click there sets it back. The choice is kept in the browser. Its light follows the
   local time, not the page's theme: dawn, morning, noon, afternoon, a golden hour and the sunset, evening and night, each
   easing into the next — the sky in the windows, the sun's way across it and the beams it casts, the city lit at night.
+  A digital clock on the wall (the lobby's, in the building) shows the time, its colon blinking each second, and the
+  temperature outside. The weather is real too: clouds, an overcast sky, fog, rain and snow falling past the windows,
+  lightning in a storm, and the sunlight in the room as strong as they leave it. It comes from Open-Meteo (free, no key)
+  for the city in the PC's time zone name (Asia/Seoul → Seoul; nothing about where you are is sent), asked at most every
+  20 minutes and kept in memory only; offline, the sky stays clear.
   On the all-agents tab the office is a building: each project a glass-fronted room off one corridor (a room grows with
   its crew; past four projects a second row faces the first), its robots at their desks, a teammate's desk with a message,
   a bean bag when idle for long or done; a room's name over it shows how its crew is doing, and a click on the room goes

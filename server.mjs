@@ -1977,6 +1977,37 @@ function localHost(host) {
   const h = String(host || '').toLowerCase().replace(/:\d+$/, '')
   return LOCAL_HOSTS.has(h)
 }
+// the weather outside, for the office's windows: the city in this PC's time zone name (Asia/Seoul → Seoul; nothing
+// about where the person is), its weather now from Open-Meteo (free, no key); asked at most every 20 minutes, kept in
+// memory only
+let weatherNow = null, weatherAt = 0, weatherPlace = null, weatherAsking = null
+function weather() {
+  if (weatherNow && Date.now() - weatherAt < 20 * 60000) return weatherNow
+  return weatherAsking ||= (async () => {
+    try {
+      if (!weatherPlace) {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+        const city = tz.includes('/') ? tz.split('/').pop().replace(/_/g, ' ') : ''
+        if (!city) throw new Error('no city')
+        const g = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&name=' + encodeURIComponent(city), { signal: AbortSignal.timeout(8000) })).json()
+        const r = g.results?.[0]
+        if (!r) throw new Error('no place')
+        weatherPlace = { lat: +r.latitude.toFixed(2), lon: +r.longitude.toFixed(2), city: r.name }
+      }
+      const q = `https://api.open-meteo.com/v1/forecast?latitude=${weatherPlace.lat}&longitude=${weatherPlace.lon}&current=temperature_2m,weather_code,is_day,cloud_cover,wind_speed_10m`
+      const c = (await (await fetch(q, { signal: AbortSignal.timeout(8000) })).json()).current
+      weatherNow = { ok: true, city: weatherPlace.city, code: c.weather_code, temp: c.temperature_2m, cloud: c.cloud_cover, wind: c.wind_speed_10m, day: !!c.is_day }
+      weatherAt = Date.now()
+    } catch (e) {
+      // offline, or no such city: clear skies, asked again in five minutes
+      weatherNow = { ok: false }
+      weatherAt = Date.now() - 15 * 60000
+    }
+    weatherAsking = null
+    return weatherNow
+  })()
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost')
   try {
@@ -2124,6 +2155,7 @@ const server = http.createServer(async (req, res) => {
       req.on('close', () => { clearInterval(ping); streams.delete(res) })
       return
     }
+    if (url.pathname === '/api/weather') { json(200, await weather()); return }
     if (url.pathname === '/api/state') {
       if (url.searchParams.get('visible') === '1') lastViewAt = Date.now()
       const asked = url.searchParams.get('lang')
