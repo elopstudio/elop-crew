@@ -70,9 +70,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
 - **Long conversations.** A card's 🧠 (the conversation's size) turns amber from 300k tokens: every step an agent takes reads all of it again, which is most of what agents cost. The agent's dialog says so above the message box; for a monitor agent with **Run /compact**, which shortens it so the next turns cost less, and for a VS Code session it says to type /compact there.
 - **How full the context is.** Beside the send button, as in VS Code, a ring and a percentage show how much of its model's context the conversation fills (1M tokens, or 200k for Haiku; for a monitor agent, what claude itself reports), with the tokens on hover. It turns amber from 300k and red past 80%, and follows the conversation as it grows — and as it shrinks: once compacted (here or in VS Code) it shows the shortened size at once, and the notice above the message box goes. A click opens a small card with the numbers and, for a monitor agent, **Run /compact** to shorten the conversation (a VS Code session is told to type /compact there).
 - **The monitor's own messages are notes, not bubbles.** What the monitor tells an agent by itself — carry on after a restart, after logging in again or once the usage limit has reset, or the assistant's nudge — shows in the conversation as a faint one-line note ("↻ The monitor restarted and told it to carry on"), not as a message from you. What the assistant tells an agent shows the same way, in full, framed as the assistant's ("🤖 The assistant told it: …").
-- **The header.** The counts sit in one capsule (on a narrower window only their numbers and symbols, the names on
+- **The header.** One line: the logo and the wordmark, then the counts in one capsule (on a narrower window only their numbers and symbols, the names on
   hover); beside them the tools are icons with a number — **Processes**, **Browsers**, **Artifacts** and, once allowed,
-  notifications — then **☰**.
+  notifications — then **☰**. "Live · updated" shows under the wordmark only while the connection is lost.
 - **Counts in the header.** Clicking working, waiting or resting shows only the agents in that state, on every tab
   (projects with none of them are left out); clicking it again, the ✕ chip by the counts above the agents, or sessions, shows them all.
   Pointing at (or focusing) a count — projects, sessions, working, waiting, resting —
@@ -96,7 +96,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   Allow / Deny for a request, **Conversation** and **Message** — then what just happened (moves, requests, state changes,
   subagents) and what each kind of work looks like. Drag to move, the wheel or − + to zoom (the percentage fits it again); a
   click on a robot, its label or name plate picks it, a double click opens it; the browser and artifacts on the walls open
-  theirs. The board and the team chat open over the page from **📋 Board** and **💬 Team chat** at the room's top right (the
+  theirs. The office has no project row: its name is at the room's top left, and **📋 Board**, **💬 Team chat**,
+  **+ New agent** and **Org chart | Office** at its top right; the board and the team chat open over the page from there (the
   board on the wall opens it too), with a tab to switch and Esc to close. The choice is kept in the browser; it follows the
   light or dark theme, and stops drawing while it is not on screen.
 - **Browsers.** **Browsers** (the globe) in the header — in the desktop app the globe in the title strip, beside the terminal — (or

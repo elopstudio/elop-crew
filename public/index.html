@@ -67,17 +67,20 @@ body{background:radial-gradient(1400px 520px at 50% -140px,var(--bg-grad),transp
 .mono{font-family:var(--mono)}
 
 /* Header */
-.top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-.brand{display:flex;align-items:center;gap:12px}
-.brand .logo{width:46px;height:46px;flex:none}
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand>div{display:flex;align-items:center;gap:10px}
+.brand .logo{width:32px;height:32px;flex:none}
 /* the wordmark: Crew, heavy, in a violet gradient */
 .top h1.wordmark{display:flex;align-items:baseline;gap:7px;line-height:1}
-.wordmark .w-crew{font-size:27px;font-weight:900;letter-spacing:-.035em;background:linear-gradient(100deg,#6d7cff 10%,#a46bff 90%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.wordmark .w-crew{font-size:22px;font-weight:900;letter-spacing:-.035em;background:linear-gradient(100deg,#6d7cff 10%,#a46bff 90%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .top h1{margin:0;font-size:22px;font-weight:900;letter-spacing:-.02em}
 .brand .name{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .tagline{color:var(--muted);font-size:13px;font-weight:600;white-space:nowrap}
 .for-claude{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;color:var(--claude);background:var(--claude-soft);border:1px solid color-mix(in srgb,var(--claude) 35%,transparent);white-space:nowrap}
 .sub{color:var(--muted);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.top .sub:has(.live.on){display:none}
+.top .sub #asof{display:none}
 .live{display:inline-flex;align-items:center;gap:6px;font-weight:500}
 .live i{width:8px;height:8px;border-radius:50%;background:var(--faint);position:relative}
 .live.on i{background:var(--run)}
@@ -166,13 +169,18 @@ body{background:radial-gradient(1400px 520px at 50% -140px,var(--bg-grad),transp
 .viewsw button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:0 1px 3px var(--shadow)}
 .viewsw button:hover{color:var(--text)}
 .officewrap{min-width:0;position:relative}
-.pbody.office-on{grid-template-columns:minmax(0,1fr)}
+.pbody.office-on{grid-template-columns:minmax(0,1fr);padding:0}
+.pbody.office-on .office{border:0;border-radius:0;height:max(480px,calc(100vh - 122px))}
+.officewrap .otools .viewsw{background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(8px);box-shadow:0 2px 8px var(--shadow)}
+.officewrap .otools .onew{border-style:dashed}
+.officewrap .otools .viewsw button{border:0;box-shadow:none;background:none;backdrop-filter:none;padding:3px 11px;color:var(--muted)}
+.officewrap .otools .viewsw button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:0 1px 3px var(--shadow)}
 .officewrap .otools{display:flex;gap:6px}
 .officewrap .otools button{appearance:none;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(8px);color:var(--text);font:700 12px var(--sans);padding:4px 11px;border-radius:999px;cursor:pointer;box-shadow:0 2px 8px var(--shadow)}
 .officewrap .otools button:hover{border-color:var(--accent);color:var(--accent)}
 .officewrap .otools button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 .officewrap .otools .n{font-family:var(--mono);font-weight:500;opacity:.75;margin-left:5px}
-.odrawer{position:fixed;top:190px;right:340px;bottom:16px;width:min(620px,calc(100vw - 380px));z-index:40;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px var(--bot-shadow);overflow:hidden}
+.odrawer{position:fixed;top:112px;right:340px;bottom:16px;width:min(620px,calc(100vw - 380px));z-index:40;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px var(--bot-shadow);overflow:hidden}
 .odrawer[hidden]{display:none}
 .odrawer .odhead{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line)}
 .odrawer .odhead .tab{appearance:none;border:0;background:none;color:var(--muted);font:700 13px var(--sans);padding:5px 10px;border-radius:8px;cursor:pointer}
@@ -4949,6 +4957,10 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       b.addEventListener('click', () => officeShow(k));
       bar.append(b);
     }
+    const nb = el('button', 'onew', '+ ' + t('newAgent'));
+    nb.type = 'button';
+    nb.addEventListener('click', () => showNewAgent(p));
+    bar.append(nb, viewSwitch());
     return bar;
   }
   function officeDrawerFill(p) {
@@ -4994,6 +5006,15 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   function projectNode(p) {
     const sec = el('section', 'project');
     sec.setAttribute('role', 'tabpanel');
+    if (view === 'office') {
+      officeFor(p);
+      officeTools(p);
+      officeDrawerFill(p);
+      const body = el('div', 'pbody office-on');
+      body.append(officeWrap);
+      sec.append(body);
+      return sec;
+    }
     const head = el('div', 'phead');
     const folder = el('span', 'folder', projName(p));
     if (p.name) folder.title = p.key;   // the folder it is
@@ -5028,15 +5049,6 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     }
 
     const body = el('div', 'pbody');
-    if (view === 'office') {
-      officeFor(p);
-      officeTools(p);
-      officeDrawerFill(p);
-      body.classList.add('office-on');
-      body.append(officeWrap);
-      sec.append(body);
-      return sec;
-    }
     const org = el('div', 'org');
     const leader = p.sessions.find((s) => s.isLeader && shownNow(s));
     const others = p.sessions.filter((s) => !s.isLeader && shownNow(s));
