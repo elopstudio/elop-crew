@@ -74,6 +74,11 @@ const CSS = `
 .office .zone{pointer-events:none!important;font:800 11px inherit;font-weight:800;font-size:11px;letter-spacing:.08em;color:color-mix(in srgb,var(--muted) 80%,transparent);white-space:nowrap}
 .office .wallbtn{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 88%,transparent);color:var(--text);backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(59,51,96,.1);white-space:nowrap;cursor:pointer}
 .office .wallbtn:hover{border-color:var(--accent);color:var(--accent)}
+.office .wallbtn.roomsign{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 9px 4px 10px;border-radius:7px;border:0;background:#3a63d8;color:#fff;box-shadow:0 3px 12px rgba(40,60,150,.3)}
+.office .wallbtn.roomsign .ask{font-size:11px}
+.office .wallbtn.roomsign .go{font-weight:800;opacity:.75;transition:transform .15s}
+.office .wallbtn.roomsign:hover{color:#fff;filter:brightness(1.12)}
+.office .wallbtn.roomsign:hover .go{transform:translateX(2px);opacity:1}
 @media (prefers-reduced-motion:reduce){.office *{animation:none!important}}
 `;
 
@@ -781,13 +786,13 @@ export function createOffice(api) {
       if (drag.moved) { pan.x = drag.px - dx / VW * fit.fw / zoom; pan.y = drag.py + dy / VH * fit.fh / zoom; applyCamera(); }
       return;
     }
-    hovered = pick(e); const room = hovered ? null : pickRoom(e), out = !hovered && pickExit(e), lib = !hovered && !out && pickLib(e); canvas.classList.toggle('hot', !!hovered || !!room || out || lib);
+    hovered = pick(e); const out = !hovered && pickExit(e), lib = !hovered && !out && pickLib(e); canvas.classList.toggle('hot', !!hovered || out || lib);
     if (out !== hoverExit) { hoverExit = out; for (const m of exitMats) m.emissive.set(out ? '#3a63d8' : '#000000').multiplyScalar(out ? 0.25 : 0); }
-    if (room !== hoverRoom) { hoverRoom = room; for (const [k, m] of BL.rugs) m.emissive.set(k === room ? '#3a63d8' : '#000000').multiplyScalar(k === room ? 0.14 : 0); }
   });
-  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a?.sec) api.openAssistant?.(); else if (a) talk(a); else if (pickExit(e)) api.leave?.(); else if (pickLib(e)) api.files?.(); else { const k = pickRoom(e); if (k) api.enter?.(k); } } });
+  function lightRoom(room) { if (room === hoverRoom) return; hoverRoom = room; for (const [k, m] of BL.rugs) m.emissive.set(k === room ? '#3a63d8' : '#000000').multiplyScalar(k === room ? 0.14 : 0); }
+  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a?.sec) api.openAssistant?.(); else if (a) talk(a); else if (pickExit(e)) api.leave?.(); else if (pickLib(e)) api.files?.(); } });
   canvas.addEventListener('pointerleave', () => { hovered = null; });
-  // a room of the building, under the pointer: its project
+  // the room of the building whose sign is under the pointer
   let hoverRoom = null, exitHits = [], exitMats = [], hoverExit = false, libHits = [];
   function pickLib(e) {
     if (MODE !== 'room' || !libHits.length) return false;
@@ -798,11 +803,6 @@ export function createOffice(api) {
     if (MODE !== 'room' || !exitHits.length) return false;
     const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
     return ray.intersectObjects(exitHits, false).length > 0;
-  }
-  function pickRoom(e) {
-    if (MODE !== 'bldg') return null;
-    const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
-    return ray.intersectObjects(BL.floors, false)[0]?.object.userData.room || null;
   }
   stage.addEventListener('wheel', (e) => { e.preventDefault(); const r = canvas.getBoundingClientRect(); setZoom(zoom * Math.exp(-e.deltaY * 0.0012), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
 
@@ -978,7 +978,7 @@ export function createOffice(api) {
   /* ── the building: every project a glass-fronted room off one corridor, the assistant at the lobby's desk; a room
      grows with its crew, a second row of rooms faces the first across the corridor once there are more than four ── */
   const DX = 2.4, DZ = 1.9;
-  let BL = { rooms: [], byKey: new Map(), rugs: new Map(), floors: [], CY: 0, sig: '' };
+  let BL = { rooms: [], byKey: new Map(), rugs: new Map(), CY: 0, sig: '' };
   function bplan(projects) {
     const sized = projects.map((p, i) => { const n = Math.max(1, (p.sessions || []).length + leavers.filter((a) => a.room === p.key).length), cols = n <= 4 ? 2 : n <= 9 ? 3 : 4; return { p, key: p.key, i, cols, rows: Math.ceil(n / cols), w: cols * DX + 0.45 }; });
     const nA = sized.length > 4 ? Math.ceil(sized.length / 2) : sized.length, A = sized.slice(0, nA), Bq = sized.slice(nA);
@@ -991,7 +991,7 @@ export function createOffice(api) {
     for (const r of rooms) { r.doorX = r.x0 + 0.85; r.beans = [[r.x1 - 0.8, r.beansZ], [r.x1 - 1.85, r.beansZ]]; }
     const XE = Math.max(xa, x, 4), LW = 4.9, CY = DA + CW / 2;
     const recX = XE + 1.7;
-    return { rooms, byKey: new Map(rooms.map((r) => [r.key, r])), rugs: new Map(), floors: [], CY, DA, zB, XE, W: XE + LW, D: Math.max(zB + DB, DA + CW + 1.6),
+    return { rooms, byKey: new Map(rooms.map((r) => [r.key, r])), rugs: new Map(), CY, DA, zB, XE, W: XE + LW, D: Math.max(zB + DB, DA + CW + 1.6),
       rec: { X: recX, Y: CY - 0.4, seat: [recX + 0.25, CY], top: { x: recX + 0.6, y: CY - 0.55, w: 0.9, d: 1.1 }, mon: [recX + 1.02, CY] }, lobbyDoor: [XE + 0.6, CY],
       sig: rooms.map((r) => r.key + ':' + r.cols + 'x' + r.rows).join('|') };
   }
@@ -1032,7 +1032,7 @@ export function createOffice(api) {
       const tx = keep(tex(Math.min(2048, Math.round(w * 90)), Math.min(2048, Math.round(d * 90)), (g, cw, ch) => { g.fillStyle = '#ececec'; g.fillRect(0, 0, cw, ch); g.strokeStyle = '#fff'; g.lineWidth = 3; g.setLineDash([2, 9]); g.lineCap = 'round'; rr(g, 16, 16, cw - 32, ch - 32, 14); g.stroke(); }));
       const m = keep(new THREE.MeshPhysicalMaterial({ map: tx, roughness: 0.95, sheen: 0.6, sheenRoughness: 0.8 })); m.color.set(C(key)); themed.push([m, key]);
       const r = pbox(W, x, y, 0, w, d, 0.035, m, 0.017, { cast: false });
-      if (room) { r.userData.room = room; BL.rugs.set(room, m); BL.floors.push(r); }
+      if (room) BL.rugs.set(room, m);
     };
     // the corridor and the lobby
     rug(0.15, DA + 0.2, XE - 0.3, CY - DA - 0.2 + 0.65, 'rugMid');
@@ -1071,9 +1071,10 @@ export function createOffice(api) {
       }
       r.beans.forEach(([x, y], j) => { const c = ['#ffd7a8', '#cfe0ff', '#cdeedd'][(r.i + j) % 3]; const m = mesh(W, sphG(0.42), M(c, { roughness: 0.95, clearcoat: 0, sheen: 0.7, sheenRoughness: 0.7, sheenColor: new THREE.Color('#ffffff') }), x, 0.26, y); m.scale.set(1, 0.6, 1); const tp = mesh(W, sphG(0.28), m.material, x - 0.06, 0.48, y - 0.06); tp.scale.set(1, 0.55, 1); });
       const py = r.front === 's' ? r.z0 + 0.4 : r.z1 - 0.4; pcyl(W, r.x1 - 0.4, py, 0, 0.17, 0.32, M('pot', { roughness: 0.7 })); mesh(W, sphG(0.24), M('leaf', { roughness: 0.7 }), r.x1 - 0.4, 0.58, py).scale.set(1, 1.15, 1);
-      // its name over the room: a click goes in
+      // its sign over the room: the way in (placed before the robots' labels)
       const lz = r.front === 's' ? 0.05 : r.z0;
-      r.chip = staticChip('wallbtn', [(r.x0 + r.x1) / 2, r.front === 's' ? WALL_H - 0.2 : GH + 0.12, lz], 'bottom', 4, () => api.enter?.(r.key), '');
+      r.chip = staticChip('wallbtn roomsign', [(r.x0 + r.x1) / 2, r.front === 's' ? WALL_H - 0.2 : GH + 0.12, lz], 'bottom', 1, () => api.enter?.(r.key), '');
+      r.chip.el.addEventListener('pointerenter', () => lightRoom(r.key)); r.chip.el.addEventListener('pointerleave', () => lightRoom(null));
     }
     // the lobby: the assistant's counter, plants, the way in
     const d = BL.rec;
@@ -1121,11 +1122,12 @@ export function createOffice(api) {
     secSync();
     if (rebuild) { for (const a of agents.values()) { a.path = []; a.arrive = null; put(a, home(a)); a.want = a.place; } for (const a of agents.values()) settle(a); }
     for (const a of newcomers) enter(a);
-    // each room's name with how its crew is doing
+    // each room's sign: its name, ❗ when one there asks; how its crew is doing in the tooltip
     for (const r of BL.rooms) {
-      const c = r.p.counts || {}, bits = [c.working ? '▶' + c.working : '', c.waiting ? '○' + c.waiting : '', approvals.size && (r.p.sessions || []).some((x) => approvals.has(x.name)) ? '❗' : ''].filter(Boolean).join(' ');
-      const text = api.projName(r.p) + (bits ? '  ' + bits : '');
-      if (r.chip && r.chip.el.textContent !== text) { r.chip.el.textContent = text; r.chip.el.title = t('officeEnter'); }
+      const c = r.p.counts || {}, ask = (r.p.sessions || []).some((x) => approvals.has(x.name));
+      const html = `<b>${esc(api.projName(r.p))}</b>${ask ? '<span class="ask">❗</span>' : ''}<span class="go">›</span>`;
+      const tip = t('officeEnter') + ' — ' + [c.working && '▶ ' + c.working, c.waiting && '○ ' + c.waiting, c.resting && '– ' + c.resting].filter(Boolean).join('  ');
+      if (r.chip && r.chip.html !== html + tip) { r.chip.html = html + tip; r.chip.el.innerHTML = html; r.chip.el.title = tip; }
     }
     dirtyPlates = true;
   }

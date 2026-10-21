@@ -118,8 +118,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   most every 20 minutes (the place once an hour), kept in memory only; offline, the sky stays clear.
   On the all-agents tab the office is a building: each project a glass-fronted room off one corridor (a room grows with
   its crew; past four projects a second row faces the first), its robots at their desks, a teammate's desk with a message,
-  a bean bag when idle for long or done; a room's name over it shows how its crew is doing, and a click on the room goes
-  into that project's office (the door with the green exit sign by its reception desk goes back out). The assistant sits at the reception desk in the lobby (in a project's office, at a small
+  a bean bag when idle for long or done; a blue sign over each room names it (❗ when one there asks; how its crew is doing in its tooltip),
+  and a click on the sign — not on the room's floor, which was clicked by mistake — goes into that project's office (the door with the green exit sign by its reception desk goes back out). The assistant sits at the reception desk in the lobby (in a project's office, at a small
   desk by the way in): when it works on an agent — a message, a look at its conversation, a nudge, an answer to its
   request — it walks to that agent's desk and back; a click on it opens the assistant's chat. The chips of docked
   windows float over the room's corner, so the office still reaches the window's bottom.
