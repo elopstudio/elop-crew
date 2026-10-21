@@ -27,8 +27,10 @@ app.whenReady().then(async () => {
   const w = new BrowserWindow({ show: false, width: W, height: H, useContentSize: true, webPreferences: { offscreen: true, backgroundThrottling: false } });
   w.setContentSize(W, H);   // taller than the screen for the short: only possible after the window exists
   w.webContents.setFrameRate(FPS);
-  let latest = null;
-  w.webContents.on('paint', (_e, _dirty, image) => { latest = image; });
+  // a page that stops painting for a while (it happens now and then) shows as a freeze in the video: said at the end, to record again
+  let latest = null, lastPaint = 0, rec = 0;
+  const stalls = [];
+  w.webContents.on('paint', (_e, _dirty, image) => { const n = Date.now(); if (rec && n - lastPaint > 400) stalls.push(((lastPaint - rec) / 1000).toFixed(1) + 's +' + (n - lastPaint) + 'ms'); lastPaint = n; latest = image; });
   w.webContents.on('console-message', (e) => { if (e.level === 'error' || String(e.message).startsWith('[stage]')) console.log('page:', e.message); });
   await w.loadURL(`http://127.0.0.1:${PORT}/office.html${SHORT ? '?short=1' : ''}`);
   w.webContents.setZoomFactor(SCALE);
@@ -46,7 +48,7 @@ app.whenReady().then(async () => {
   }
   const bitmap = () => { let img = latest; const s = img.getSize(); if (s.width !== W || s.height !== H) img = img.resize({ width: W, height: H, quality: 'best' }); return img.toBitmap(); };
   w.webContents.executeJavaScript(`stageStart(${FROM})`);
-  const t0 = Date.now();
+  const t0 = Date.now(); rec = lastPaint = t0;
   let written = 0, still = 0;
   while ((Date.now() - t0) / 1000 < LENGTH) {
     const t = (Date.now() - t0) / 1000;
@@ -60,5 +62,6 @@ app.whenReady().then(async () => {
   if (ff) ff.stdin.end();
   const code = await done;
   console.log('frames', written, 'ffmpeg exit', code, code ? ffErr : '');
+  if (stalls.length) console.log('the page stopped painting (a freeze in the video, record again):', stalls.join(', '));
   app.quit();
 });
