@@ -59,7 +59,6 @@ const CSS = `
 .office .onogl{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;padding:20px;text-align:center}
 .office .plate{display:flex;align-items:center;gap:5px;background:color-mix(in srgb,var(--surface) 84%,transparent);backdrop-filter:blur(8px);border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:999px;padding:1px 9px;font:700 10.5px var(--mono, ui-monospace,monospace);white-space:nowrap;box-shadow:0 4px 14px rgba(59,51,96,.12);cursor:pointer;color:var(--text)}
 .office .plate i{width:7px;height:7px;border-radius:50%}
-.office .plate.empty{font-family:inherit;font-weight:600;color:var(--faint);border-style:dashed;cursor:default}
 .office .plate.new{color:var(--accent);border:1.5px dashed var(--accent);background:var(--accent-soft, rgba(58,99,216,.1))}
 .office .plate .away{font-weight:500;color:var(--faint)}
 .office .act{background:color-mix(in srgb,var(--surface) 90%,transparent);backdrop-filter:blur(8px);border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:12px;padding:3px 9px;font-size:11px;white-space:nowrap;box-shadow:0 4px 14px rgba(59,51,96,.13);max-width:260px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--text)}
@@ -1332,8 +1331,7 @@ export function createOffice(api) {
         const k = (a.place || '').split(':')[0], away = a.path.length ? ' · ' + t('officeWalking') : (k !== 'desk' && k !== 'lead' && where[k]) ? ' · ' + where[k] : '';
         html = `<i style="background:${dot(a.s.state)}"></i>${esc(api.name(a.s))}<span class="away">${a.leader ? ' · ' + esc(t('officeLeadShort')) : ''}${esc(away)}</span>`;
       } else if (i === newSeat) { cls = 'plate new'; html = '+ ' + esc(t('officeNewSeat')); }
-      else if (i === 'lead') { cls = 'plate hide'; html = ''; }
-      else { cls = 'plate empty'; html = esc(t('officeEmpty')); }
+      else { cls = 'plate hide'; html = ''; }   // an empty desk says nothing: a label on each was only clutter
       if (p.html !== cls + html) { p.html = cls + html; p.el.className = cls; p.el.innerHTML = html; }
     }
   }
