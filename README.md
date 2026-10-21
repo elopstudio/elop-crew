@@ -97,7 +97,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   The panel shows the agent picked — what it is doing, where it is, uptime, today's tokens, how full its context is, with
   Allow / Deny for a request, and **Conversation** (with the message box ready) — then what just happened (moves, requests, state changes,
   subagents). Drag to move, the wheel or − + to zoom (the percentage fits it again); a
-  click on a robot, its label or name plate picks it and opens its conversation with the message box ready; the browser and artifacts on the walls open
+  click on a robot or its label (over its head; the desks carry no names, only the free one is marked **+ New seat**) picks it and opens its conversation with the message box ready; the browser and artifacts on the walls open
   theirs. The office has no project row: its name is at the room's top left, and **📋 Board**, **💬 Team chat**,
   **+ New agent** and **Org chart | Office** at its top right; the board and the team chat open over the page from there (the
   board on the wall opens it too), with a tab to switch and Esc to close; its left edge drags it wider (the board shows more

@@ -58,9 +58,7 @@ const CSS = `
 .office .ohint{position:absolute;right:10px;bottom:8px;z-index:3;font-size:11px;color:var(--faint);pointer-events:none}
 .office .onogl{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;padding:20px;text-align:center}
 .office .plate{display:flex;align-items:center;gap:5px;background:color-mix(in srgb,var(--surface) 84%,transparent);backdrop-filter:blur(8px);border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:999px;padding:1px 9px;font:700 10.5px var(--mono, ui-monospace,monospace);white-space:nowrap;box-shadow:0 4px 14px rgba(59,51,96,.12);cursor:pointer;color:var(--text)}
-.office .plate i{width:7px;height:7px;border-radius:50%}
 .office .plate.new{color:var(--accent);border:1.5px dashed var(--accent);background:var(--accent-soft, rgba(58,99,216,.1))}
-.office .plate .away{font-weight:500;color:var(--faint)}
 .office .act{background:color-mix(in srgb,var(--surface) 90%,transparent);backdrop-filter:blur(8px);border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:12px;padding:3px 9px;font-size:11px;white-space:nowrap;box-shadow:0 4px 14px rgba(59,51,96,.13);max-width:260px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--text)}
 .office .act b{font-weight:800;margin-right:5px}
 .office .act.dim{color:var(--faint)}
@@ -1319,19 +1317,13 @@ export function createOffice(api) {
     if (s.state === 'working') return ['act', `<b>${nm}</b>${esc(t('working'))}`];
     if (s.state === 'waiting' && m !== 'walking') return ['act dim', `<b>${nm}</b>💤 ${esc(t('waiting'))}`];
     if (m === 'walking') return ['act dim', `<b>${nm}</b>🚶`];
-    return ['act hide', ''];
+    return ['act dim', `<b>${nm}</b>`];   // resting: its name, now the desks carry none
   }
+  // the desks carry no names (the robots' own labels say who and what); only the free one, + New seat, is marked
   function plates() {
-    const where = { lib: t('officeLib'), web: t('officeBrowser'), pantry: t('officePantry'), sofa: t('officeLounge'), bean: t('officeLounge'), visitlead: t('officeLead'), visit: t('officeAwayVisit') };
-    const dot = (st) => ({ working: 'var(--run)', waiting: 'var(--wait)' })[st] || 'var(--faint)';
     for (const [i, p] of plateOf) {
-      const a = [...agents.values()].find((x) => (i === 'lead' ? x.leader : !x.leader && x.desk === i));
-      let cls = 'plate', html;
-      if (a) {
-        const k = (a.place || '').split(':')[0], away = a.path.length ? ' · ' + t('officeWalking') : (k !== 'desk' && k !== 'lead' && where[k]) ? ' · ' + where[k] : '';
-        html = `<i style="background:${dot(a.s.state)}"></i>${esc(api.name(a.s))}<span class="away">${a.leader ? ' · ' + esc(t('officeLeadShort')) : ''}${esc(away)}</span>`;
-      } else if (i === newSeat) { cls = 'plate new'; html = '+ ' + esc(t('officeNewSeat')); }
-      else { cls = 'plate hide'; html = ''; }   // an empty desk says nothing: a label on each was only clutter
+      const free = i === newSeat && ![...agents.values()].some((x) => !x.leader && x.desk === i);
+      const cls = free ? 'plate new' : 'plate hide', html = free ? '+ ' + esc(t('officeNewSeat')) : '';
       if (p.html !== cls + html) { p.html = cls + html; p.el.className = cls; p.el.innerHTML = html; }
     }
   }
