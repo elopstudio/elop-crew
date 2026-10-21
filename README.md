@@ -92,7 +92,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   there, a question or a plan opens its dialog. A waiting agent dozes at its desk, after a minute goes to the pantry and
   after five to the lounge; a resting one (its session over) sleeps on the sofa, greyed. Running subagents sit small beside
   the desk. One whose session is gone from the list packs a box where it is and carries it out of the door (in the building,
-  down the corridor and out through the lobby) before it disappears. Each place is one robot's at a time, and an office opened afresh shows each where it already is. The rows of desks grow with the crew, always with one **+ New seat** free (a click starts a new agent).
+  down the corridor and out through the lobby) before it disappears; a new one comes in at the door with its box,
+  walks to where it is to be and unpacks there. Each place is one robot's at a time, and an office opened afresh shows each where it already is. The rows of desks grow with the crew, always with one **+ New seat** free (a click starts a new agent).
   The panel shows the agent picked — what it is doing, where it is, uptime, today's tokens, how full its context is, with
   Allow / Deny for a request, and **Conversation** (with the message box ready) — then what just happened (moves, requests, state changes,
   subagents). Drag to move, the wheel or − + to zoom (the percentage fits it again); a
@@ -213,7 +214,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   asks for it and is not kept. It is shown on this PC only: an image cannot be masked, so the phone app's relay never
   carries it.
 - **Attachments up close.** A click on an attached file — in the box before sending, or in the conversation — opens a
-  preview: images and text files show in place, a PDF in the viewer, anything else can be downloaded. Sent files are
+  preview: images and text files show in place, a PDF in the viewer, anything else can be downloaded; a double click on
+  its title or on the picture fills the window, another puts it back. Sent files are
   read back through the page's token, only from the monitor's own uploads folder, and are kept there for a day.
 - **Run a command.** A message that starts with `!` is run as a command, like `!` in Claude Code — for what an agent
   cannot do itself (a permission check blocks it, or a VS Code session whose mode the page cannot change). It runs on

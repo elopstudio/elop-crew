@@ -839,15 +839,30 @@ export function createOffice(api) {
     a.path = (path || []).filter((p, i, arr) => (i === 0 ? Math.hypot(p[0] - a.pos[0], p[1] - a.pos[1]) > 0.01 : Math.hypot(p[0] - arr[i - 1][0], p[1] - arr[i - 1][1]) > 0.01));
     a.arrive = null; a.liftTo = 0; a.leaving = { t0: performance.now(), door: !!path };
     for (const m of a.minis) m.r.dispose(); a.minis = [];
-    // a cardboard box held in front, its desk plant peeking out
-    const box = new THREE.Group(); box.position.set(0, 0.15, 0.3); box.scale.setScalar(0.001); a.r.rig.add(box);
-    mesh(box, rbox(0.4, 0.24, 0.28, 0.02), M('#c9a06a', { roughness: 0.85, clearcoat: 0 }));
-    mesh(box, rbox(0.41, 0.012, 0.07, 0.004), M('#ead6a6', { roughness: 0.6, clearcoat: 0 }), 0, 0.122, 0, { cast: false });
-    mesh(box, sphG(0.07), M('leaf', { roughness: 0.7 }), 0.1, 0.15, -0.04);
-    a.leaving.box = box;
+    a.leaving.box = boxFor(a, 0.001);
     a.chip.className = 'act dim'; a.chip.innerHTML = `<b>${esc(api.name(a.s))}</b>📦 ${esc(t('officeLeaving'))}`;
     leavers.push(a);
   }
+  // a cardboard box held in front, its desk plant peeking out
+  function boxFor(a, size) {
+    const box = new THREE.Group(); box.position.set(0, 0.15, 0.3); box.scale.setScalar(size); a.r.rig.add(box);
+    mesh(box, rbox(0.4, 0.24, 0.28, 0.02), M('#c9a06a', { roughness: 0.85, clearcoat: 0 }));
+    mesh(box, rbox(0.41, 0.012, 0.07, 0.004), M('#ead6a6', { roughness: 0.6, clearcoat: 0 }), 0, 0.122, 0, { cast: false });
+    mesh(box, sphG(0.07), M('leaf', { roughness: 0.7 }), 0.1, 0.15, -0.04);
+    return box;
+  }
+  // one new on the page: in at the door with its box, to where it is to be, where it unpacks
+  function enter(a) {
+    let start = null;
+    if (MODE === 'bldg') start = { p: [BL.lobbyDoor[0], B.d + 0.8], via: [BL.lobbyDoor], face: [0, -1], room: 'lobby' };
+    else if (exitHits.length) { const z = S(7.875), c = COLS[COLS.length - 1]; start = { p: [GX + 0.8, z], via: [[c, z], [c, L.ROWS.at(-1)]], face: [-1, 0] }; }
+    if (!start) return;
+    const to = a.place;
+    a.pos = [...start.p]; a.spot = start; a.lift = a.liftTo = 0; a.vis = 0; a.ang = a.angTo = angOf(start.face);
+    a.entering = { box: boxFor(a, 1) };
+    go(a, to); a.want = to;
+  }
+  const pastDoor = (a) => Math.min(1, Math.max(0, MODE === 'bldg' ? (B.d + 0.3 - a.pos[1]) / 0.9 : (GX + 0.5 - a.pos[0]) / 0.9));
   function dropLeavers() { for (const a of leavers) dropAgent(a); leavers.length = 0; }
   function put(a, place) { const s = spotOf(a, place); a.pos = [...s.p]; a.spot = s; a.place = place; a.ang = a.angTo = angOf(s.face); a.lift = a.liftTo = s.lift; a.arrivedAt = performance.now(); }
   function go(a, place) {
@@ -925,7 +940,7 @@ export function createOffice(api) {
     return free('sofa', 2) || free('bean', 3) || home(a);
   }
   function modeAt(a) {
-    if (a.path.length) return 'walking';
+    if (a.path.length) return a.entering ? 'carry' : 'walking';
     const k = (a.place || '').split(':')[0], st = approvals.has(a.name) ? 'ask' : a.s.state;
     if (a.sec) return st === 'ask' ? 'ask' : k !== 'reception' ? 'visit' : st === 'working' ? 'typing' : st === 'resting' ? 'doze' : 'idle';
     if (k === 'desk' || k === 'lead' || k === 'bdesk') return st === 'ask' ? 'ask' : st === 'working' ? 'typing' : st === 'waiting' ? 'doze' : 'sleep';
@@ -1082,7 +1097,7 @@ export function createOffice(api) {
     const projects = data?.projects || [], all = projects.flatMap((p) => (p.sessions || []).map((s) => [p, s])), names = new Set(all.map(([, s]) => s.name));
     el.querySelector('.oname').innerHTML = `${esc(t('officeBuilding'))}<small>${esc(t('officeRooms', { n: projects.length }))}${esc(t('officeAgents', { n: all.length }))}</small>`;
     for (const [n, a] of agents) if (n !== SEC && !names.has(n)) { log(a, t('officeLogLeave')); agents.delete(n); seats.delete(n); leave(a); }
-    const plan = bplan(projects), rebuild = plan.sig !== BL.sig;
+    const plan = bplan(projects), rebuild = plan.sig !== BL.sig, newcomers = [];
     if (rebuild) { dropLeavers(); const rugs = BL.rugs; BL = plan; B.w = plan.W; B.d = plan.D; rugs.clear(); hoverRoom = null; }
     else for (const r of plan.rooms) { const o = BL.byKey.get(r.key); if (o) o.p = r.p; }
     // desks: each keeps the one it had in its room
@@ -1103,10 +1118,12 @@ export function createOffice(api) {
       a.talkTo = null;
       if (s.activity?.kind === 'talk') a.talkTo = (p.messages || []).find((m) => m.from === s.name && m.at >= (s.activityAt || 0) - 120000)?.to || null;
       if (born && !rebuild) settle(a);
+      if (born && !fresh) newcomers.push(a);
       track(a, s, fresh, born);
     }
     secSync();
     if (rebuild) { for (const a of agents.values()) { a.path = []; a.arrive = null; put(a, home(a)); a.want = a.place; } for (const a of agents.values()) settle(a); }
+    for (const a of newcomers) enter(a);
     // each room's name with how its crew is doing
     for (const r of BL.rooms) {
       const c = r.p.counts || {}, bits = [c.working ? '▶' + c.working : '', c.waiting ? '○' + c.waiting : '', approvals.size && (r.p.sessions || []).some((x) => approvals.has(x.name)) ? '❗' : ''].filter(Boolean).join(' ');
@@ -1187,6 +1204,7 @@ export function createOffice(api) {
     const rows = Math.max(2, Math.ceil((crew.length + 1) / PER_ROW), leavers.length ? L.rows : 0);   // not smaller while one walks out
     const rebuild = rows !== L.rows;
     if (rebuild) { layout(rows); dropLeavers(); }
+    const newcomers = [];
     const used = new Set(); for (const s of crew) { const d = seats.get(s.name); if (d != null && d < rows * PER_ROW && !used.has(d)) used.add(d); else seats.delete(s.name); }
     for (const s of crew) if (!seats.has(s.name)) { let d = 0; while (used.has(d)) d++; seats.set(s.name, d); used.add(d); }
     newSeat = 0; while (used.has(newSeat)) newSeat++;
@@ -1203,9 +1221,11 @@ export function createOffice(api) {
       a.talkTo = null;
       if (s.activity?.kind === 'talk') a.talkTo = (p.messages || []).find((m) => m.from === s.name && m.at >= (s.activityAt || 0) - 120000)?.to || null;
       if (born && !rebuild) settle(a);
+      if (born && !fresh) newcomers.push(a);
       track(a, s, fresh, born);
     }
     if (rebuild) { for (const a of agents.values()) { a.path = []; a.arrive = null; put(a, home(a)); a.want = a.place; } for (const a of agents.values()) settle(a); }
+    for (const a of newcomers) enter(a);
     secSync();
     dirtyPlates = true;
   }
@@ -1295,6 +1315,7 @@ export function createOffice(api) {
       const tool = !ask.questions && !ask.plan;
       return ['askb', `<div class="h"><span class="tag">${esc(kind)}</span>${nm}${ask.tool ? ' · ' + esc(ask.tool) : ''}</div>${what ? `<code>${esc(what)}</code>` : ''}${tool ? `<div class="b"><button type="button" class="yes" data-a="allow">${esc(t('allow'))}</button><button type="button" data-a="deny">${esc(t('deny'))}</button></div>` : `<div class="go">${esc(t('officeAnswer'))}</div>`}`];
     }
+    if (a.entering && m === 'carry') return ['act dim', `<b>${nm}</b>📦 ${esc(t('officeArriving'))}`];
     if (s.state === 'working' && s.activity) return ['act', `<b>${nm}</b>${ICON[s.activity.kind] || '•'} ${esc(api.actText(s.activity))}`];
     if (s.state === 'working') return ['act', `<b>${nm}</b>${esc(t('working'))}`];
     if (s.state === 'waiting' && m !== 'walking') return ['act dim', `<b>${nm}</b>💤 ${esc(t('waiting'))}`];
@@ -1448,10 +1469,14 @@ export function createOffice(api) {
       if (a.want !== a.place && !a.path.length && (urgent || (now - a.wantSince > 2500 && now - a.arrivedAt > 3500))) { if (taken.get(a.place) === a) taken.delete(a.place); go(a, a.want); }
       walk(a, dt);
       a.lift += (a.liftTo - a.lift) * Math.min(1, dt * 9);
-      a.vis += (1 - a.vis) * Math.min(1, dt * 6);
+      a.vis += ((a.entering && a.path.length ? pastDoor(a) : 1) - a.vis) * Math.min(1, dt * 6);
       const R = a.r.root; R.position.set(a.pos[0], a.lift, a.pos[1]); R.rotation.y = a.ang; R.scale.setScalar(a.size * Math.max(0.001, a.vis));
       const m = modeAt(a); a.mode = m;
       pose(a, m, t, dt); minis(a, t, dt);
+      if (a.entering && !a.path.length) {
+        const e = a.entering; e.at ??= now; const k = 1 - (now - e.at) / 700;
+        e.box.scale.setScalar(Math.max(0.001, k)); if (k <= 0) { e.box.removeFromParent(); a.entering = null; }
+      }
       const [cls, html] = chipFor(a, m);
       if (a.chipKey !== cls + html) { a.chipKey = cls + html; a.chip.className = cls; a.chip.innerHTML = html; }
     }
@@ -1460,8 +1485,7 @@ export function createOffice(api) {
       const a = leavers[i], age = now - a.leaving.t0, packing = age < 1500;
       if (!packing) walk(a, dt);
       a.lift += (a.liftTo - a.lift) * Math.min(1, dt * 9);
-      const past = MODE === 'bldg' ? (B.d + 0.3 - a.pos[1]) / 0.9 : (GX + 0.5 - a.pos[0]) / 0.9;
-      const to = !a.leaving.door ? (packing ? 1 : 0) : a.path.length ? Math.min(1, Math.max(0, past)) : 0;
+      const to = !a.leaving.door ? (packing ? 1 : 0) : a.path.length ? pastDoor(a) : 0;
       a.vis += (to - a.vis) * Math.min(1, dt * 6);
       a.leaving.box.scale.setScalar(Math.max(0.001, Math.min(1, (age - 300) / 500)));
       const R = a.r.root; R.position.set(a.pos[0], a.lift, a.pos[1]); R.rotation.y = a.ang; R.scale.setScalar(a.size * Math.max(0.001, a.vis));
