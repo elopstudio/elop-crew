@@ -506,6 +506,13 @@ export function createOffice(api) {
       books.forEach((b, i) => { o.position.set(b.x + b.w / 2, b.z + b.h / 2, b.y + b.d / 2); o.rotation.set(b.lean ? 0.18 : 0, 0, 0); o.scale.set(b.w, b.h, b.d); o.updateMatrix(); im.setMatrixAt(i, o.matrix); im.setColorAt(i, col.set(b.c)); });
       im.castShadow = im.receiveShadow = true; W.add(im); trash.push({ dispose: () => im.dispose() });
     }
+    // the bookcases as one thing to click: the project's folder, to look through
+    if (api.files) {
+      const y1 = LIB[0][1] - 0.6, y2 = LIB[LIB.length - 1][1] + 0.62;
+      const hit = mesh(W, keep(new THREE.BoxGeometry(0.6, 2.3, y2 - y1)), keep(new THREE.MeshBasicMaterial({ visible: false })), 0.3, 1.15, (y1 + y2) / 2, { cast: false, recv: false });
+      libHits = [hit];
+      staticChip('wallbtn', [0.05, 2.55, (y1 + y2) / 2], 'bottom', 4, () => api.files(), '📚 ' + t('officeLib')).el.title = t('officeLibTip');
+    } else libHits = [];
     // a reading table with a lamp
     pcyl(W, 2.05, 5.95, 0, 0.05, 0.55, M('deskLeg')); pcyl(W, 2.05, 5.95, 0.55, 0.36, 0.05, M('desk'));
     pcyl(W, 2.2, 5.85, 0.6, 0.025, 0.25, M('metal'));
@@ -777,14 +784,19 @@ export function createOffice(api) {
       if (drag.moved) { pan.x = drag.px - dx / VW * fit.fw / zoom; pan.y = drag.py + dy / VH * fit.fh / zoom; applyCamera(); }
       return;
     }
-    hovered = pick(e); const room = hovered ? null : pickRoom(e), out = !hovered && pickExit(e); canvas.classList.toggle('hot', !!hovered || !!room || out);
+    hovered = pick(e); const room = hovered ? null : pickRoom(e), out = !hovered && pickExit(e), lib = !hovered && !out && pickLib(e); canvas.classList.toggle('hot', !!hovered || !!room || out || lib);
     if (out !== hoverExit) { hoverExit = out; for (const m of exitMats) m.emissive.set(out ? '#3a63d8' : '#000000').multiplyScalar(out ? 0.25 : 0); }
     if (room !== hoverRoom) { hoverRoom = room; for (const [k, m] of BL.rugs) m.emissive.set(k === room ? '#3a63d8' : '#000000').multiplyScalar(k === room ? 0.14 : 0); }
   });
-  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a?.sec) api.openAssistant?.(); else if (a) talk(a); else if (pickExit(e)) api.leave?.(); else { const k = pickRoom(e); if (k) api.enter?.(k); } } });
+  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a?.sec) api.openAssistant?.(); else if (a) talk(a); else if (pickExit(e)) api.leave?.(); else if (pickLib(e)) api.files?.(); else { const k = pickRoom(e); if (k) api.enter?.(k); } } });
   canvas.addEventListener('pointerleave', () => { hovered = null; });
   // a room of the building, under the pointer: its project
-  let hoverRoom = null, exitHits = [], exitMats = [], hoverExit = false;
+  let hoverRoom = null, exitHits = [], exitMats = [], hoverExit = false, libHits = [];
+  function pickLib(e) {
+    if (MODE !== 'room' || !libHits.length) return false;
+    const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
+    return ray.intersectObjects(libHits, false).length > 0;
+  }
   function pickExit(e) {
     if (MODE !== 'room' || !exitHits.length) return false;
     const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);

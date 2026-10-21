@@ -99,7 +99,10 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   theirs. The office has no project row: its name is at the room's top left, and **📋 Board**, **💬 Team chat**,
   **+ New agent** and **Org chart | Office** at its top right; the board and the team chat open over the page from there (the
   board on the wall opens it too), with a tab to switch and Esc to close; its left edge drags it wider (the board shows more
-  columns), a double click there sets it back. The choice is kept in the browser. Its light follows the
+  columns), a double click there sets it back. A third tab, **📚 Library**, opened by a click on the bookcases (or the sign
+  over them), looks through the project's working folder: its folders to go into, a file's contents beside them (text, a
+  picture; a page or a PDF opens in Artifacts), **Show in folder** for Explorer. It only reads, never goes above the
+  project's folder (links leading out of it included), and shows a secret's name (.env, a key) but never its contents. The choice is kept in the browser. Its light follows the
   local time, not the page's theme: dawn, morning, noon, afternoon, a golden hour and the sunset, evening and night, each
   easing into the next — the sky in the windows, the sun's way across it and the beams it casts, the city lit at night.
   A digital clock on the wall (the lobby's, in the building) shows the time, its colon blinking each second, and the

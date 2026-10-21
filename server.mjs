@@ -1788,6 +1788,80 @@ async function tellSession(key, who, text, sessionId) {
 }
 
 const slash = (p) => p.replace(/\\/g, '/')
+// The office's library: a project's working folder to look through, read only. Every path is taken relative to the
+// project's root and must still be inside it once links are followed; secrets (.env, keys) are listed but never read.
+const FILE_SECRET = /^\.env(\..*)?$|\.(pem|key|p12|pfx|jks|keystore|ppk)$|^id_(rsa|dsa|ecdsa|ed25519)$|^\.(npmrc|pypirc|netrc|git-credentials)$|credential|secret/i
+const FILE_IMAGE = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' }
+const FILE_TEXT_MAX = 256 * 1024
+async function projectFile(key, rel) {
+  const p = ((await cachedState()).projects || []).find((x) => x.key === key)
+  if (!p?.root) return null
+  try {
+    const root = await fsp.realpath(p.root)
+    const full = await fsp.realpath(path.resolve(root, String(rel || '').replace(/^[\\/]+/, '')))
+    const back = path.relative(root, full)
+    if (back.startsWith('..') || path.isAbsolute(back)) return null
+    return { root, full, rel: slash(back) }
+  } catch { return null }
+}
+async function listFiles(key, rel) {
+  const f = await projectFile(key, rel)
+  if (!f) return [404, {}]
+  let entries
+  try { entries = await fsp.readdir(f.full, { withFileTypes: true }) } catch { return [400, { error: 'not a folder' }] }
+  const out = []
+  for (const e of entries) {
+    if (e.name === '.git') continue
+    let dir = e.isDirectory(), size = 0, mtime = 0
+    try { const st = await fsp.stat(path.join(f.full, e.name)); dir = st.isDirectory(); size = dir ? 0 : st.size; mtime = st.mtimeMs } catch {}
+    out.push({ name: e.name, dir, size, mtime })
+  }
+  out.sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name))
+  return [200, { root: slash(f.root), path: f.rel, entries: out.slice(0, 1000), more: Math.max(0, out.length - 1000) }]
+}
+async function readFileFor(key, rel) {
+  const f = await projectFile(key, rel)
+  if (!f) return [404, {}]
+  let st
+  try { st = await fsp.stat(f.full) } catch { return [404, {}] }
+  if (!st.isFile()) return [400, {}]
+  const name = path.basename(f.full), ext = path.extname(name).toLowerCase(), base = { path: f.rel, size: st.size, mtime: st.mtimeMs }
+  if (FILE_SECRET.test(name)) return [200, { ...base, kind: 'secret' }]
+  if (FILE_IMAGE[ext]) return [200, { ...base, kind: 'image' }]
+  if (/^\.(html?|pdf)$/.test(ext)) return [200, { ...base, kind: 'artifact' }]
+  const fh = await fsp.open(f.full, 'r')
+  try {
+    const buf = Buffer.alloc(Math.min(st.size, FILE_TEXT_MAX))
+    const { bytesRead } = await fh.read(buf, 0, buf.length, 0)
+    const b = buf.subarray(0, bytesRead)
+    if (b.subarray(0, 8192).includes(0)) return [200, { ...base, kind: 'binary' }]
+    return [200, { ...base, kind: 'text', text: b.toString('utf8'), cut: st.size > bytesRead }]
+  } finally { await fh.close() }
+}
+// a picture from it, for the preview: pictures only, and an .svg can run nothing (sandboxed, no scripts)
+async function sendImage(res, key, rel) {
+  const f = await projectFile(key, rel)
+  const type = f && FILE_IMAGE[path.extname(f.full).toLowerCase()]
+  if (!type || FILE_SECRET.test(path.basename(f.full))) { res.writeHead(404).end(); return }
+  try {
+    const st = await fsp.stat(f.full)
+    if (!st.isFile() || st.size > 20 * 1024 * 1024) { res.writeHead(413).end(); return }
+    res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" })
+    fs.createReadStream(f.full).pipe(res)
+  } catch { res.writeHead(404).end() }
+}
+// the folder (or a file's folder, the file picked) in Explorer / Finder
+async function openFileFolder(key, rel) {
+  const f = await projectFile(key, rel)
+  if (!f) return 404
+  let dir = true
+  try { dir = (await fsp.stat(f.full)).isDirectory() } catch { return 404 }
+  try {
+    if (process.platform === 'win32') spawn('explorer.exe', dir ? [f.full] : ['/select,', f.full], { detached: true, stdio: 'ignore' }).unref()
+    else spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', process.platform === 'darwin' && !dir ? ['-R', f.full] : [dir ? f.full : path.dirname(f.full)], { detached: true, stdio: 'ignore' }).unref()
+  } catch {}
+  return 200
+}
 async function listDirs(p) {
   if (!p) {
     // the starting point: the drives on Windows, the home folder elsewhere
@@ -2088,6 +2162,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/order') { json(await saveOrder(body), {}); return }
       if (url.pathname === '/api/processes/kill') { json(await processes.kill(Number(body.pid), await processRoots()), {}); return }
       if (url.pathname === '/api/board') { const code = await editBoard(body); json(code, {}); return }
+      if (url.pathname === '/api/files/open') { json(await openFileFolder(String(body.key || ''), String(body.path || '')), {}); return }
       if (url.pathname === '/api/decide') { json(decide(String(body.id || ''), String(body.answer || ''), Number(body.pick), body.answers) ? 200 : 404, {}); return }
       res.writeHead(404).end(); return
     }
@@ -2186,6 +2261,15 @@ const server = http.createServer(async (req, res) => {
       return
     }
     if (url.pathname === '/api/weather') { json(200, await weather()); return }
+    // the office's library: a project's folder, a file's preview, a picture (with the token, like every private read)
+    if (url.pathname === '/api/files' || url.pathname === '/api/files/read' || url.pathname === '/api/files/image') {
+      if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
+      const key = url.searchParams.get('key') || '', rel = url.searchParams.get('path') || ''
+      if (url.pathname === '/api/files/image') { await sendImage(res, key, rel); return }
+      const [code, o] = url.pathname === '/api/files' ? await listFiles(key, rel) : await readFileFor(key, rel)
+      json(code, o)
+      return
+    }
     if (url.pathname === '/api/state') {
       if (url.searchParams.get('visible') === '1') lastViewAt = Date.now()
       const asked = url.searchParams.get('lang')
