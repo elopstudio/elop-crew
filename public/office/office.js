@@ -14,8 +14,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 const CSS = `
 .office{display:grid;grid-template-columns:minmax(0,1fr) 300px;height:clamp(480px,calc(100vh - 214px),1400px);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface-2)}
 .office .ostage{position:relative;overflow:hidden;min-width:0}
-@media (max-width:900px){.office{grid-template-columns:minmax(0,1fr)}.office .oside{display:none}}
 .office .oside{border-left:1px solid var(--line);background:var(--surface);padding:14px;display:flex;flex-direction:column;gap:14px;overflow:auto;min-height:0}
+@media (max-width:900px){.office{grid-template-columns:minmax(0,1fr)}.office .oside{display:none}}
 .office .oside h4{margin:0 0 8px;font-size:11.5px;color:var(--faint);letter-spacing:.06em;font-weight:700}
 .office .ocard{border:1px solid var(--line);border-radius:12px;padding:12px;background:linear-gradient(180deg,var(--surface),var(--surface-2))}
 .office .ocard.asking{border:2px solid var(--wait);box-shadow:0 0 0 4px var(--wait-soft, rgba(140,106,16,.12))}
@@ -166,7 +166,7 @@ export function createOffice(api) {
     o.h = h; return o;
   }
   let day = dayAt(hourNow()), theme = day.n > 0.5 ? 'dark' : 'light';
-  let wxNow = null, wx = WX[wxKind(null)], wxAt = 0;
+  let wxNow = null, wx = WX[wxKind(null)], wxAt = 0, wxShown = null;
   async function wxFetch() { wxAt = Date.now(); try { wxNow = await (await fetch('/api/weather')).json(); } catch (e) { wxNow = null; } wx = WX[wxKind(wxNow)]; applyTheme(); clockSec = -1; }
   const C = (k) => (day.n <= 0 ? TH.light[k] : day.n >= 1 ? TH.dark[k] : mixC(TH.light[k], TH.dark[k], day.n));
   const scene = new THREE.Scene();
@@ -1368,7 +1368,7 @@ export function createOffice(api) {
     for (const m of skyMats) m.color.setScalar(1);
     rainLines.material.color.set(mixC('#7d8ba5', '#a6b5d4', day.n));
     scene.fog = wx.fog ? new THREE.Fog(mixC('#e6e9ee', '#2a2e37', day.n), 62, 112) : null;
-    wxField();
+    if (wxShown !== wx) { wxShown = wx; wxField(); }
     skyDraw(skyTex.image.getContext('2d'), 512, 256); skyTex.needsUpdate = true;
     bgDraw(bgTex.image.getContext('2d'), 512, 512); bgTex.needsUpdate = true;
   }
@@ -1376,10 +1376,30 @@ export function createOffice(api) {
 
   /* ── the frame: only while the office is on the page and shown ── */
   let last = performance.now(), running = false, lastPlates = 0;
+  // The demo recorder (tools/reel/office.html) steers the office with an 'office-demo' event: { sky: true } reads the
+  // hour and the weather again at once (it changes ?officeHour / ?officeWeather), { look: an agent's name, a place —
+  // 'lib', 'door', 'clock', 'reception' — or null for the whole office, zoom, ms } eases the view there.
+  let glide = null;
+  addEventListener('office-demo', (e) => {
+    const d = e.detail || {};
+    if (d.sky) wxFetch();
+    if (!('look' in d)) return;
+    const a = d.look && agents.get(d.look);
+    const spot = a ? [a.pos[0], 0.9, a.pos[1]] : MODE === 'room' ? { lib: [0.3, 1.2, (LIB[0][1] + LIB[LIB.length - 1][1]) / 2], door: [GX - 0.2, 1.1, S(7.9)], clock: [15, 2, 0], reception: [16.2, 0.8, S(5.9)] }[d.look] : null;
+    let to = { x: 0, y: 0 };
+    if (spot) { const [sx, sy] = toScreen(...spot); to = { x: pan.x + (sx / VW - 0.5) * fit.fw / zoom, y: pan.y + (0.5 - sy / VH) * fit.fh / zoom }; }
+    glide = { t0: performance.now(), ms: d.ms || 1200, z0: zoom, z1: spot ? d.zoom || 2 : d.zoom || 1, p0: { x: pan.x, y: pan.y }, p1: to };
+  });
+  function glideStep(now) {
+    const g = glide, k = Math.min(1, (now - g.t0) / g.ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    zoom = g.z0 * Math.pow(g.z1 / g.z0, e); pan.x = g.p0.x + (g.p1.x - g.p0.x) * e; pan.y = g.p0.y + (g.p1.y - g.p0.y) * e; applyCamera();
+    if (k >= 1) glide = null;
+  }
   function frame(now) {
     if (!el.isConnected || document.hidden) { running = false; return; }
     const dt = Math.min(0.05, (now - last) / 1000), t = now / 1000; last = now;
-    const sec = Math.floor(Date.now() / 1000); if (sec !== clockSec) { clockSec = sec; drawClock(new Date()); }
+    const sec = Math.floor(Date.now() / 1000); if (sec !== clockSec) { clockSec = sec; const d = new Date(), h = hourNow(); d.setHours(Math.floor(h), Math.floor(h % 1 * 60)); drawClock(d); }
+    if (glide) glideStep(now);
     wxStep(dt, t);
     if (wx.rain) { rainTex.offset.y += dt * 2.4 * wx.rain; rainTex.offset.x += dt * 0.5; }
     if (wx.snow) { snowTex.offset.y += dt * 0.22; snowTex.offset.x = Math.sin(t * 0.7) * 0.06; }

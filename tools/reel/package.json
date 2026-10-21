@@ -5,7 +5,8 @@
   "description": "Records the Instagram reel of the monitor from demo data (tools only; the monitor itself has no dependencies)",
   "scripts": {
     "record": "node ../../desktop/node_modules/electron/cli.js record.js",
-    "record:youtube": "node ../../desktop/node_modules/electron/cli.js youtube.js"
+    "record:youtube": "node ../../desktop/node_modules/electron/cli.js youtube.js",
+    "record:office": "node ../../desktop/node_modules/electron/cli.js office-rec.js"
   },
   "devDependencies": {
     "ffmpeg-static": "^5.2.0"

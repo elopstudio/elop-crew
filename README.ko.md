@@ -613,6 +613,18 @@ npm run record:youtube -- --from=7 --len=40 --stills-only   # 한 장면만 스�
 장면, 자막, 가짜 셸은 `youtube.html`, 데모 팀·대화·프로세스는 `yt-demo.js` 에 있습니다. 두 파일의 한국어 문구는 모두
 `yt-en.js` 에 영어로 옮겨 두었고, 영문판에서는 데모 서버가 내보내는 데이터와 무대의 자막이 이것을 거칩니다.
 
+사무실만 따로 보여 주는 영상도 있습니다(한국어 자막, 지어낸 데이터). 유튜브용 1920×1080 약 2분 40초 — 건물, 프로젝트 방과
+로봇들, 머리 위 승인 요청, 자리로 걸어가는 비서, 대화, 자료실, 지나가는 시간과 날씨 — 와 세로 쇼츠 1080×1920 약 36초입니다.
+
+```bash
+npm run record:office                # out/office.mp4, 확인용 스틸은 3초마다 out/office-stills/
+npm run record:office -- --short     # out/office-short.mp4, out/office-short-stills/
+npm run record:office -- --from=4 --len=20 --stills-only   # 한 장면만 스틸로 확인
+```
+
+장면과 자막은 `office.html`(사무실의 카메라, 시각, 날씨를 `office-demo` 이벤트로 움직입니다), 자료실에 보이는 지어낸 폴더는
+`yt-demo.js` 에 있습니다.
+
 ## 작업판 형식
 
 `boards/example.json` 을 봅니다.

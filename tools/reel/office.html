@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>ELOP Crew — the office</title>
+<style>
+*{box-sizing:border-box}
+/* the stage is the window itself: 1536×864 CSS pixels (or 864×1536 for the short), drawn at 1.25 — 1920×1080 / 1080×1920 */
+html,body{margin:0;width:100vw;height:100vh;overflow:hidden;background:#0b0d12;color:#e8eaef;font-family:"Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif}
+#page{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#0f1116}
+/* the pointer */
+#ptr{position:absolute;left:0;top:0;width:20px;height:20px;z-index:50;pointer-events:none;transition:transform .7s cubic-bezier(.4,0,.2,1),opacity .3s;opacity:0;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))}
+#ptr.on{opacity:1}
+#ptr i{position:absolute;left:-12px;top:-12px;width:24px;height:24px;border-radius:50%;background:rgba(255,209,102,.6);transform:scale(0);opacity:0}
+#ptr i.hit{animation:hit .45s ease-out}
+@keyframes hit{0%{transform:scale(.2);opacity:1}100%{transform:scale(1.6);opacity:0}}
+/* captions: a lower third (at the top in the short, over the empty sky above the room) */
+#cap{position:absolute;left:0;right:0;bottom:44px;display:flex;justify-content:center;pointer-events:none;z-index:60}
+.short #cap{bottom:auto;top:150px}
+#cap .c{position:absolute;bottom:0;max-width:1240px;padding:16px 32px;border-radius:16px;background:rgba(10,12,18,.88);border:1px solid rgba(255,255,255,.08);box-shadow:0 14px 40px rgba(0,0,0,.45);
+  font-weight:700;font-size:32px;line-height:1.38;letter-spacing:-.01em;text-align:center;opacity:0;transform:translateY(14px);transition:opacity .4s ease,transform .4s ease}
+.short #cap .c{bottom:auto;top:0;max-width:800px;font-size:38px;padding:18px 28px}
+#cap .c.on{opacity:1;transform:none}
+#cap .c.out{opacity:0;transform:translateY(-8px);transition-duration:.25s}
+#cap em{font-style:normal;color:#ffd166}
+#cap small{display:block;font-size:22px;font-weight:600;color:#a3abb8;margin-top:5px}
+.short #cap small{font-size:26px}
+/* the chapter, top left (top centre in the short) */
+#chap{position:absolute;left:32px;top:150px;z-index:60;display:flex;align-items:center;gap:12px;padding:10px 20px 10px 12px;border-radius:999px;background:rgba(10,12,18,.86);border:1px solid rgba(255,255,255,.1);
+  font-weight:800;font-size:22px;opacity:0;transform:translateX(-16px);transition:opacity .4s,transform .4s}
+.short #chap{display:none}
+#chap.on{opacity:1;transform:none}
+#chap b{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#ffd166;color:#0b0d12;font-size:19px}
+/* title and end cards */
+.card{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;opacity:0;transition:opacity .8s ease;z-index:70;pointer-events:none;text-align:center;padding:0 40px}
+.card.on{opacity:1}
+.card.dim{background:rgba(9,11,16,.82)}
+.card .robot{width:180px;height:180px}
+.card h1{margin:0;font-size:96px;font-weight:900;letter-spacing:-.03em}
+.card h1 span{color:#ffd166}
+.card p{margin:0;font-size:38px;color:#d3d8e1;font-weight:800}
+.card .s{font-size:26px;color:#8d95a3;font-weight:600}
+.card .go{margin-top:20px;font-size:34px;font-weight:800;color:#0b0d12;background:#ffd166;border-radius:999px;padding:14px 38px}
+.short .card h1{font-size:104px}
+.short .card p{font-size:44px;line-height:1.3}
+</style>
+</head>
+<body>
+<iframe id="page"></iframe>
+<div id="ptr"><i></i><svg viewBox="0 0 22 22"><path d="M3 2l15 9-6.5 1.6L8.6 19z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg></div>
+<div id="chap"><b></b><span></span></div>
+<div id="cap"></div>
+<div class="card dim" id="title"><div class="botbox"></div><h1>ELOP <span>Crew</span></h1><p>Claude Code 에이전트들의 사무실</p><div class="s">에이전트가 일하는 모습을 3D 사무실로</div></div>
+<div class="card dim" id="end"><div class="botbox"></div><h1>ELOP <span>Crew</span></h1><p>에이전트는 일하고, 나는 사무실을 봅니다</p><div class="go">crew.elopstudio.com</div></div>
+<script>
+const $ = (id) => document.getElementById(id);
+// ?short=1: the vertical short (the same office, quicker, captions at the top)
+const SHORT = new URLSearchParams(location.search).get('short') === '1';
+if (SHORT) document.body.classList.add('short');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const page = () => $('page').contentDocument, pw = () => $('page').contentWindow;
+const log = (...a) => console.log('[stage]', ...a);
+const post = (u, b) => fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b || {}) });
+const demo = (b) => post('/demo/set', b);
+
+/* ── the office: its view and its sky, through the page's 'office-demo' event ── */
+const SEC = 'monitor-assistant', who = (id) => 'monitor-' + id;
+const look = (at, zoom, ms = 1400) => pw().dispatchEvent(new (pw().CustomEvent)('office-demo', { detail: { look: at, zoom, ms } }));
+// the hour and the weather shown: the page's address changed (no reload) and the office asked to read it again
+function sky(hour, weather) {
+  const u = new URL(pw().location.href);
+  if (hour == null) u.searchParams.delete('officeHour'); else u.searchParams.set('officeHour', String(Math.round(hour * 100) / 100));
+  if (weather == null) u.searchParams.delete('officeWeather'); else u.searchParams.set('officeWeather', weather);
+  pw().history.replaceState(null, '', u.pathname + u.search + u.hash);
+  pw().dispatchEvent(new (pw().CustomEvent)('office-demo', { detail: { sky: true } }));
+}
+// the day going by: from one hour to another in so many seconds
+async function timelapse(h1, h2, s, weather) { const n = Math.round(s * 12); for (let i = 0; i <= n; i++) { sky(h1 + (h2 - h1) * i / n, weather); await sleep(1000 / 12); } }
+
+/* ── the pointer and the captions ── */
+const q = (sel) => page().querySelector(sel), qa = (sel) => [...page().querySelectorAll(sel)];
+const byText = (sel, re) => qa(sel).find((e) => re.test(e.textContent));
+async function point(elm, ms = 700) {
+  if (!elm) return;
+  const r = elm.getBoundingClientRect();
+  $('ptr').classList.add('on');
+  $('ptr').style.transitionDuration = ms + 'ms';
+  $('ptr').style.transform = `translate(${r.left + Math.min(r.width / 2, 36)}px,${r.top + r.height / 2}px)`;
+  await sleep(ms + 80);
+}
+async function click(elm, { ms = 700 } = {}) {
+  if (!elm) { log('nothing to click'); return; }
+  await point(elm, ms);
+  const i = $('ptr').querySelector('i'); i.classList.remove('hit'); void i.offsetWidth; i.classList.add('hit');
+  elm.click();
+  await sleep(250);
+}
+const hidePtr = () => $('ptr').classList.remove('on');
+async function typeText(input, text, ms = 55) {
+  if (!input) return;
+  input.focus();
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value').set;
+  for (let i = 1; i <= text.length; i++) { setter.call(input, text.slice(0, i)); input.dispatchEvent(new (pw().InputEvent)('input', { bubbles: true })); await sleep(ms); }
+}
+function caption(html) {
+  const old = $('cap').querySelector('.c');
+  if (old) { old.classList.add('out'); setTimeout(() => old.remove(), 300); }
+  if (!html) return;
+  const c = document.createElement('div');
+  c.className = 'c'; c.innerHTML = html;
+  $('cap').append(c);
+  setTimeout(() => c.classList.add('on'), old ? 230 : 30);
+}
+function chapter(n, text) {
+  const c = $('chap');
+  c.classList.remove('on');
+  if (!text) return;
+  setTimeout(() => { c.querySelector('b').textContent = n; c.querySelector('span').textContent = text; c.classList.add('on'); }, 300);
+  clearTimeout(chapter.t); chapter.t = setTimeout(() => c.classList.remove('on'), 5000);
+}
+
+/* ── the page's parts ── */
+const wallbtn = (re) => byText('.office .wallbtn', re);
+const tab = (key) => qa('#tabs .tab').find((t) => t.dataset.key === key);
+const plate = (name) => byText('.office .plate', new RegExp('^' + name));
+const closeDrawer = () => { const x = q('.odrawer .odhead .x'); if (x) x.click(); };
+
+/* ── the scenes: [seconds, what happens] ── */
+const LONG = [
+  // the title, over the building
+  [6, async (at) => {
+    $('title').classList.add('on');
+    look(null, 1, 10);
+    await at(5); $('title').classList.remove('on');
+  }],
+  // the building: a room per project
+  [15, async (at) => {
+    chapter(1, '건물 — 프로젝트마다 방 하나');
+    await at(0.3); caption('전체 에이전트 탭은 <em>건물</em>입니다<br>프로젝트마다 유리벽 방이 하나씩');
+    await at(4); look(who('a1minjun'), 1.7, 2200);
+    caption('방 안에서는 그 프로젝트의 에이전트들이<br><em>지금 하는 일</em> 그대로 일하고 있어요');
+    await at(9.5); look(SEC, 2.2, 1800);
+    caption('로비 안내 데스크에는 <em>비서</em>가 앉아 있습니다');
+    await at(13.5); look(null, 1, 1300); caption('');
+  }],
+  // into a room
+  [24, async (at) => {
+    chapter(2, '방 안으로');
+    await at(0.3); caption('방을 누르면 그 프로젝트의 <em>사무실</em>로 들어갑니다');
+    await at(1.2); await click(wallbtn(/^shop-web/)); hidePtr();
+    await at(4.5); look(who('b3seoyeon'), 2.5, 1600);
+    caption('일하는 로봇은 자기 자리에서 <em>타닥타닥</em> —<br>머리 위에는 지금 하는 일');
+    await at(10); look(who('c7jiho'), 2.5, 1600);
+    caption('일을 마치고 기다리는 로봇은 <em>탕비실</em>에서 쉬고');
+    await at(15); look(who('a1minjun'), 2.4, 1600);
+    caption('왕관 쓴 <em>리더</em>는 창가 리더 자리에');
+    await at(20); look(null, 1, 1300); caption('책상 수는 팀 인원에 맞춰 늘어납니다');
+    await at(23.5); caption('');
+  }],
+  // a request, answered where it stands
+  [15, async (at) => {
+    chapter(3, '승인 요청');
+    await demo({ asking: true });
+    await at(0.6); look(who('d9haeun'), 2.1, 1500);
+    caption('허락이 필요하면 로봇 머리 위에 <em>요청</em>이 뜹니다');
+    await at(6); caption('그 자리에서 바로 <em>허용</em> — 창을 찾아다닐 필요 없이');
+    await at(7.5); await click(q('.office .askb .yes')); hidePtr();
+    await at(10.5); caption('하은이 다시 일을 시작합니다');
+    await at(14); look(null, 1, 1300); caption('');
+  }],
+  // the secretary walks to a desk
+  [15, async (at) => {
+    chapter(4, '비서');
+    await at(0.3); look('reception', 1.6, 1500);
+    caption('비서에게 맡기면, 비서가 에이전트에게 <em>직접 지시</em>합니다');
+    await at(2.5); post('/demo/secretary', { who: '서연' });
+    await at(3.2); look(null, 1.25, 2500);
+    caption('그때마다 비서 로봇이 <em>그 에이전트 자리로 걸어가고</em>…');
+    await at(10); caption('일이 끝나면 안내 데스크로 돌아옵니다');
+    await at(14.5); caption('');
+  }],
+  // one click: the conversation
+  [22, async (at) => {
+    chapter(5, '대화');
+    await at(0.3); caption('로봇을 <em>한 번 누르면</em> 바로 대화창');
+    await at(1.2); await click(plate('서연')); hidePtr();
+    await at(4); caption('하던 일과 명령, 결과가 그대로 — 여기서 바로 말을 겁니다');
+    { const box = q('#detail textarea'); await at(5.5); await typeText(box, '좋아. 다시 돌려 보고 민준한테 알려 줘'); }
+    await at(9); await click(q('#detail .csend')); hidePtr();
+    await at(10); caption('서연이 테스트를 다시 돌리고, <em>리더에게 알립니다</em>');
+    await at(20.5); caption(''); await click(qa('#detail button.close').pop(), { ms: 500 }); hidePtr();
+  }],
+  // the library: the project's folder
+  [17, async (at) => {
+    chapter(6, '자료실');
+    await at(0.3); look('lib', 2, 1400);
+    caption('책장을 누르면 <em>프로젝트 폴더</em>를 둘러볼 수 있어요');
+    await at(2.5); await click(wallbtn(/자료실/)); hidePtr(); look(null, 1, 900);
+    await at(5); await click(byText('.files .frow', /src$/));
+    await at(6.6); await click(byText('.files .frow', /payments$/));
+    await at(8.2); await click(byText('.files .frow', /coupon\.ts/)); hidePtr();
+    caption('코드와 그림은 바로 미리보기 — 읽기만 하고,<br><em>.env 같은 비밀 파일</em>은 내용을 열지 않습니다');
+    await at(15.5); caption(''); closeDrawer();
+  }],
+  // the clock, the hour and the weather
+  [26, async (at) => {
+    chapter(7, '시간과 날씨');
+    await at(0.3); look('clock', 2.8, 1500);
+    caption('벽의 전자시계는 <em>지금 시각</em>과 바깥 기온');
+    await at(5); look(null, 1, 1300);
+    caption('빛은 <em>시간을 따라</em> 바뀝니다 — 아침, 한낮, 노을, 밤');
+    await at(6); await timelapse(7, 21.5, 7);
+    await at(14); caption('바깥 날씨도 <em>진짜 날씨</em>를 따라요 — 비…'); sky(13, 'rain');
+    await at(17.5); caption('눈…'); sky(13, 'snow');
+    await at(20.5); caption('그리고 <em>천둥 번개</em>'); sky(17, 'storm');
+    await at(25); caption(''); sky(11, null);
+  }],
+  // out through the door
+  [8, async (at) => {
+    chapter(8, '건물로');
+    await at(0.3); look('door', 2.2, 1300);
+    caption('<em>비상구 문</em>으로 나가면 다시 건물로');
+    await at(3.2); await click(wallbtn(/건물로/)); hidePtr();
+    await at(7.5); caption('');
+  }],
+  // the end
+  [9, async (at) => {
+    chapter(0, '');
+    await at(0.5); $('end').classList.add('on');
+    await at(8.8);
+  }],
+];
+// the short: the same office, quickly
+const SHORTS = [
+  [3.2, async (at) => {
+    $('title').classList.add('on'); look(null, 1.15, 10);
+    await at(2.6); $('title').classList.remove('on');
+  }],
+  [5, async (at) => {
+    caption('Claude Code 에이전트들이<br><em>3D 사무실</em>에서 일합니다');
+    look(who('a1minjun'), 2.2, 2600);
+    await at(3); await click(wallbtn(/^shop-web/)); hidePtr();
+  }],
+  [6, async (at) => {
+    await at(0.3); look(who('b3seoyeon'), 3, 1400);
+    caption('일하는 로봇은 <em>타닥타닥</em>');
+    await at(3); look(who('c7jiho'), 3, 1300);
+    caption('기다리는 로봇은 <em>탕비실</em>에서');
+  }],
+  [5.5, async (at) => {
+    await demo({ asking: true });
+    look(who('d9haeun'), 2.7, 1300);
+    caption('허락이 필요하면 <em>머리 위에 요청</em>');
+    await at(3.4); await click(q('.office .askb .yes')); hidePtr();
+  }],
+  [5.5, async (at) => {
+    look('reception', 2.4, 1200);
+    caption('비서가 <em>직접 걸어가서</em> 지시하고');
+    await at(0.8); post('/demo/secretary', { who: '서연' });
+    await at(1.8); look(who('b3seoyeon'), 2.2, 3000);
+  }],
+  [7, async (at) => {
+    caption('빛은 시간을 따라, 날씨는 <em>진짜 날씨</em>로');
+    look(null, 1.35, 900);
+    await timelapse(8, 21, 3.4);
+    await at(4); sky(13, 'snow');
+    await at(5.6); sky(17, 'storm');
+  }],
+  [4, async (at) => {
+    caption(''); sky(11, null);
+    await at(0.3); $('end').classList.add('on');
+    await at(3.9);
+  }],
+];
+const SCENES = SHORT ? SHORTS : LONG;
+const stageLength = (from = 0) => SCENES.slice(from).reduce((a, [s]) => a + s, 0);
+let start0 = performance.now();
+async function play(from = 0) {
+  // started part way (for checking): already in the room the scenes before it went into
+  if (from >= (SHORT ? 2 : 3)) { wallbtn(/^shop-web/)?.click(); await sleep(2500); }
+  for (const [i, [len, fn]] of SCENES.entries()) {
+    if (i < from) continue;
+    const t0 = performance.now();
+    const at = (s) => sleep(Math.max(0, t0 + s * 1000 - performance.now()));
+    log('scene', i, 'at', Math.round((performance.now() - start0) / 100) / 10);
+    try { await fn(at); } catch (e) { log('scene', i, 'failed', e.message); }
+    await at(len);
+  }
+}
+window.stageLength = stageLength;
+window.stageStart = (from) => { start0 = performance.now(); return play(from); };
+// ready once the building is drawn (its rooms' signs are up) and the logo can be copied onto the cards
+window.stageReady = () => new Promise((resolve) => {
+  const check = () => {
+    const bot = page()?.querySelector('#logo svg');
+    if (bot && wallbtn(/^shop-web/) && page().querySelector('.office canvas')) {
+      for (const b of document.querySelectorAll('.botbox')) b.innerHTML = bot.outerHTML.replace('class="robot"', 'class="robot" style="width:180px;height:180px"');
+      resolve(true);
+    } else setTimeout(check, 100);
+  };
+  check();
+});
+// the office view, the all-agents tab
+try { localStorage.setItem('am.view', 'office'); } catch (e) {}
+$('page').src = '/?app=1&lang=ko&officeHour=11#*';
+</script>
+</body>
+</html>

@@ -700,6 +700,19 @@ npm run record:youtube -- --from=7 --len=40 --stills-only   # one scene, stills 
 Scenes, captions and the pretend shell are in `youtube.html`; the demo team, conversations and processes in `yt-demo.js`;
 every Korean line of both, in English, in `yt-en.js` (the demo server puts its answers through it, the stage its captions).
 
+And the office on its own (Korean captions, made-up data): a YouTube video, 1920×1080, about 2 min 40 s — the building,
+a project's room and its robots, an approval over a head, the assistant walking to a desk, a conversation, the library,
+the hours and the weather going by — and a vertical Short of it, 1080×1920, about 36 s.
+
+```bash
+npm run record:office                # out/office.mp4, a still every 3 s in out/office-stills/
+npm run record:office -- --short     # out/office-short.mp4, out/office-short-stills/
+npm run record:office -- --from=4 --len=20 --stills-only   # one scene, stills only, to check it
+```
+
+The scenes and captions are in `office.html` (it steers the office's camera, hour and weather through an `office-demo`
+event); the room's made-up folder for the library in `yt-demo.js`.
+
 ## Board format
 
 See `boards/example.json`.

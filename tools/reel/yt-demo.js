@@ -161,6 +161,14 @@ const PLAYS = {
     emit(id, ev.state('idle'));
     S.seoyeon.state = 'waiting'; S.seoyeon.statusSince = Date.now(); changed();
   },
+  // the assistant tells an agent to carry on: in the office its robot walks from reception to that desk and back
+  async secretary(who = '서연', what = '테스트 다시 돌리고 결과를 민준에게 알려 주세요') {
+    emit('assistant', ev.state('working'));
+    await sleep(300);
+    emit('assistant', ev.tool('s' + ++seq, 'mcp__assistant__send_message', act('message', 'talk', who), { agent: who, message: what }));
+    await sleep(9000);
+    emit('assistant', ev.state('idle'));
+  },
   // the assistant answers about the team
   async assistant(text) {
     emit('assistant', ev.user(text));
@@ -173,6 +181,40 @@ const PLAYS = {
     emit('assistant', ev.turn(6100));
     emit('assistant', ev.state('idle'));
   },
+};
+
+/* ── the library: shop-web's folder, made up ── */
+const FILES = {
+  '': { dir: [['docs'], ['public'], ['src'], ['tests'], ['.env', 182], ['package.json', 1240], ['README.md', 3120], ['tsconfig.json', 410]] },
+  docs: { dir: [['checkout-redesign.md', 2210], ['release-notes.md', 1530]] },
+  public: { dir: [['favicon.svg', 920], ['robots.txt', 60]] },
+  tests: { dir: [['coupon.test.ts', 1880], ['card.test.ts', 4120]] },
+  src: { dir: [['components'], ['pages'], ['payments'], ['main.ts', 640]] },
+  'src/components': { dir: [['Button.vue', 1320], ['PriceTag.vue', 980]] },
+  'src/pages': { dir: [['CheckoutPage.vue', 6840], ['CartPage.vue', 4210]] },
+  'src/payments': { dir: [['card.ts', 2380], ['coupon.ts', 1460], ['index.ts', 310]] },
+  '.env': { size: 182, secret: true },
+  'src/payments/coupon.ts': { size: 1460, text: [
+    "import type { Coupon } from './types'",
+    '',
+    '// 쿠폰을 여러 장 골라도 할인은 가장 큰 한 장만 (두 장이 겹치면 할인이 두 번 빠지던 문제)',
+    'export function applyCoupons(total: number, coupons: Coupon[]): number {',
+    '  if (!coupons.length) return total',
+    '  const best = Math.max(0, ...coupons.map((c) => discountOf(total, c)))',
+    '  return Math.max(0, total - best)',
+    '}',
+    '',
+    'export function discountOf(total: number, c: Coupon): number {',
+    "  if (c.kind === 'percent') return Math.floor(total * c.amount / 100)",
+    '  return Math.min(c.amount, total)',
+    '}',
+    '',
+    'export function canUse(c: Coupon, now = Date.now()): boolean {',
+    '  return !c.used && (!c.expiresAt || c.expiresAt > now)',
+    '}',
+  ].join('\n') },
+  'README.md': { size: 3120, text: '# shop-web\n\n쇼핑몰 웹 프런트엔드 (Nuxt 3)\n\n## 개발\n\n```bash\nnpm install\nnpm run dev\n```\n\n## 테스트\n\n```bash\nnpm test\n```\n' },
+  'package.json': { size: 1240, text: '{\n  "name": "shop-web",\n  "version": "2.4.0",\n  "private": true,\n  "scripts": {\n    "dev": "nuxt dev --port 3000",\n    "build": "nuxt build",\n    "test": "vitest run"\n  }\n}\n' },
 };
 
 /* ── the processes the agents run ── */
@@ -219,6 +261,19 @@ http.createServer(async (q, r) => {
     r.writeHead(200, { 'content-type': MIME[path.extname(f)] || 'application/octet-stream' });
     return r.end(STUB[path.basename(f)] ? html(f, path.basename(f)) : fs.readFileSync(f));
   }
+  if (u.startsWith('/office/')) {
+    const f = path.join(ROOT, 'public', path.normalize(u).replace(/^(\.\.[\\/])+/, ''));
+    if (!f.startsWith(path.join(ROOT, 'public', 'office')) || !fs.existsSync(f)) { r.writeHead(404); return r.end(); }
+    r.writeHead(200, { 'content-type': MIME[path.extname(f)] || 'application/octet-stream' });
+    return r.end(fs.readFileSync(f));
+  }
+  if (u === '/api/weather') return json({ ok: true, city: null, code: 0, temp: 21, cloud: 10, wind: 6, day: true });
+  if (u === '/api/files' || u === '/api/files/read') {
+    const rel = (url.searchParams.get('path') || '').replace(/^\/+|\/+$/g, ''), node = FILES[rel];
+    if (u === '/api/files') return node && node.dir ? json({ root: 'C:/work/shop-web', path: rel, more: 0, entries: node.dir.map(([name, size]) => ({ name, dir: size == null, size: size || 0, mtime: min(5 + name.length * 7) })) }) : (r.writeHead(404), r.end('{}'));
+    if (!node || node.dir) { r.writeHead(404); return r.end('{}'); }
+    return json({ path: rel, size: node.size, mtime: min(3), ...(node.secret ? { kind: 'secret' } : { kind: 'text', text: node.text, cut: false }) });
+  }
   if (u === '/api/state') return json(state());
   if (u === '/api/events') { sse(); streams.add(r); q.on('close', () => streams.delete(r)); return; }
   if (u === '/api/agent-stream') {
@@ -246,6 +301,8 @@ http.createServer(async (q, r) => {
   if (u.startsWith('/api/')) { await body(q); return json({ ok: true }); }
   // the stage's cues
   if (u === '/demo/set') { const b = await body(q); for (const [k, v] of Object.entries(b)) D[k] = v; if (b.newAgent) S.new = sess('k1junseo', '준서', { role: '영수증 메일', activity: act('read', 'read', 'mail/receipt.html'), state: 'working', context: 12000, statusSince: Date.now(), startedAt: Date.now() }); changed(); return json({ ok: true }); }
+  if (u === '/demo/secretary') { const b = await body(q); PLAYS.secretary(b.who, b.what); return json({ ok: true }); }
+  if (u === '/office.html') { r.writeHead(200, { 'content-type': MIME['.html'] }); return r.end(fs.readFileSync(path.join(__dirname, 'office.html'))); }
   if (u === '/demo/agent') { const b = await body(q); Object.assign(S[b.who], b.set); changed(); return json({ ok: true }); }
   r.writeHead(404); r.end();
 }).listen(PORT, '127.0.0.1', () => console.log('demo on', PORT));
