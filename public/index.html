@@ -137,10 +137,7 @@ body{background:radial-gradient(1400px 520px at 50% -140px,var(--bg-grad),transp
 .all-group .leader .stage .robot{width:72px;height:72px}
 .tab .tc{display:inline-flex;gap:4px}
 .tab .tc span{font-size:10.5px;font-weight:700;border-radius:999px;padding:0 6px;line-height:17px}
-.tab .tc .r{color:var(--run);background:var(--run-soft)}
-.tab .tc .w{color:var(--wait);background:var(--wait-soft)}
 .tab .all-ico{width:20px;height:20px;display:grid;place-items:center;font-size:12px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line)}
-.tab .tc .z{color:var(--faint);border:1px dashed var(--line-strong);line-height:15px}
 
 /* Project */
 .project{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin:0 0 16px;box-shadow:0 1px 3px var(--shadow);overflow:hidden}
@@ -1476,6 +1473,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
   /* ── Helpers ── */
   const $ = (id) => document.getElementById(id);
   const approvalsBox = document.getElementById('approvals');   // moves into the agent dialog while that is open
+  // how a tab's agents are doing, for its tooltip
+  const tabCounts = (r, w, z) => [r && '▶ ' + t('working') + ' ' + r, w && '○ ' + t('waiting') + ' ' + w, z && '– ' + t('resting') + ' ' + z].filter(Boolean).join(' · ');
   function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
   // what a dialog shows under its header and tabs: only this part scrolls
   function dbody(...nodes) { const b = el('div', 'dbody'); b.append(...nodes); return b; }
@@ -5595,13 +5594,10 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       tab.setAttribute('aria-selected', String(selected === ALL));
       tab.tabIndex = selected === ALL ? 0 : -1;
       tab.append(el('span', 'all-ico', '◆'), el('span', 'tname all', t('allTab')));
-      const tc = el('span', 'tc');
-      if (n('working')) tc.append(el('span', 'r', '▶ ' + n('working')));
-      if (n('waiting')) tc.append(el('span', 'w', '○ ' + n('waiting')));
-      if (!n('working') && !n('waiting')) tc.append(el('span', 'z', '– ' + n('resting')));
+      // no counts beside the name (the robot's face says how it is going, the header the numbers): only requests, to answer
+      tab.title = tabCounts(n('working'), n('waiting'), n('resting'));
       const allAsks = (data.approvals || []).length + (data.inEditor || []).length;
-      if (allAsks) tc.prepend(el('span', 'a', '! ' + allAsks));
-      tab.append(tc);
+      if (allAsks) { const tc = el('span', 'tc'); tc.append(el('span', 'a', '! ' + allAsks)); tab.append(tc); }
       tab.addEventListener('click', () => select(ALL));
       tabs.append(tab);
     }
@@ -5615,16 +5611,11 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       const lead = p.sessions.find((s) => s.isLeader) || p.sessions[0];
       const mood = p.counts.working ? 'working' : p.counts.waiting ? 'waiting' : 'resting';
       tab.append(robotNode(lead ? str(lead.name) : p.key, mood, !!(lead && lead.isLeader), true), el('span', 'tname', projName(p)));
-      const tc = el('span', 'tc');
-      if (p.counts.working) tc.append(el('span', 'r', '▶ ' + p.counts.working));
-      if (p.counts.waiting) tc.append(el('span', 'w', '○ ' + p.counts.waiting));
-      if (!p.counts.working && !p.counts.waiting) tc.append(el('span', 'z', '– ' + p.counts.resting));
       const asks = (data.approvals || []).filter((a) => a.project === p.key).length + (data.inEditor || []).filter((w) => w.project === p.key).length;
-      if (asks) tc.prepend(el('span', 'a', '! ' + asks));
-      tab.append(tc);
+      if (asks) { const tc = el('span', 'tc'); tc.append(el('span', 'a', '! ' + asks)); tab.append(tc); }
       tab.addEventListener('click', () => select(p.key));
       tab.draggable = true;
-      tab.title = t('dragTab');
+      tab.title = tabCounts(p.counts.working, p.counts.waiting, p.counts.resting) + ' · ' + t('dragTab');
       tab.addEventListener('dragstart', (e) => { dragKey = p.key; tab.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', p.key); });
       tab.addEventListener('dragend', () => { dragKey = null; for (const x of tabs.children) x.classList.remove('dragging', 'drop-before', 'drop-after'); if (last) render(last); });
       tab.addEventListener('dragover', (e) => {

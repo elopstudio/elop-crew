@@ -63,7 +63,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
 
 ## What you see
 
-- **One tab per project.** Each tab shows the leader's robot and how many sessions are working (▶) or waiting (○).
+- **One tab per project.** Each tab shows the leader's robot (its face says how the project is going) and, only when
+  there are some, its pending requests (!); how many sessions are working, waiting or resting is in its tooltip.
   The selected tab is kept in the URL (`#project-name`) and in the browser. **Drag a tab** to reorder the projects (or
   **Ctrl + Shift + ← / →** on a focused tab); the all-agents view follows the same order, and it is saved as `order` in
   `config.json`.
