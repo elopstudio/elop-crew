@@ -31,7 +31,7 @@ const clean = (s, n) => String(s || '').replace(/[\x00-\x1f<>]/g, ' ').replace(/
 
 export function createArtifacts({ dataDir, notifyPages = () => {} }) {
   const file = path.join(dataDir, 'artifacts.json')
-  let list = load()   // newest first: { id, path, title, by, project, at }
+  let list = load()   // newest first: { id, path, title, by, session, project, at }
 
   function load() {
     try { const a = JSON.parse(fs.readFileSync(file, 'utf8')); return Array.isArray(a) ? a.filter((x) => x && /^[0-9a-f]{24}$/.test(x.id) && typeof x.path === 'string') : [] } catch { return [] }
@@ -42,7 +42,7 @@ export function createArtifacts({ dataDir, notifyPages = () => {} }) {
   }
 
   // put one up (again): the same file keeps its id and comes first. [code, entry | { error }]
-  async function add({ file: f, title, by = '', project = '' }) {
+  async function add({ file: f, title, by = '', session = '', project = '' }) {
     const full = path.resolve(String(f || ''))
     if (!f || !ENTRY.test(full)) return [400, { error: 'type', message: 'An .html, .svg, picture or .pdf file.' }]
     let st
@@ -52,7 +52,7 @@ export function createArtifacts({ dataDir, notifyPages = () => {} }) {
     const was = list.find((x) => path.resolve(x.path).toLowerCase() === full.toLowerCase())
     // untitled: its file's name, or its folder's for an index.html (every mockup is one)
     const named = /^index\.html?$/i.test(path.basename(full)) ? path.basename(path.dirname(full)) : path.basename(full)
-    const entry = { id: was?.id || crypto.randomBytes(12).toString('hex'), path: full, title: clean(title, 80) || was?.title || named, by: clean(by, 40) || was?.by || '', project: clean(project, 80) || was?.project || '', at: Date.now() }
+    const entry = { id: was?.id || crypto.randomBytes(12).toString('hex'), path: full, title: clean(title, 80) || was?.title || named, by: clean(by, 40) || was?.by || '', session: clean(session, 120) || was?.session || '', project: clean(project, 80) || was?.project || '', at: Date.now() }
     list = [entry, ...list.filter((x) => x.id !== entry.id)].slice(0, MAX)
     save()
     notifyPages()
@@ -71,7 +71,7 @@ export function createArtifacts({ dataDir, notifyPages = () => {} }) {
     return Promise.all(list.map(async (x) => {
       let st = null
       try { st = await fsp.stat(x.path) } catch {}
-      return { id: x.id, title: x.title, name: path.basename(x.path), path: x.path, by: x.by, project: x.project, at: x.at, exists: !!st, mtime: st?.mtimeMs || 0 }
+      return { id: x.id, title: x.title, name: path.basename(x.path), path: x.path, by: x.by, session: x.session || '', project: x.project, at: x.at, exists: !!st, mtime: st?.mtimeMs || 0 }
     }))
   }
   const count = () => list.length

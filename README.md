@@ -141,8 +141,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   is driving a page.
 - **Artifacts.** Pages an agent made for you to look at — a mockup, a report, a chart — open in the page. An agent puts
   one up with **show_artifact** (below); the artifacts icon in the header gets a dot, and opens a wide dialog: the list on
-  the left (newest first, who put each up and when) and the page on the right, drawn again each time its file is saved.
-  The button beside × (or a double click on the title — on any dialog's) fills the window with it; the artifacts remember it.
+  the left (newest first; each with the robot and name of the agent that put it up, a 📄 for your own, and when) and the
+  page on the right, drawn again each time its file is saved. The button beside × (or a double click on the title — on
+  any dialog's) fills the window with it, above the agent chips at the bottom when there are some; the artifacts remember it.
   A file of your own opens by its path at the top (`.html`, `.svg`, a picture or `.pdf`); **Open in a window** and
   **Reload** are above the page, **×** on an item takes it off the list (the file stays). The file is read from where it
   is, with what sits beside it (styles, scripts, pictures) — only web files below its folder, never a dot file — and

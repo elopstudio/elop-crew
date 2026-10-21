@@ -867,7 +867,7 @@ async function artifactTool(body) {
   const args = body.args || {}
   const file = path.resolve(a.cwd || '.', String(args.path || ''))
   const shown = (await cachedState()).projects.flatMap((p) => p.sessions.map((s) => ({ s, key: p.key }))).find((x) => x.s.agentId === String(body.agent))
-  const [code, o] = await artifacts.add({ file, title: args.title, by: shown ? (shown.s.nickKo || shown.s.nick || shown.s.name) : '', project: shown?.key || '' })
+  const [code, o] = await artifacts.add({ file, title: args.title, by: shown ? (shown.s.nickKo || shown.s.nick || shown.s.name) : '', session: shown?.s.name || '', project: shown?.key || '' })
   if (code !== 200) return 'Not shown: ' + (o.message || o.error)
   return 'Shown in the monitor\'s Artifacts as "' + o.title + '" (' + file + '). It shows again by itself each time you save the file, and what sits beside it (styles, scripts, pictures) loads too; call this again only for another file.'
 }

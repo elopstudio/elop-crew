@@ -733,6 +733,7 @@ form.inline button.ok{background:var(--run);border-color:var(--run);color:var(--
 body.docked main{padding-bottom:56px}
 body.docked main:has(.office-on){padding-bottom:0}   /* in the office the chips float over the room's corner */
 body.docked .detail{bottom:60px;max-height:calc(100vh - 92px)}
+body.docked .detail.max[open],body.docked .detail.pv.max:not(.narrow)[open]{height:calc(100vh - 76px)}   /* full size above the chips, not pushed up under the top */
 .detail dl{margin:0;padding:12px 16px 16px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;font-size:13px}
 .detail dt{color:var(--faint);font-size:12px;white-space:nowrap}
 .detail dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
@@ -1046,11 +1047,14 @@ body.docked .detail{bottom:60px;max-height:calc(100vh - 92px)}
 .arts .aitems{flex:1;overflow:auto;padding:8px;display:grid;gap:4px;align-content:start}
 .arts .ahint{font-size:11.5px;color:var(--faint);padding:4px 6px 8px}
 .arts .aerr{font-size:12px;color:var(--block);font-weight:700;padding:0 12px 10px}
-.arts .aitem{position:relative;appearance:none;text-align:left;border:1px solid transparent;background:none;color:var(--text);border-radius:9px;padding:8px 30px 8px 10px;cursor:pointer;display:grid;gap:1px;font:13px var(--sans);min-width:0}
+.arts .aitem{position:relative;appearance:none;text-align:left;border:1px solid transparent;background:none;color:var(--text);border-radius:9px;padding:8px 30px 8px 8px;cursor:pointer;display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:8px;row-gap:1px;align-items:center;font:13px var(--sans);min-width:0}
+.arts .aitem .av{grid-row:span 2;width:30px;height:24px;display:grid;place-items:center;font-size:15px}
+.arts .aitem .av svg{width:30px;height:23px}
+.arts .aitem span em{font-style:normal;font-weight:700;color:var(--text)}
 .arts .aitem:hover{background:var(--surface-2)}
 .arts .aitem.on{background:var(--accent-soft);border-color:var(--accent)}
 .arts .aitem b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.arts .aitem span{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arts .aitem>span:not(.av){font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .arts .aitem.gone b{color:var(--faint);text-decoration:line-through}
 .arts .aitem .x{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;color:var(--faint);font-size:14px;opacity:0}
 .arts .aitem:hover .x,.arts .aitem .x:focus-visible{opacity:1}
@@ -4334,6 +4338,14 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     side.append(form, err, items);
     box.append(side, view);
     let list = [], pick = null, shownAt = 0, frame = null;
+    // whose a file is: the agent that showed it (by its session, or its name for the older ones), drawn as its robot
+    const crew = () => (last?.projects || []).flatMap((p) => p.sessions || []);
+    function owner(a) {
+      const all = crew(), s = (a.session && all.find((x) => x.name === a.session)) || (a.by && all.find((x) => [x.nickKo, x.nick, x.name].includes(a.by)));
+      if (s) return { name: str(s.name), st: STATE[s.state] ? s.state : 'resting', leader: !!s.isLeader, label: nickFor(s) || str(s.name) };
+      if (a.session) return { name: str(a.session), st: 'resting', leader: false, label: str(a.by) || str(a.session) };
+      return { name: '', label: a.by ? str(a.by) : t('artYou') };
+    }
     const seen = () => { const top = Math.max(0, ...list.map((a) => a.at)); if (top > artSeen()) { try { localStorage.setItem('am.artSeen', String(top)); } catch (e) {} artButton(last); } };
     function drawView() {
       const a = list.find((x) => x.id === pick);
@@ -4361,8 +4373,11 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       for (const a of list) {
         const b = el('button', 'aitem' + (a.id === pick ? ' on' : '') + (a.exists ? '' : ' gone'));
         b.type = 'button';
-        const who = [a.by ? str(a.by) : t('artYou'), str(a.project), a.exists ? ago(a.mtime || a.at) : t('artMissing')].filter(Boolean).join(' · ');
-        b.append(el('b', null, str(a.title)), el('span', null, str(a.name) + ' · ' + who));
+        const o = owner(a), av = el('span', 'av', o.name ? '' : '📄'), meta = el('span');
+        if (o.name) av.append(robotNode(o.name, o.st, o.leader, true));
+        meta.append(el('em', null, o.label), document.createTextNode(' · ' + [str(a.name), str(a.project), a.exists ? ago(a.mtime || a.at) : t('artMissing')].filter(Boolean).join(' · ')));
+        av.title = o.label;
+        b.append(av, el('b', null, str(a.title)), meta);
         b.title = str(a.path);
         const x = el('span', 'x', '×');
         x.title = t('artRemove'); x.setAttribute('role', 'button'); x.tabIndex = 0;
@@ -4392,7 +4407,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       const r = await cfGet('/artifacts');
       if (!box.isConnected) return;
       const next = r?.list || [];
-      const sig = JSON.stringify(next.map((a) => [a.id, a.title, a.exists, a.mtime, a.at]));
+      const sig = JSON.stringify(next.map((a) => [a.id, a.title, a.exists, a.mtime, a.at, Object.values(owner(a))]));
       if (sig === load.sig) return;
       load.sig = sig;
       list = next;
