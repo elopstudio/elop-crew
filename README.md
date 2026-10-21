@@ -171,7 +171,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   A monitor agent whose conversation has grown past 200k tokens (or half its model's context) starts its next task in a
   new conversation, under the same name, with the tasks it finished and its last message handed over — every step
   re-reads the whole conversation, so this keeps long runs cheap; no turn is spent writing the hand-over.
-- **Team chat.** Who messaged whom, as one-line summaries. Two agents that sent each other 12 messages or more in
+- **Team chat.** Who messaged whom, as one-line summaries — VS Code sessions and agents the monitor runs alike. Two agents that sent each other 12 messages or more in
   half an hour are pointed out at the top (each message is a turn for the one it wakes, its whole conversation read
   again), and the assistant is told, once an hour for a pair.
 - **Subagents.** A card shows `🤖 2` while that many of its subagents (the Agent tool) are running; the agent's dialog has a

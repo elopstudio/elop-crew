@@ -608,7 +608,15 @@ async function buildState() {
     sess.procs = processes.summary(m.pid, m.name, procAge())
     projects.get(m.key).sessions.push(sess)
     bySession.set(m.sessionId, { sess, project: m.key })
+    // its messages to the others, as for a VS Code session (they were left out: the team chat stayed empty)
+    for (const x of info?.sent || []) {
+      const sock = x.to.replace(/^uds:/, '')
+      projects.get(m.key).messages.push({ from: m.name, to: bySocket.get(sock) || (x.to.startsWith('uds:') ? null : x.to), summary: x.summary, at: x.at })
+    }
   }
+  // SendMessage knows a monitor agent by its claude's name, the page by the agent's: messages go by the page's
+  const pageName = new Map(reg.filter((r) => r.sessionId && bySession.has(r.sessionId)).map((r) => [r.name, bySession.get(r.sessionId).sess.name]))
+  for (const p of projects.values()) for (const x of p.messages) if (x.to && pageName.has(x.to)) x.to = pageName.get(x.to)
 
   const allSessions = [...projects.values()].flatMap((p) => p.sessions.map((s) => ({ s, names: config.projects?.[p.key]?.names || {} })))
   const pinned = new Map(allSessions.map(({ s, names }) => [s, pinOf(names[s.name] || names[s.short]) || pinOf(s.pinNick)]))
