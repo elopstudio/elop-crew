@@ -91,7 +91,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   request waits at its desk, hand up and turned to you, with a bubble: **Allow** and **Deny** answer a tool request right
   there, a question or a plan opens its dialog. A waiting agent dozes at its desk, after a minute goes to the pantry and
   after five to the lounge; a resting one (its session over) sleeps on the sofa, greyed. Running subagents sit small beside
-  the desk. Each place is one robot's at a time, and an office opened afresh shows each where it already is. The rows of desks grow with the crew, always with one **+ New seat** free (a click starts a new agent).
+  the desk. One whose session is gone from the list packs a box where it is and carries it out of the door (in the building,
+  down the corridor and out through the lobby) before it disappears. Each place is one robot's at a time, and an office opened afresh shows each where it already is. The rows of desks grow with the crew, always with one **+ New seat** free (a click starts a new agent).
   The panel shows the agent picked — what it is doing, where it is, uptime, today's tokens, how full its context is, with
   Allow / Deny for a request, and **Conversation** (with the message box ready) — then what just happened (moves, requests, state changes,
   subagents). Drag to move, the wheel or − + to zoom (the percentage fits it again); a

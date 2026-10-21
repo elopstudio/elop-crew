@@ -813,7 +813,7 @@ export function createOffice(api) {
   const agents = new Map();   // session name → agent
   const seats = new Map();    // session name → desk index (kept while it is on the page)
   let leaderName = null, project = null, dirtyPlates = true, approvals = new Map();
-  const FACE = { idle: 'working', walking: 'working', typing: 'working', reading: 'working', web: 'working', sip: 'working', visit: 'working', doze: 'waiting', sofadoze: 'waiting', sleep: 'resting', ask: 'asking' };
+  const FACE = { idle: 'working', walking: 'working', pack: 'working', carry: 'working', typing: 'working', reading: 'working', web: 'working', sip: 'working', visit: 'working', doze: 'waiting', sofadoze: 'waiting', sleep: 'resting', ask: 'asking' };
   function newAgent(s, leader) {
     const look = api.look(s, leader);
     const a = { name: s.name, s, leader, look, lookKey: look.c + look.acc, pos: [0, 0], path: [], lift: 0, liftTo: 0, size: leader ? 1.34 : 1.2, mode: 'typing', ang: 0, angTo: 0, vis: 0, phase: Math.random() * 10, place: null, spot: null, want: null, wantSince: 0, arrivedAt: 0, minis: [] };
@@ -828,6 +828,27 @@ export function createOffice(api) {
     return a;
   }
   function dropAgent(a) { a.r.dispose(); a.chip.remove(); for (const m of a.minis) m.r.dispose(); }
+  /* ── one whose session has gone: it packs a box where it is and carries it out of the door (in the building, out
+     through the lobby), then it is gone ── */
+  const leavers = [];
+  function leave(a) {
+    const cur = a.spot || { p: a.pos, via: [] }, from = cur.via.length ? cur.via[cur.via.length - 1] : cur.p;
+    let path = null;
+    if (MODE === 'bldg' && BL.byKey.has(a.room)) path = [...cur.via, ...doorWay(a.room), BL.lobbyDoor, [BL.lobbyDoor[0], B.d + 0.8]];
+    else if (MODE === 'room' && exitHits.length) { const z = S(7.875), c = COLS[COLS.length - 1]; path = [...cur.via, ...lanePath(from, [c, L.ROWS.at(-1)]), [c, z], [GX + 0.8, z]]; }
+    a.path = (path || []).filter((p, i, arr) => (i === 0 ? Math.hypot(p[0] - a.pos[0], p[1] - a.pos[1]) > 0.01 : Math.hypot(p[0] - arr[i - 1][0], p[1] - arr[i - 1][1]) > 0.01));
+    a.arrive = null; a.liftTo = 0; a.leaving = { t0: performance.now(), door: !!path };
+    for (const m of a.minis) m.r.dispose(); a.minis = [];
+    // a cardboard box held in front, its desk plant peeking out
+    const box = new THREE.Group(); box.position.set(0, 0.15, 0.3); box.scale.setScalar(0.001); a.r.rig.add(box);
+    mesh(box, rbox(0.4, 0.24, 0.28, 0.02), M('#c9a06a', { roughness: 0.85, clearcoat: 0 }));
+    mesh(box, rbox(0.41, 0.012, 0.07, 0.004), M('#ead6a6', { roughness: 0.6, clearcoat: 0 }), 0, 0.122, 0, { cast: false });
+    mesh(box, sphG(0.07), M('leaf', { roughness: 0.7 }), 0.1, 0.15, -0.04);
+    a.leaving.box = box;
+    a.chip.className = 'act dim'; a.chip.innerHTML = `<b>${esc(api.name(a.s))}</b>📦 ${esc(t('officeLeaving'))}`;
+    leavers.push(a);
+  }
+  function dropLeavers() { for (const a of leavers) dropAgent(a); leavers.length = 0; }
   function put(a, place) { const s = spotOf(a, place); a.pos = [...s.p]; a.spot = s; a.place = place; a.ang = a.angTo = angOf(s.face); a.lift = a.liftTo = s.lift; a.arrivedAt = performance.now(); }
   function go(a, place) {
     const tgt = spotOf(a, place), cur = a.spot || { p: a.pos, via: [] };
@@ -947,7 +968,7 @@ export function createOffice(api) {
   const DX = 2.4, DZ = 1.9;
   let BL = { rooms: [], byKey: new Map(), rugs: new Map(), floors: [], CY: 0, sig: '' };
   function bplan(projects) {
-    const sized = projects.map((p, i) => { const n = Math.max(1, (p.sessions || []).length), cols = n <= 4 ? 2 : n <= 9 ? 3 : 4; return { p, key: p.key, i, cols, rows: Math.ceil(n / cols), w: cols * DX + 0.45 }; });
+    const sized = projects.map((p, i) => { const n = Math.max(1, (p.sessions || []).length + leavers.filter((a) => a.room === p.key).length), cols = n <= 4 ? 2 : n <= 9 ? 3 : 4; return { p, key: p.key, i, cols, rows: Math.ceil(n / cols), w: cols * DX + 0.45 }; });
     const nA = sized.length > 4 ? Math.ceil(sized.length / 2) : sized.length, A = sized.slice(0, nA), Bq = sized.slice(nA);
     const RA = Math.max(1, ...A.map((r) => r.rows)), RB = Bq.length ? Math.max(1, ...Bq.map((r) => r.rows)) : 0;
     const DA = 3.15 + (RA - 1) * DZ, CW = 1.7, zB = DA + CW, DB = RB ? 3.45 + (RB - 1) * DZ : 0;
@@ -1056,13 +1077,13 @@ export function createOffice(api) {
   // the page hands in every project on every poll, for the building
   function building(data) {
     const fresh = MODE !== 'bldg';
-    if (fresh) { MODE = 'bldg'; project = null; selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); BL.sig = ''; }
+    if (fresh) { MODE = 'bldg'; project = null; selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); dropLeavers(); BL.sig = ''; }
     approvals = new Map(); for (const x of data?.approvals || []) if (x.session && !approvals.has(x.session)) approvals.set(x.session, x);
     const projects = data?.projects || [], all = projects.flatMap((p) => (p.sessions || []).map((s) => [p, s])), names = new Set(all.map(([, s]) => s.name));
     el.querySelector('.oname').innerHTML = `${esc(t('officeBuilding'))}<small>${esc(t('officeRooms', { n: projects.length }))}${esc(t('officeAgents', { n: all.length }))}</small>`;
-    for (const [n, a] of agents) if (n !== SEC && !names.has(n)) { log(a, t('officeLogLeave')); dropAgent(a); agents.delete(n); seats.delete(n); }
+    for (const [n, a] of agents) if (n !== SEC && !names.has(n)) { log(a, t('officeLogLeave')); agents.delete(n); seats.delete(n); leave(a); }
     const plan = bplan(projects), rebuild = plan.sig !== BL.sig;
-    if (rebuild) { const rugs = BL.rugs; BL = plan; B.w = plan.W; B.d = plan.D; rugs.clear(); hoverRoom = null; }
+    if (rebuild) { dropLeavers(); const rugs = BL.rugs; BL = plan; B.w = plan.W; B.d = plan.D; rugs.clear(); hoverRoom = null; }
     else for (const r of plan.rooms) { const o = BL.byKey.get(r.key); if (o) o.p = r.p; }
     // desks: each keeps the one it had in its room
     for (const r of BL.rooms) {
@@ -1158,14 +1179,14 @@ export function createOffice(api) {
     if (fresh) { selected = null; sideKey = ''; feedBox.innerHTML = `<div class="none">${esc(t('officeFeedNone'))}</div>`; }
     approvals = new Map(); for (const x of data?.approvals || []) if (x.session && !approvals.has(x.session)) approvals.set(x.session, x);
     const sessions = p.sessions || [], names = new Set(sessions.map((s) => s.name));
-    if (fresh) { for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); }
-    for (const [n, a] of agents) if (n !== SEC && !names.has(n)) { log(a, t('officeLogLeave')); dropAgent(a); agents.delete(n); seats.delete(n); }
+    if (fresh) { for (const a of agents.values()) dropAgent(a); agents.clear(); seats.clear(); dropLeavers(); }
+    for (const [n, a] of agents) if (n !== SEC && !names.has(n)) { log(a, t('officeLogLeave')); agents.delete(n); seats.delete(n); leave(a); }
     const lead = sessions.find((s) => s.isLeader); leaderName = lead ? lead.name : null;
     const crew = sessions.filter((s) => !s.isLeader);
     // desks: each keeps the one it had; rows grow so that one desk stays free for a new agent
-    const rows = Math.max(2, Math.ceil((crew.length + 1) / PER_ROW));
+    const rows = Math.max(2, Math.ceil((crew.length + 1) / PER_ROW), leavers.length ? L.rows : 0);   // not smaller while one walks out
     const rebuild = rows !== L.rows;
-    if (rebuild) { layout(rows); }
+    if (rebuild) { layout(rows); dropLeavers(); }
     const used = new Set(); for (const s of crew) { const d = seats.get(s.name); if (d != null && d < rows * PER_ROW && !used.has(d)) used.add(d); else seats.delete(s.name); }
     for (const s of crew) if (!seats.has(s.name)) { let d = 0; while (used.has(d)) d++; seats.set(s.name, d); used.add(d); }
     newSeat = 0; while (used.has(newSeat)) newSeat++;
@@ -1212,8 +1233,8 @@ export function createOffice(api) {
     const r = a.r, T = t + a.phase, k = Math.min(1, dt * 10);
     let face = FACE[m]; if (face === 'working' && (T % 4.3) < 0.13) face = 'blink';
     r.faceMat.map = FACES[face];
-    const toward = m === 'ask' ? angOf(TO_VIEWER) : m === 'doze' ? angOf([1, 0.5]) : a.angTo;
-    let d = toward - a.ang; d = Math.atan2(Math.sin(d), Math.cos(d)); a.ang += d * Math.min(1, dt * (m === 'walking' ? 12 : 5));
+    const toward = m === 'ask' || m === 'pack' ? angOf(TO_VIEWER) : m === 'doze' ? angOf([1, 0.5]) : a.angTo;
+    let d = toward - a.ang; d = Math.atan2(Math.sin(d), Math.cos(d)); a.ang += d * Math.min(1, dt * (m === 'walking' || m === 'carry' ? 12 : 5));
     let y = 0, rz = 0, sy = 1, hx = 0, hy = 0, aL = 0, aR = 0, aLz = 0, aRz = 0;
     switch (m) {
       case 'walking': { const s = T * 11; y = Math.abs(Math.sin(s)) * 0.06; rz = Math.sin(s) * 0.07; aL = Math.sin(s) * 0.7; aR = -aL; break; }
@@ -1225,9 +1246,11 @@ export function createOffice(api) {
       case 'doze': case 'sofadoze': sy = 1 + Math.sin(T * 1.7) * 0.025; hx = 0.32 + Math.sin(T * 0.85) * 0.08; hy = m === 'sofadoze' ? 0.25 : 0; rz = m === 'sofadoze' ? 0.12 : 0; break;
       case 'sleep': sy = 1 + Math.sin(T * 1.2) * 0.02; hx = 0.42; rz = 0.2; break;
       case 'idle': y = Math.sin(T * 2) * 0.008; hx = 0.04; hy = Math.sin(T * 0.45) * 0.3; aL = aR = -0.4; break;
+      case 'pack': hx = 0.3; aL = aR = -0.9 + Math.sin(T * 7) * 0.12; break;
+      case 'carry': { const s = T * 9; y = Math.abs(Math.sin(s)) * 0.04; rz = Math.sin(s) * 0.05; aL = aR = -1.2; break; }
       case 'ask': { const ph = (T * 0.9) % 1; y = ph < 0.3 ? Math.sin(ph / 0.3 * Math.PI) * 0.11 : 0; aL = -2.75 + Math.sin(T * 8) * 0.18; aLz = -0.25; aR = -0.1; break; }
     }
-    r.rig.position.y = lerp(r.rig.position.y, y, m === 'walking' || m === 'ask' ? 1 : k);
+    r.rig.position.y = lerp(r.rig.position.y, y, m === 'walking' || m === 'carry' || m === 'ask' ? 1 : k);
     r.rig.rotation.z = lerp(r.rig.rotation.z, rz, k); r.rig.scale.y = lerp(r.rig.scale.y, sy, k);
     r.head.rotation.x = lerp(r.head.rotation.x, hx, k); r.head.rotation.y = lerp(r.head.rotation.y, hy, k);
     r.armL.rotation.x = lerp(r.armL.rotation.x, aL, k * 1.5); r.armR.rotation.x = lerp(r.armR.rotation.x, aR, k * 1.5);
@@ -1315,7 +1338,7 @@ export function createOffice(api) {
       if (e._key !== key) { e._key = key; e.style.transform = 'translate(-9999px,0)'; e._w = e.offsetWidth; e._h = e.offsetHeight; }
       items.push({ e, ax, ay, anchor, prio, mode, w: e._w, h: e._h });
     };
-    for (const a of agents.values()) {
+    for (const a of [...agents.values(), ...leavers]) {
       if (a.chip.classList.contains('hide') || a.vis < 0.5) continue;
       const top = a.lift + (0.86 + (a.look.acc === 'crown' || a.look.acc === 'twin' ? 0.08 : 0)) * a.size;
       const [sx, sy] = toScreen(a.pos[0], top + 0.06, a.pos[1]);
@@ -1395,6 +1418,13 @@ export function createOffice(api) {
     zoom = g.z0 * Math.pow(g.z1 / g.z0, e); pan.x = g.p0.x + (g.p1.x - g.p0.x) * e; pan.y = g.p0.y + (g.p1.y - g.p0.y) * e; applyCamera();
     if (k >= 1) glide = null;
   }
+  function walk(a, dt) {
+    if (!a.path.length) return;
+    const [tx, ty] = a.path[0], dx = tx - a.pos[0], dy = ty - a.pos[1], d = Math.hypot(dx, dy), step = SPEED * dt;
+    if (d > 0.001) a.angTo = Math.atan2(dx, dy);
+    if (d <= step) { a.pos = [tx, ty]; a.path.shift(); if (!a.path.length && a.arrive) { const f = a.arrive; a.arrive = null; f(); } }
+    else a.pos = [a.pos[0] + dx / d * step, a.pos[1] + dy / d * step];
+  }
   function frame(now) {
     if (!el.isConnected || document.hidden) { running = false; return; }
     const dt = Math.min(0.05, (now - last) / 1000), t = now / 1000; last = now;
@@ -1416,12 +1446,7 @@ export function createOffice(api) {
       if (w !== a.want) { if (taken.get(a.want) === a && a.want !== a.place) taken.delete(a.want); a.want = w; a.wantSince = now; taken.set(w, a); }
       const urgent = approvals.has(a.name) || a.sec;
       if (a.want !== a.place && !a.path.length && (urgent || (now - a.wantSince > 2500 && now - a.arrivedAt > 3500))) { if (taken.get(a.place) === a) taken.delete(a.place); go(a, a.want); }
-      if (a.path.length) {
-        const [tx, ty] = a.path[0], dx = tx - a.pos[0], dy = ty - a.pos[1], d = Math.hypot(dx, dy), step = SPEED * dt;
-        if (d > 0.001) a.angTo = Math.atan2(dx, dy);
-        if (d <= step) { a.pos = [tx, ty]; a.path.shift(); if (!a.path.length && a.arrive) { const f = a.arrive; a.arrive = null; f(); } }
-        else a.pos = [a.pos[0] + dx / d * step, a.pos[1] + dy / d * step];
-      }
+      walk(a, dt);
       a.lift += (a.liftTo - a.lift) * Math.min(1, dt * 9);
       a.vis += (1 - a.vis) * Math.min(1, dt * 6);
       const R = a.r.root; R.position.set(a.pos[0], a.lift, a.pos[1]); R.rotation.y = a.ang; R.scale.setScalar(a.size * Math.max(0.001, a.vis));
@@ -1429,6 +1454,19 @@ export function createOffice(api) {
       pose(a, m, t, dt); minis(a, t, dt);
       const [cls, html] = chipFor(a, m);
       if (a.chipKey !== cls + html) { a.chipKey = cls + html; a.chip.className = cls; a.chip.innerHTML = html; }
+    }
+    // the ones leaving: a moment to pack, then out of the door, smaller past it until gone
+    for (let i = leavers.length - 1; i >= 0; i--) {
+      const a = leavers[i], age = now - a.leaving.t0, packing = age < 1500;
+      if (!packing) walk(a, dt);
+      a.lift += (a.liftTo - a.lift) * Math.min(1, dt * 9);
+      const past = MODE === 'bldg' ? (B.d + 0.3 - a.pos[1]) / 0.9 : (GX + 0.5 - a.pos[0]) / 0.9;
+      const to = !a.leaving.door ? (packing ? 1 : 0) : a.path.length ? Math.min(1, Math.max(0, past)) : 0;
+      a.vis += (to - a.vis) * Math.min(1, dt * 6);
+      a.leaving.box.scale.setScalar(Math.max(0.001, Math.min(1, (age - 300) / 500)));
+      const R = a.r.root; R.position.set(a.pos[0], a.lift, a.pos[1]); R.rotation.y = a.ang; R.scale.setScalar(a.size * Math.max(0.001, a.vis));
+      pose(a, packing ? 'pack' : a.path.length ? 'carry' : 'idle', t, dt);
+      if ((!packing && a.vis < 0.02) || age > 30000) { dropAgent(a); leavers.splice(i, 1); }
     }
     const sel = (hovered && agents.get(hovered.split('#')[0])) || (selected && agents.get(selected));
     ring.visible = !!sel; if (sel) { ring.position.set(sel.pos[0], 0.05, sel.pos[1]); ring.scale.setScalar(sel.size * (1 + 0.06 * Math.sin(t * 4))); ring.material.opacity = 0.55 + 0.25 * Math.sin(t * 4); }
