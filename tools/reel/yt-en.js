@@ -82,7 +82,7 @@
     '에이전트는 일하고, 나는 한눈에 봅니다': 'Your agents work. You see it all at a glance.',
     '프로젝트별 조직도': 'Org chart per project', '화면에서 승인': 'Approve on screen', '에이전트 창과 비서': 'Agent window & Assistant', '프로세스·사용량': 'Processes & usage', '자동 압축 설정': 'Auto-compact',
     '승인 · 대화 · 터미널까지': 'Approvals · chat · terminals',
-    '3D 사무실': '3D office',
+    '3D 사무실': '3D office', '일하고, 묻고, 걸어 다닙니다': 'Working, asking, walking around',
     /* the office chapter */
     '사무실: 프로젝트마다 방 하나': 'The office: a room per project',
     '조직도 옆의 <em>사무실</em>을 누르면,<br>에이전트들이 3D 사무실에서 일하는 모습으로 바뀝니다': 'Press <em>Office</em> beside the org chart<br>and the team turns into robots working in a 3D office',

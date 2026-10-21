@@ -92,7 +92,7 @@ body.en #thumb h2{font-size:98px}
   <div id="ptr"><i></i><svg viewBox="0 0 22 22"><path d="M3 2l15 9-6.5 1.6L8.6 19z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg></div>
 </div>
 <div id="chaos"></div>
-<div id="thumb"><div class="t"><div class="k">Claude Code</div><h2>에이전트 팀,<br><em>한 화면</em>에서</h2><p>승인 · 대화 · 터미널까지</p></div><div class="brand"><span class="botbox2"></span>ELOP <span>Crew</span></div></div>
+<div id="thumb"><div class="t"><div class="k">Claude Code</div><h2>에이전트 팀이<br><em>3D 사무실</em>에서</h2><p>일하고, 묻고, 걸어 다닙니다</p></div><div class="brand"><span class="botbox2"></span>ELOP <span>Crew</span></div></div>
 <div id="chap"><b></b><span></span></div>
 <div id="cap"></div>
 <script src="/yt-en.js"></script>
@@ -528,15 +528,17 @@ const SCENES = [
     await at(13);
   }],
 ];
-// the thumbnail: the shop-web leader and two of the team on the right
+// the thumbnail: the shop-web room of the office on the right, its robots at work
 async function stageThumb() {
   $('cam').classList.add('on');
   tab('shop-web')?.click();
-  await sleep(1500);
-  const r = boxOf(rectOf(card('민준')), rectOf(card('서연')), rectOf(card('지호')));
-  const s = Math.min(1.25, 1000 / r.w);
+  await sleep(1000);
+  viewBtn(/사무실|Office/)?.click();
+  await sleep(4000);
+  olook(null, 1.3, 10);
+  await sleep(2500);
   $('cam').style.transitionDuration = '0ms';
-  $('cam').style.transform = `translate(${1920 - 60 - s * (r.x + r.w)}px,${570 - s * (r.y + r.h / 2)}px) scale(${s})`;
+  $('cam').style.transform = 'translate(-80px,-289px) scale(1.65)';
   $('thumb').querySelector('.botbox2').innerHTML = page().querySelector('#logo svg').outerHTML.replace('class="robot"', 'class="robot" style="width:96px;height:96px"');
   $('thumb').classList.add('on');
   await sleep(800);
@@ -579,7 +581,7 @@ if (LANG === 'en') {
     const walk = document.createTreeWalker($(root), NodeFilter.SHOW_TEXT);
     for (let n; (n = walk.nextNode());) { const k = n.textContent.trim(); if (k && window.YT_EN[k] != null) n.textContent = n.textContent.replace(k, window.YT_EN[k]); }
   }
-  $('thumb').querySelector('h2').innerHTML = 'Your agent team,<br>on <em>one screen</em>';
+  $('thumb').querySelector('h2').innerHTML = 'Your agent team<br>in a <em>3D office</em>';
 }
 </script>
 </body>
