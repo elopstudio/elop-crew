@@ -29,12 +29,13 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0b0d12
 @keyframes hit{0%{transform:scale(.2);opacity:1}100%{transform:scale(1.6);opacity:0}}
 /* captions: a lower third */
 #cap{position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;pointer-events:none;z-index:60}
-#cap .c{position:absolute;bottom:0;max-width:1500px;padding:20px 40px;border-radius:18px;background:rgba(10,12,18,.86);border:1px solid rgba(255,255,255,.08);box-shadow:0 14px 40px rgba(0,0,0,.45);
-  font-weight:700;font-size:40px;line-height:1.38;letter-spacing:-.01em;text-align:center;opacity:0;transform:translateY(18px);transition:opacity .4s ease,transform .4s ease}
+/* text only, no box: a dark outline drawn under the letters and a soft shadow keep it readable on the light office too */
+#cap .c{position:absolute;bottom:0;max-width:1600px;padding:0 40px;color:#fff;-webkit-text-stroke:4.5px rgba(8,10,14,.9);paint-order:stroke fill;text-shadow:0 3px 14px rgba(0,0,0,.75),0 0 4px rgba(0,0,0,.6);
+  font-weight:800;font-size:42px;line-height:1.38;letter-spacing:.01em;text-align:center;opacity:0;transform:translateY(18px);transition:opacity .4s ease,transform .4s ease}
 #cap .c.on{opacity:1;transform:none}
 #cap .c.out{opacity:0;transform:translateY(-10px);transition-duration:.25s}
 #cap em{font-style:normal;color:#ffd166}
-#cap small{display:block;font-size:28px;font-weight:600;color:#a3abb8;margin-top:6px}
+#cap small{display:block;font-size:29px;font-weight:700;color:#d3d8e1;margin-top:6px;-webkit-text-stroke-width:4px}
 /* the chapter, top left */
 #chap{position:absolute;left:40px;top:34px;z-index:60;display:flex;align-items:center;gap:14px;padding:12px 24px 12px 14px;border-radius:999px;background:rgba(10,12,18,.84);border:1px solid rgba(255,255,255,.1);
   font-weight:800;font-size:28px;opacity:0;transform:translateX(-20px);transition:opacity .4s,transform .4s}
@@ -97,7 +98,7 @@ body.en #thumb h2{font-size:98px}
 <script src="/yt-en.js"></script>
 <div class="card dim" id="title"><div class="botbox"></div><h1>ELOP <span>Crew</span></h1><p>Claude Code 에이전트 팀을 한 화면에서</p><div class="s">Windows · macOS 데스크톱 앱 사용 안내</div></div>
 <div class="card dim" id="end"><div class="botbox"></div><h1>ELOP <span>Crew</span></h1><p>에이전트는 일하고, 나는 한눈에 봅니다</p>
-  <ul><li>프로젝트별 조직도</li><li>화면에서 승인</li><li>에이전트 창과 비서</li><li>터미널 패널</li><li>프로세스·사용량</li><li>자동 압축 설정</li></ul>
+  <ul><li>프로젝트별 조직도</li><li>3D 사무실</li><li>화면에서 승인</li><li>에이전트 창과 비서</li><li>터미널 패널</li><li>프로세스·사용량</li></ul>
   <div class="go">crew.elopstudio.com</div></div>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -263,6 +264,19 @@ const q = (sel) => page().querySelector(sel), qa = (sel) => [...page().querySele
 const card = (name) => qa('.bot-card').find((c) => c.querySelector('.botname')?.textContent === tr(name));
 const tab = (key) => qa('#tabs .tab').find((t) => t.dataset.key === key);
 const byText = (sel, re, doc = page()) => [...doc.querySelectorAll(sel)].find((e) => re.test(e.textContent));
+// the office (as tools/reel/office.html steers it): its own view and sky, through the page's 'office-demo' event
+const SEC = 'monitor-assistant', who = (id) => 'monitor-' + id;
+const viewBtn = (re) => byText('.viewsw button', re);
+const wallbtn = (re) => byText('.office .wallbtn', re);
+const olook = (to, zoom, ms = 1400) => pw().dispatchEvent(new (pw().CustomEvent)('office-demo', { detail: { look: to, zoom, ms } }));
+function sky(hour, weather) {
+  const u = new URL(pw().location.href);
+  if (hour == null) u.searchParams.delete('officeHour'); else u.searchParams.set('officeHour', String(Math.round(hour * 100) / 100));
+  if (weather == null) u.searchParams.delete('officeWeather'); else u.searchParams.set('officeWeather', weather);
+  pw().history.replaceState(null, '', u.pathname + u.search + u.hash);
+  pw().dispatchEvent(new (pw().CustomEvent)('office-demo', { detail: { sky: true } }));
+}
+async function timelapse(h1, h2, s, weather) { const n = Math.round(s * 12); for (let i = 0; i <= n; i++) { sky(h1 + (h2 - h1) * i / n, weather); await sleep(1000 / 12); } }
 
 /* ── 1: many Claude windows ── */
 const WINS = [
@@ -306,11 +320,11 @@ const SCENES = [
   }],
   // the dashboard
   [34, async (at) => {
-    chapter(1, '대시보드 — 프로젝트별 조직도');
+    chapter(1, '대시보드: 프로젝트별 조직도');
     await at(0.5); caption('ELOP Crew 는 이 PC 의 모든 Claude Code 세션을<br><em>프로젝트 → 리더 → 에이전트</em> 순으로 묶어 보여 줍니다');
     await at(2.5); await click(tab('shop-web')); hidePtr();
     await at(5.5); look(boxOf(rectOf(q('#tabs'))), { pad: 16, ms: 900, max: 2.2 });
-    caption('프로젝트마다 탭 하나 — 리더 로봇과 <em>작업 중 ▶ · 대기 ○</em> 수');
+    caption('프로젝트마다 탭 하나, 리더 로봇과 <em>작업 중 ▶ · 대기 ○</em> 수');
     await at(10); wide(800);
     await at(10.8); look(boxOf(rectOf(card('민준')), rectOf(card('서연')), rectOf(card('지호'))), { pad: 30, ms: 1000 });
     caption('왕관 쓴 리더 아래로 팀원이 달리고,<br>카드마다 <em>지금 하는 일</em>과 상태가 나옵니다');
@@ -329,11 +343,11 @@ const SCENES = [
   [24, async (at) => {
     chapter(2, '팀 대화와 작업판');
     await at(0.4); look(boxOf(rectOf(q('.side'))), { pad: 20, ms: 1000, max: 2 });
-    caption('<em>팀 대화</em> — 누가 누구에게 무엇을 보냈는지 한 줄씩');
+    caption('<em>팀 대화</em>: 누가 누구에게 무엇을 보냈는지 한 줄씩');
     await at(5); fetch('/demo/set', { method: 'POST', body: JSON.stringify({ extraMsgs: [{ from: 'monitor-d9haeun', to: 'monitor-a1minjun', summary: '스테이징 빌드 끝, 배포 스크립트 실행 허락을 구했어요', at: Date.now(), fromNick: '하은', fromNickKo: '하은', toNick: '민준', toNickKo: '민준' }] }) });
     await at(8.6); wide(600); pw().scrollTo({ top: 99999, behavior: 'smooth' });
     await at(9.6); look(boxOf(rectOf(q('section.kanban'))), { pad: 16, ms: 1000, max: 2 });
-    caption('<em>작업판</em> — 진행 중·대기·끝난 일, 그리고 사람이 정할 일');
+    caption('<em>작업판</em>: 진행 중·대기·끝난 일, 그리고 사람이 정할 일');
     await at(15); caption('<em>자동 진행</em>을 켜면 턴을 마친 에이전트가<br>다음 대기 작업을 넘겨받습니다');
     await at(21); caption(''); wide(800); pw().scrollTo({ top: 0, behavior: 'smooth' });
   }],
@@ -343,7 +357,7 @@ const SCENES = [
     await at(0.4); demo({ asking: true });
     caption('에이전트가 허락을 구하면 요청이 <em>화면 맨 위</em>에 뜹니다');
     await at(2.5); look(boxOf(rectOf(q('#approvals .approval') || q('#approvals'))), { pad: 18, ms: 1000, max: 2.3 });
-    await at(5.5); caption('허용 · <em>항상 허용</em> · 거부 — 숫자 키로도 바로 답합니다<small>VS Code 를 열지 않아도 됩니다</small>');
+    await at(5.5); caption('허용 · <em>항상 허용</em> · 거부, 숫자 키로도 바로 답합니다<small>VS Code 를 열지 않아도 됩니다</small>');
     await at(10); await click(q('#approvals .approval[data-id="ask-d9haeun"] button.allow'));
     await at(11.5); hidePtr(); wide(700);
     await at(12.5); demo({ asked: true });
@@ -360,7 +374,7 @@ const SCENES = [
     await at(0.4); caption('카드를 누르면 그 에이전트의 <em>대화가 실시간으로</em> 열립니다');
     await click(card('서연')?.querySelector('.bubble'));
     await at(2.2); hidePtr(); { const d = q('#detail'); look(boxOf(rectOf(d)), { pad: 10, ms: 1000, max: 1.8 }); }
-    caption('<em>정보</em> 탭 — 역할, 상태, 컨텍스트 크기, 오늘 쓴 토큰. 이름과 모습도 바꿉니다');
+    caption('<em>정보</em> 탭: 역할, 상태, 컨텍스트 크기, 오늘 쓴 토큰. 이름과 모습도 바꿉니다');
     await at(5.5); await click(qa('#detail .dtab')[1]); hidePtr();
     await at(6.5); caption('명령, 읽은 파일, <em>고친 내용(diff)</em>까지 VS Code 처럼'); talk('#detail');
     { const t = qa('#detail details.tool').pop(); if (t) t.open = true; }
@@ -382,7 +396,7 @@ const SCENES = [
     { const box = q('#assist textarea'); await typeText(box, '지금 팀 상황 요약해 줘', 70); }
     await at(5.6); await click(q('#assist .csend')); hidePtr();
     await at(9); caption('누가 막혔는지, <em>무엇부터 답하면 되는지</em>까지'); talk('#assist', 900, 420);
-    await at(18); caption('비서는 에이전트를 깨우고, 메시지를 전하고, 승인 요청을 대신 정리합니다<small>스스로 허락하지는 않습니다 — 결정은 언제나 사람이</small>');
+    await at(18); caption('비서는 에이전트를 깨우고, 메시지를 전하고, 승인 요청을 대신 정리합니다<small>스스로 허락하지는 않습니다. 결정은 언제나 사람이</small>');
     await at(24.5); caption(''); await click(q('#fab'), $('page'), { ms: 500 }); hidePtr(); wide(700);
   }],
   // the terminal panel
@@ -392,7 +406,7 @@ const SCENES = [
     await click($('strip').contentDocument.getElementById('term'), $('strip'));
     await at(2.4); hidePtr(); look({ x: 0, y: 864 - 334, w: 860, h: 334 }, { pad: 0, ms: 900, max: 2.2 });
     await at(3.6); typeShell(1, 'git status');
-    await at(8); caption('PowerShell · Git Bash · WSL — <em>탭과 분할</em>, VS Code 처럼');
+    await at(8); caption('PowerShell · Git Bash · WSL, <em>탭과 분할</em>, VS Code 처럼');
     await at(12.5); wide(700); caption('에이전트가 개발 서버를 띄울 때도 <em>여기 탭으로</em> 엽니다');
     await at(13.5); demo({ termAsk: true });
     await at(15); look(boxOf(rectOf(q('#approvals .approval') || q('#approvals'))), { pad: 18, ms: 900, max: 2.2 });
@@ -403,7 +417,7 @@ const SCENES = [
       await sleep(600); const b = newShell({ cwd: 'C:\\work\\shop-web\\web', title: 'web', key: 'web', beside: a.id, dir: 'row' }); each('opened', b);
       await sleep(600); const c = newShell({ cwd: 'C:\\work\\shop-web\\worker', title: 'worker', key: 'worker', beside: b.id, dir: 'row' }); each('opened', c);
       await sleep(900); typeShell(a.id, 'npm run dev', 20); typeShell(b.id, 'npm run dev', 20); typeShell(c.id, 'npm run worker', 20); }
-    await at(25); caption('백엔드 · 프론트 · 워커를 <em>한 탭에 나란히</em> — 보면서 직접 입력도 합니다'); look({ x: 0, y: 864 - 334, w: 1030, h: 334 }, { pad: 0, ms: 1400, max: 2.2 });
+    await at(25); caption('백엔드 · 프론트 · 워커를 <em>한 탭에 나란히</em>, 보면서 직접 입력도 합니다'); look({ x: 0, y: 864 - 334, w: 1030, h: 334 }, { pad: 0, ms: 1400, max: 2.2 });
     await at(29.5); look({ x: 506, y: 864 - 334, w: 1030, h: 334 }, { pad: 0, ms: 1800, max: 2.2 });
     await at(33); caption('에이전트는 출력을 읽어 서버가 떴는지 확인하고,<br>입력할 때는 <em>매번 묻습니다</em>');
     await at(38.5); caption(''); showTerm(false); wide(700);
@@ -411,7 +425,7 @@ const SCENES = [
   // processes
   [20, async (at) => {
     chapter(7, '프로세스');
-    await at(0.4); caption('<em>프로세스</em> — 에이전트가 띄운 셸 · 개발 서버 · 테스트를 에이전트별로');
+    await at(0.4); caption('<em>프로세스</em>: 에이전트가 띄운 셸 · 개발 서버 · 테스트를 에이전트별로');
     await click(q('#proc-btn'));
     await at(2.4); hidePtr(); { const d = q('dialog[open]') || q('#detail'); look(boxOf(rectOf(d)), { pad: 10, ms: 900, max: 1.8 }); }
     await at(8); caption('최근 15분 CPU·메모리 차트, 무거운 순 정렬,<br>멈춘 서버는 <em>확인 후 끄기</em>');
@@ -421,15 +435,91 @@ const SCENES = [
   [28, async (at) => {
     chapter(8, '사용량과 설정');
     await at(0.4); look(boxOf(rectOf($('strip').contentDocument.getElementById('usage'), $('strip'))), { pad: 60, ms: 900, max: 2.6 });
-    caption('제목줄에 Claude 플랜의 <em>세션 · 주간 사용량</em> — 80%·95% 를 넘으면 알립니다');
+    caption('제목줄에 Claude 플랜의 <em>세션 · 주간 사용량</em>, 80%·95% 를 넘으면 알립니다');
     await at(7); wide(700);
     await at(7.5); await click($('strip').contentDocument.getElementById('settings'), $('strip'));
     await at(9); hidePtr(); look({ x: 880, y: 70, w: 560, h: 740 }, { pad: 20, ms: 900, max: 1.5 });
-    caption('<em>설정</em> — 자동 시작, 창 불러오기 단축키, hook, 업데이트');
+    caption('<em>설정</em>: 자동 시작, 창 불러오기 단축키, hook, 업데이트');
     await at(14.4); $('settings').contentDocument.getElementById('compactBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
     await at(15.2); { const r = rectOf($('settings').contentDocument.getElementById('compactBox'), $('settings')); look(r, { pad: 30, ms: 900, max: 2.2 }); }
-    caption('<em>자동 압축</em> 기본값 — 에이전트 대화가 30만 토큰을 넘으면 스스로 줄입니다<small>긴 대화를 매 단계 다시 읽는 비용이 크게 줄어듭니다</small>');
+    caption('<em>자동 압축</em> 기본값, 에이전트 대화가 30만 토큰을 넘으면 스스로 줄입니다<small>긴 대화를 매 단계 다시 읽는 비용이 크게 줄어듭니다</small>');
     await at(25); caption(''); showSettings(false); wide(800);
+  }],
+  // the office: the building, a room per project
+  [21, async (at) => {
+    chapter(9, '사무실: 프로젝트마다 방 하나');
+    await at(0.4); caption('조직도 옆의 <em>사무실</em>을 누르면,<br>에이전트들이 3D 사무실에서 일하는 모습으로 바뀝니다');
+    await click(tab('*')); sky(11, null);
+    await at(2.4); await click(viewBtn(/사무실|Office/)); hidePtr();
+    await at(6.5); caption('전체 에이전트 탭은 <em>건물</em>입니다<br>프로젝트마다 유리벽 방이 하나씩');
+    await at(10); olook(who('a1minjun'), 1.7, 2200);
+    caption('방 안에서는 그 프로젝트의 에이전트들이<br><em>지금 하는 일</em> 그대로 일하고 있어요');
+    await at(15); olook(SEC, 2.2, 1800);
+    caption('로비 안내 데스크에는 <em>비서</em>가 앉아 있습니다');
+    await at(19.5); olook(null, 1, 1300); caption('');
+  }],
+  // into a room
+  [24, async (at) => {
+    await at(0.3); caption('방을 누르면 그 프로젝트의 <em>사무실</em>로 들어갑니다');
+    await at(1.2); await click(wallbtn(/^shop-web/)); hidePtr();
+    await at(4.5); olook(who('b3seoyeon'), 2.5, 1600);
+    caption('일하는 로봇은 자기 자리에서 <em>타닥타닥</em>,<br>머리 위에는 지금 하는 일');
+    await at(10); olook(who('c7jiho'), 2.5, 1600);
+    caption('일을 마치고 기다리는 로봇은 <em>탕비실</em>에서 쉬고');
+    await at(15); olook(who('a1minjun'), 2.4, 1600);
+    caption('왕관 쓴 <em>리더</em>는 창가 리더 자리에');
+    await at(20); olook(null, 1, 1300); caption('책상 수는 팀 인원에 맞춰 늘어납니다');
+    await at(23.5); caption('');
+  }],
+  // a request, answered where the robot stands
+  [15, async (at) => {
+    await demo({ asking: true });
+    await at(0.6); olook(who('d9haeun'), 2.1, 1500);
+    caption('허락이 필요하면 로봇 머리 위에 <em>요청</em>이 뜹니다');
+    await at(6); caption('그 자리에서 바로 <em>허용</em>, 창을 찾아다닐 필요 없이');
+    await at(7.5); await click(q('.office .askb .yes')); hidePtr();
+    await at(10.5); caption('하은이 다시 일을 시작합니다');
+    await at(14); olook(null, 1, 1300); caption('');
+  }],
+  // the assistant walks to a desk
+  [15, async (at) => {
+    await at(0.3); olook('reception', 1.6, 1500);
+    caption('비서에게 맡기면, 비서가 에이전트에게 <em>직접 지시</em>합니다');
+    await at(2.5); post('/demo/secretary', { who: '서연' });
+    await at(3.2); olook(null, 1.25, 2500);
+    caption('그때마다 비서 로봇이 <em>그 에이전트 자리로 걸어가고</em>…');
+    await at(10); caption('일이 끝나면 안내 데스크로 돌아옵니다');
+    await at(14.5); caption('');
+  }],
+  // the library: the project's folder
+  [17, async (at) => {
+    await at(0.3); olook('lib', 2, 1400);
+    caption('책장을 누르면 <em>프로젝트 폴더</em>를 둘러볼 수 있어요');
+    await at(2.5); await click(wallbtn(/자료실|Library/)); hidePtr(); olook(null, 1, 900);
+    await at(5); await click(byText('.files .frow', /src$/));
+    await at(6.6); await click(byText('.files .frow', /payments$/));
+    await at(8.2); await click(byText('.files .frow', /coupon\.ts/)); hidePtr();
+    caption('코드와 그림은 바로 미리보기, 읽기만 하고<br><em>.env 같은 비밀 파일</em>은 내용을 열지 않습니다');
+    await at(15.5); caption(''); q('.odrawer .odhead .x')?.click();
+  }],
+  // the clock, the hours and the weather
+  [26, async (at) => {
+    await at(0.3); olook('clock', 2.8, 1500);
+    caption('벽의 전자시계는 <em>지금 시각</em>과 바깥 기온');
+    await at(5); olook(null, 1, 1300);
+    caption('빛은 <em>시간을 따라</em> 바뀝니다<br>아침, 한낮, 노을, 밤');
+    await at(6); await timelapse(7, 21.5, 7);
+    await at(14); caption('바깥 날씨도 <em>진짜 날씨</em>를 따라요<br>비…'); sky(13, 'rain');
+    await at(17.5); caption('눈…'); sky(13, 'snow');
+    await at(20.5); caption('그리고 <em>천둥 번개</em>'); sky(17, 'storm');
+    await at(25); caption(''); sky(11, null);
+  }],
+  // out through the door
+  [8, async (at) => {
+    await at(0.3); olook('door', 2.2, 1300);
+    caption('<em>비상구 문</em>으로 나가면 다시 건물로');
+    await at(3.2); await click(wallbtn(/건물로|To the building/)); hidePtr();
+    await at(7.5); caption('');
   }],
   // the end
   [14, async (at) => {
@@ -478,7 +568,8 @@ window.stageReady = () => new Promise((resolve) => {
   check();
 });
 buildChaos();
-try { localStorage.setItem("crew.termFont", '17'); } catch (e) {}
+// the org chart first, whatever the last recording left (its office chapter switches the view)
+try { localStorage.setItem("crew.termFont", '17'); localStorage.setItem('am.view', 'org'); } catch (e) {}
 $('term').src = '/desktop/terminal.html?lang=' + LANG;
 $('strip').src = '/desktop/strip.html?lang=' + LANG;
 $('page').src = '/?app=1&lang=' + LANG;
