@@ -64,7 +64,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // One that was in the middle of a turn when the monitor went away (quit, crash, an update) carries on by itself, and
   // one whose turn had ended just before is asked whether that turn was waiting for this restart (an install it started).
   const FILE = path.join(dataDir || root, '.runtime', 'agents.json')
-  const KEEP = ['id', 'kind', 'cwd', 'key', 'name', 'nick', 'desc', 'avatar', 'mode', 'model', 'effort', 'fast', 'sessionId', 'newSessionId', 'startedAt', 'midTurn', 'turnEndedAt', 'compact', 'loginLost', 'limitHit', 'forkFrom', 'forkedFrom', 'ctxTokens']
+  const KEEP = ['id', 'kind', 'cwd', 'key', 'name', 'nick', 'desc', 'avatar', 'mode', 'model', 'effort', 'fast', 'sessionId', 'newSessionId', 'startedAt', 'midTurn', 'turnEndedAt', 'compact', 'loginLost', 'limitHit', 'forkFrom', 'forkedFrom', 'ctxTokens', 'movedTo']
   const CARRY_ON = 'The agent monitor restarted (an update or a restart of the app) and cut your last turn short. Please carry on where you left off, and keep replying in the language you have been using with the user.'
   const JUST_AFTER = 'The agent monitor restarted (an update or a restart of the app) right after your last turn ended. If that turn started something this restart was part of — installing or updating the app, a restart you asked for — check now that it worked and tell the user what you found. If it had nothing to do with it, just say so in one line.'
   const JUST_AFTER_MS = 2 * 60 * 1000   // how soon after a turn ends a restart counts as "right after"
@@ -564,8 +564,12 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     if (!a.proc) return false
     // the monitor's own words (carry on, a board task…) are English: they say which language to answer in
     const own = a.kind !== 'assistant' && !!systemNote(text) && replyIn?.()
-    const msg = userMessage(own ? text + '\n\n' + replyIn() : text, files)
+    // just moved to another project: the conversation so far says the old folder (asked, it still named that one), so
+    // the first message after says the new one
+    const moved = a.movedTo ? '\n\n(The monitor moved you to another project: your working directory is now ' + a.movedTo + '. Work there; folders named earlier in this conversation are the old one.)' : ''
+    const msg = userMessage((own ? text + '\n\n' + replyIn() : text) + moved, files)
     try { a.proc.stdin.write(JSON.stringify(msg) + '\n') } catch { return false }
+    if (a.movedTo) { a.movedTo = ''; save() }
     // the files' names for the chips, and their place in the uploads folder ("<dir>/<stored name>") for the preview
     // the monitor's own words to it: a note (the assistant's chat has its own way of showing them)
     const sys = a.kind === 'assistant' ? '' : systemNote(text)
@@ -812,6 +816,24 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       else { a.respawn = true; stop(a); emit(a, { kind: 'note', text: what + ' — from the next message' }) }
       notifyPages()
       return [200, {}]
+    }
+    // into another project: claude restarted in that folder on the same session (a conversation resumes from any
+    // folder, its transcript staying where it is; the next turns work, and find their CLAUDE.md and memory, there)
+    if (url.pathname === '/api/agents/move') {
+      if (a.kind === 'assistant') return [400, {}]
+      const cwd = path.resolve(String(body.cwd || ''))
+      try { if (!fs.statSync(cwd).isDirectory()) return [400, { error: 'not a folder' }] } catch { return [400, { error: 'no such folder' }] }
+      if (cwd === a.cwd) return [200, {}]
+      a.cwd = cwd
+      a.movedTo = cwd
+      a.key = projectKey(projectRoot(cwd))
+      save()
+      const what = 'moved to ' + a.key + ' (' + cwd + ')'
+      if (!a.proc) emit(a, { kind: 'note', text: what + ' — from the next message' })
+      else if (a.state === 'working') { a.restartAfterTurn = true; emit(a, { kind: 'note', text: what + ' — after this turn' }) }
+      else { a.respawn = true; stop(a); emit(a, { kind: 'note', text: what }) }
+      notifyPages()
+      return [200, { key: a.key }]
     }
     if (url.pathname === '/api/agents/close') {
       // kept in the archive when asked — only one with a conversation to carry on

@@ -457,6 +457,10 @@ on your own Claude Code login. Its dialog's conversation tab is the full chat:
   only (an SVG as an image); `Client` modules, desktop-only, are not run. Turning a mod on or off, or changing the
   folders, restarts each agent at once when it is free, else after its turn; a mod edited while an agent runs is loaded
   again by itself, and the conversation says so. The assistant loads none;
+- **Move to project** carries the conversation on in another project: one on the page, a recent folder, or another
+  folder typed in. claude starts again in that folder on the same session (at once when it is free, else after its
+  turn), so its next turns work there and use that folder's CLAUDE.md and memory; the transcript stays where it was, and
+  the card goes to that project's tab. VS Code's sessions are not moved (take one over first);
 - **End agent** asks first: **Keep in archive and end**, or **Just end**. Either way it stops and leaves the page, and its
   transcript stays in `~/.claude/projects`. The archive (`.runtime/archive.json`, up to 100) keeps who it was (name, look,
   what it does, folder, mode, model, effort) and which conversation it had, never what was said. Keeping it asks for a
