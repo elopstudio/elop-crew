@@ -602,7 +602,8 @@ itself. So a new PC needs only **Claude Code**, installed and signed in.
   a new tab, **Ctrl + Shift + D** duplicates it, **Alt + Shift + = / -** splits right / down, **Alt + Shift + arrows** makes
   the pane bigger or smaller, **Ctrl + Shift + Z** shows it alone (and back), **Ctrl + Tab** / **Ctrl + Shift + Tab** and
   **Ctrl + Alt + 1…9** go to a tab, **Ctrl + = / - / 0** set the text size (kept). The app's stock menu is gone on Windows,
-  so Ctrl + R, Ctrl + W and the like reach the shell.
+  so Ctrl + R, Ctrl + W and the like reach the shell. A link a program prints as one (claude's sign-in address, say) opens
+  in the browser on a click, without asking first.
   The commands an agent ran are in its dialog's **Terminal** tab, not here. Drag the
   top edge for the height, **Ctrl + C** copies a selection (otherwise it goes to the shell), **Ctrl + V** or a right-click
   pastes. Hiding the panel keeps the shells running. A shell cannot outlive the app: when it starts again (an update, a

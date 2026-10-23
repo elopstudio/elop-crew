@@ -190,6 +190,9 @@ function addPane(g, info, buf, after) {
   const term = new Terminal({
     fontFamily: MAC ? 'Menlo, "SF Mono", monospace' : '"Cascadia Mono", Consolas, "D2Coding", monospace',
     fontSize, lineHeight: 1.15, cursorBlink: true, scrollback: 5000, theme: theme(), allowProposedApi: false,
+    // a link it printed (OSC 8) opens in the browser: xterm's own asks first, then opens a blank window and sets its
+    // address after, and the window handler (which lets only http(s) out) shut that blank one, so nothing opened
+    linkHandler: { activate: (e, uri) => window.open(uri) },
   })
   const fit = new FitAddon.FitAddon()
   term.loadAddon(fit)
