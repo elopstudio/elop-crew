@@ -91,8 +91,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   web to the shared browser on the wall, a message to the desk of the one it is for (the leader's corner for the leader). A
   request waits at its desk, hand up and turned to you, with a bubble: **Allow** and **Deny** answer a tool request right
   there, a question or a plan opens its dialog. A waiting agent dozes at its desk, after a minute goes to the pantry and
-  after five to the lounge; a resting one (its session over) sleeps on the sofa, greyed. Running subagents sit small beside
-  the desk. One whose session is gone from the list packs a box where it is and carries it out of the door (in the building,
+  after five to the lounge; a resting one (its session over) sleeps on the sofa, greyed. Running subagents (up to three) stand small beside
+  the desk, in the building too; while they work it stays at its desk, awake, even with its own turn over (they run in
+  the background), and the wait for the pantry counts from when they are done. One whose session is gone from the list packs a box where it is and carries it out of the door (in the building,
   down the corridor and out through the lobby) before it disappears; a new one comes in at the door with its box,
   walks to where it is to be and unpacks there. Each place is one robot's at a time, and an office opened afresh shows each where it already is. The rows of desks grow with the crew, always with one **+ New seat** free (a click starts a new agent).
   The panel shows the agent picked — what it is doing, where it is, uptime, today's tokens, how full its context is, with
@@ -181,7 +182,9 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
 - **Team chat.** Who messaged whom, as one-line summaries — VS Code sessions and agents the monitor runs alike. Two agents that sent each other 12 messages or more in
   half an hour are pointed out at the top (each message is a turn for the one it wakes, its whole conversation read
   again), and the assistant is told, once an hour for a pair.
-- **Subagents.** A card shows `🤖 2` while that many of its subagents (the Agent tool) are running; the agent's dialog has a
+- **Subagents.** A card shows `🤖 2` while that many of its subagents (the Agent tool) are running — until each
+  writes its last answer (by why its lines stopped, not what they say), so one waiting on a long build still counts, up
+  to ten minutes without a line; the agent's dialog has a
   **Subagents** tab listing the recent ones — kind, purpose, last action, tool calls — and opens any of them as its own
   live conversation (masked like the main one).
 - **Terminal.** Once an agent (a monitor agent or a VS Code session) has run a command in a shell (Bash, PowerShell), its

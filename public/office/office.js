@@ -890,12 +890,16 @@ export function createOffice(api) {
   // straight to where its state calls for, without the walk
   function settle(a) { const w = wanted(a, claims(), Date.now()); if (w !== a.place) put(a, w); a.want = a.place; }
   // the place a session's state calls for; shared places are handed out one each
+  const subsRunning = (s) => (s.subagents || []).some((x) => x.running);
   function wanted(a, taken, now) {
     const s = a.s, ask = approvals.get(a.name);
     if (ask) return home(a);
     const mine = (id) => !taken.has(id) || taken.get(id) === a;
     const free = (k, n) => { for (let j = 0; j < n; j++) { const id = k + ':' + j; if (mine(id)) return id; } return null; };
     if (a.sec) { const to = secTarget(); return to && mine('secvisit:' + to) ? 'secvisit:' + to : 'reception'; }
+    // its turn over with subagents still at work (in the background): it stays at its desk, with them; the wait for
+    // the lounge counts from when they are done
+    if (s.state !== 'working' && subsRunning(s)) { a.waitSince = now; return home(a); }
     if (MODE === 'bldg') {
       // in its project's room: at its desk, by a teammate's desk with a message, on a bean bag when idle for long or done
       const bean = () => free('bbean:' + (BL.byKey.get(a.room)?.i ?? 0), 2);
@@ -940,7 +944,8 @@ export function createOffice(api) {
     if (a.path.length) return a.entering ? 'carry' : 'walking';
     const k = (a.place || '').split(':')[0], st = approvals.has(a.name) ? 'ask' : a.s.state;
     if (a.sec) return st === 'ask' ? 'ask' : k !== 'reception' ? 'visit' : st === 'working' ? 'typing' : st === 'resting' ? 'doze' : 'idle';
-    if (k === 'desk' || k === 'lead' || k === 'bdesk') return st === 'ask' ? 'ask' : st === 'working' ? 'typing' : st === 'waiting' ? 'doze' : 'sleep';
+    // awake while its subagents work, looking on
+    if (k === 'desk' || k === 'lead' || k === 'bdesk') return st === 'ask' ? 'ask' : st === 'working' ? 'typing' : subsRunning(a.s) ? 'idle' : st === 'waiting' ? 'doze' : 'sleep';
     if (k === 'lib') return 'reading';
     if (k === 'web') return 'web';
     if (k === 'pantry') return 'sip';
@@ -1283,14 +1288,19 @@ export function createOffice(api) {
     const grey = st === 'resting' ? 0.75 : 0; r.mb.color.copy(r.base[0]).lerp(GREY, grey); r.md.color.copy(r.base[1]).lerp(GREY, grey);
     const hot = hovered && hovered.split('#')[0] === a.name ? 0.18 : 0; r.mb.emissive.set('#3a63d8').multiplyScalar(hot); r.md.emissive.set('#3a63d8').multiplyScalar(hot);
   }
-  // a working agent's running subagents: small ones by its desk
+  // an agent's running subagents: small ones by its desk (in the office, and in its room of the building)
   function minis(a, t, dt) {
-    const n = a.place && (a.place === 'desk' || a.place === 'lead') && !a.path.length ? Math.min(3, (a.s.subagents || []).filter((x) => x.running).length) : 0;
+    const bld = a.place === 'bdesk', room = bld && BL.byKey.get(a.room);
+    const n = (a.place === 'desk' || a.place === 'lead' || room) && !a.path.length ? Math.min(3, (a.s.subagents || []).filter((x) => x.running).length) : 0;
     while (a.minis.length < n) { const i = a.minis.length, r = makeRobot(a.name + '#' + i, a.look); a.minis.push({ r, vis: 0, phase: Math.random() * 10 }); }
+    // past the desk's far end, in the gap before the next desk of the row
+    // (where they were, while they fade once it has left the desk)
+    const d = a.miniAt = (room ? (() => { const q = bdeskOf(room, a.desk); return { x: q.top.x + q.top.w + 0.35, y: q.Y }; })()
+      : a.place === 'lead' ? { x: LEAD.top.x + LEAD.top.w + 0.0, y: LEAD.top.y } : a.place === 'desk' ? (() => { const q = deskOf(a.desk); return { x: q.top.x + q.top.w + 0.28, y: q.Y + 0.0 }; })() : null) || a.miniAt;
     a.minis.forEach((m, i) => {
       const on = i < n; m.vis += ((on ? 1 : 0) - m.vis) * Math.min(1, dt * 6);
-      const d = a.leader ? { x: LEAD.top.x + LEAD.top.w + 0.0, y: LEAD.top.y } : (() => { const q = deskOf(a.desk); return { x: q.top.x + q.top.w + 0.28, y: q.Y + 0.0 }; })();
-      const x = d.x - (a.leader ? 0.45 : 0), y = d.y + 0.05 + i * 0.5;
+      if (!d) { m.vis = 0; m.r.root.visible = false; return; }
+      const x = d.x - (a.leader && !room ? 0.45 : 0), y = d.y + 0.05 + i * 0.5;
       const R = m.r.root; R.position.set(x, 0, y); R.rotation.y = angOf([-0.6, i % 2 ? -0.4 : 0.4]); R.scale.setScalar(0.62 * Math.max(0.001, m.vis)); R.visible = m.vis > 0.02;
       const T = t + m.phase; m.r.rig.position.y = Math.abs(Math.sin(T * 6)) * 0.03; m.r.armL.rotation.x = -1 + Math.sin(T * 14) * 0.2; m.r.armR.rotation.x = -1 - Math.sin(T * 14) * 0.2;
       m.r.faceMat.map = (T % 3.7) < 0.12 ? FACES.blink : FACES.working;

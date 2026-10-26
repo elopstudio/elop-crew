@@ -458,7 +458,7 @@ function assignNicks(sessions, fixedFor) {
 
 // A session's subagents (the Agent tool): what kind, what for, whether still running, what they last did.
 // Kept to the recent ones; each file is re-read only when it changed.
-const SUB_RUNNING_MS = 45 * 1000, SUB_RECENT_MS = 3 * 60 * 60 * 1000, SUB_MAX = 12
+const SUB_RUNNING_MS = 45 * 1000, SUB_QUIET_MS = 10 * 60 * 1000, SUB_RECENT_MS = 3 * 60 * 60 * 1000, SUB_MAX = 12
 const subCache = new Map()   // file → { mtimeMs, size, offset, info }
 // a subagent's file untouched for longer than SUB_RECENT_MS: not looked at again for a minute (a session can have
 // hundreds, each stat'd on every build of the state)
@@ -512,6 +512,10 @@ async function subagentsOf(sessionId) {
               let o
               try { o = JSON.parse(l) } catch { continue }
               if (!info.startedAt && o.timestamp) info.startedAt = Date.parse(o.timestamp)
+              // finished: its last answer ended the turn (each line of an answer carries why it stopped); a message
+              // to it after (SendMessage) starts it again
+              if (o.type === 'user' && !(Array.isArray(o.message?.content) && o.message.content.some((c) => c?.type === 'tool_result'))) info.done = false
+              if (o.type === 'assistant' && o.message?.stop_reason) info.done = o.message.stop_reason === 'end_turn' || o.message.stop_reason === 'stop_sequence'
               if (o.type !== 'assistant' || !Array.isArray(o.message?.content)) continue
               for (const c of o.message.content) if (c?.type === 'tool_use') { info.tools++; info.activity = describe(c.name, c.input) }
             }
@@ -522,7 +526,11 @@ async function subagentsOf(sessionId) {
       hit.mtimeMs = st.mtimeMs; hit.size = st.size
       subCache.set(p, hit)
     }
-    out.push({ id: m[1], ...hit.info, lastAt: st.mtimeMs, running: now - st.mtimeMs < SUB_RUNNING_MS })
+    // running until its last answer is written (quiet for long while a build or a test runs), up to SUB_QUIET_MS
+    // without a line; a transcript without the stop reasons: running while it was written to lately
+    const { done, ...info } = hit.info
+    const running = done === false ? now - st.mtimeMs < SUB_QUIET_MS : done === true ? false : now - st.mtimeMs < SUB_RUNNING_MS
+    out.push({ id: m[1], ...info, lastAt: st.mtimeMs, running })
   }
   return out.sort((a, b) => (b.running - a.running) || b.lastAt - a.lastAt).slice(0, SUB_MAX)
 }
