@@ -368,7 +368,9 @@ The page cannot set a VS Code session's permission mode, model or effort — VS 
 to change them. **Take over in the monitor**, above its conversation, carries the conversation on as a monitor agent
 in the same folder, under the same name and permission mode, where all of those can be set and the turn stopped. It
 is a copy (`claude --resume <id> --fork-session`), so the VS Code session can stay open without the two writing to one
-transcript; close it in VS Code if you will not use it. While it stays open, its card says **IN MONITOR** and its
+transcript; close it in VS Code if you will not use it. The monitor cannot close it, so it leaves the list once taken
+over, and stays away after the monitor agent ends; **Hide from the list** above any VS Code session's conversation
+does the same. It comes back if it is used in VS Code again: then its card says **IN MONITOR** while the copy runs, and its
 dialog points to the monitor agent instead of offering to take it over again — a session is taken over once. It
 cannot be taken over while it is working (the copy would start with a tool call still open); wait for the turn to
 end. A copy taken over just before the monitor restarts, before its first turn, forks again on its next message.

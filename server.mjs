@@ -563,10 +563,13 @@ async function buildState() {
     // a claude the monitor runs, by its process: one just taken over is registered under the VS Code session's id
     // until its first turn, and would otherwise show up as a second, ownerless card for that session
     if (agentPids.has(s.pid)) continue
+    const info = await transcriptInfo(s.sessionId).catch(() => null)
+    // put away from the page (hidden, or taken over), and not used in VS Code since
+    const hiddenAt = config.hidden?.[s.sessionId]
+    if (hiddenAt && (info?.lastEventAt || 0) <= hiddenAt + 5000) continue
     const root = projectRoot(s.cwd)
     const key = projectKey(root)
     if (!projects.has(key)) projects.set(key, { key, root, sessions: [], messages: [] })
-    const info = await transcriptInfo(s.sessionId).catch(() => null)
     const short = s.name.toLowerCase().startsWith(key + '-') ? s.name.slice(key.length) : s.name
     if (!boards.has(key)) boards.set(key, await readBoard(key))
     const sess = {
@@ -1299,7 +1302,23 @@ async function forkSession(body) {
   const shown = (await cachedState()).projects.flatMap((p) => p.sessions).find((x) => x.name === target.name)
   // not in the middle of a turn: the copy would start from a transcript with a tool call still open
   if (shown?.state === 'working') return [409, { error: 'working' }]
-  return agents.fork({ cwd: target.cwd, sessionId: target.sessionId, nick: { en: shown?.nick || '', ko: shown?.nickKo || '' }, desc: shown?.desc || '', mode: modes.get(target.sessionId)?.mode || 'default' })
+  const r = await agents.fork({ cwd: target.cwd, sessionId: target.sessionId, nick: { en: shown?.nick || '', ko: shown?.nickKo || '' }, desc: shown?.desc || '', mode: modes.get(target.sessionId)?.mode || 'default' })
+  // the copy carries it on: the VS Code one leaves the page (the monitor cannot end it), and stays away after the copy ends
+  if (r[0] === 200) await hideSessionId(target.sessionId)
+  return r
+}
+
+// A VS Code session put away from the page ("Hide from the list", or taken over): VS Code keeps it open, and the monitor
+// cannot close it there. Hidden until its conversation moves on again (config.json "hidden": { sessionId: when })
+const HIDDEN_KEEP_MS = 30 * 24 * 60 * 60 * 1000
+const hideSessionId = (sessionId) => editConfig((c) => {
+  const now = Date.now()
+  c.hidden = Object.fromEntries(Object.entries({ ...(c.hidden || {}), [sessionId]: now }).filter(([, at]) => now - at < HIDDEN_KEEP_MS))
+})
+async function hideSession(body) {
+  const target = (await readRegistry()).find((x) => x.name === String(body.session || ''))
+  if (!target || agents?.byAgentSession(target.sessionId)) return 404
+  return hideSessionId(target.sessionId)
 }
 
 /* ── MCP servers and claude.ai connectors, as `claude mcp list` sees them ── */
@@ -2156,6 +2175,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/message') { json(await sendMessage(body), {}); return }
       if (url.pathname === '/api/run') { const [code, o] = await runCommand(body); json(code, o); return }
       if (url.pathname === '/api/look') { json(await saveLook(body), {}); return }
+      if (url.pathname === '/api/hide-session') { json(await hideSession(body), {}); return }
       if (url.pathname === '/api/project-name') { json(await saveProjectName(body), {}); return }
       if (url.pathname === '/api/browsers/shared') {
         if (body.on) { const r = await browsers.startShared(); json(r ? 200 : 500, r || {}) } else { browsers.stopShared(); toldBrowser.clear(); json(200, {}) }
