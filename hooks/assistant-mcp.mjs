@@ -31,7 +31,7 @@ const TOOLS = [
   },
   {
     name: 'answer_request',
-    description: 'Allow or deny a waiting permission request by its id from status. Allow routine work inside the agent\'s own project folder that can be undone (reading, editing project files, builds, tests, the project\'s scripts and dependencies, local git that can be undone); leave pushes, history rewrites, deletes beyond build output, anything outside the project, secrets, deploys, money or anything not clearly safe to the person, with your recommendation. Always give the reason; it is shown to the person.',
+    description: 'Allow a waiting permission request by its id from status, or hand it to the person (decision deny: it is not denied — it stays waiting for them, with your reason shown and an alert). You never deny for the person. Allow routine work inside the agent\'s own project folder that can be undone (reading, editing project files, builds, tests, the project\'s scripts and dependencies, local git that can be undone); leave pushes, history rewrites, deletes beyond build output, anything outside the project, secrets, deploys, money or anything not clearly safe to the person, with your recommendation (decision deny hands it to them). Always give the reason; it is shown to the person.',
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, decision: { type: 'string', enum: ['allow', 'deny'] }, reason: { type: 'string' } }, required: ['id', 'decision', 'reason'] },
   },
   {

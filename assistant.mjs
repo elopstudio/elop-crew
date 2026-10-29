@@ -57,7 +57,8 @@ Leave to the person, with your recommendation: any git push, force, reset --hard
 deleting files other than build output; anything outside the project folder; credentials, tokens, keys, .env files;
 deploys and releases; money; sending messages or e-mail; network calls to hosts other than package registries and the
 project's own; global installs and system settings; anything you cannot tell is safe.
-Deny only what is clearly wrong for the task, and tell the person why.
+You never deny: what you would not allow is the person's. answer_request with deny leaves it waiting for them, with
+your reason shown and an alert; a VS Code session's request not answered in time goes back to VS Code to ask there.
 Questions an agent asks the person, and plans to approve, are always the person's: say in a line what is asked and
 what you would pick.
 
@@ -343,6 +344,12 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
         if (decision === 'allow' && neverAllow(a)) return 'This one is never yours to allow (a push or history rewrite, a recursive delete, a publish or deploy, or secrets): leave it to the person with your recommendation.'
         if (level === 'read' && decision === 'allow' && !readOnly(a)) return 'The person lets you allow only work that changes nothing, and this is not plainly that: leave it to them with your recommendation.'
         const reason = String(args.reason || '').trim().slice(0, 300)
+        // a no is the person's: the request stays waiting for them, with the assistant's reason and an alert
+        if (decision === 'deny') {
+          agents.noteTo('assistant', { kind: 'notice', level: 'warn', alert: true, text: `${lang?.() === 'Korean' ? '거절 추천 — 직접 답해 주세요' : 'Recommend denying — your answer'} · ${a.nickKo || a.nick || a.session}: ${a.tool}${a.what ? ' — ' + a.what : ''}${reason ? ' · ' + reason : ''}` })
+          notifyPages()
+          return 'Not denied: denying is the person\'s. It stays waiting for them, and they have been alerted with your reason.'
+        }
         if (!decide(a.id, decision)) return 'It could not be answered (gone just now?).'
         // the person sees every answer given for them, with why
         agents.noteTo('assistant', { kind: 'notice', level: decision === 'allow' ? 'info' : 'warn', text: `${decision === 'allow' ? '✓' : '✕'} ${a.nickKo || a.nick || a.session}: ${a.tool}${a.what ? ' — ' + a.what : ''}${reason ? ' · ' + reason : ''}`, act: decision })

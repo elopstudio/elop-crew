@@ -567,7 +567,8 @@ up in **Artifacts** by its path, with a title, instead of telling you to open th
   to it). **Answering requests:** *off* — it answers none and tells you what it recommends; *reading only* — it may
   allow only what changes nothing (reading, listing, searching, git status/diff/log/show, tests; one command, no
   chaining or redirection); *in the project* (the default) — as above. Whatever is picked, it can never allow a push or
-  history rewrite, a recursive delete, a publish or deploy, or anything about secrets. **It is told about:** each of
+  history rewrite, a recursive delete, a publish or deploy, or anything about secrets. It never denies: what it would
+  not allow stays waiting for you, with its reason and an alert. **It is told about:** each of
   permission requests, questions and plans, finished work, failed turns, stuck agents, the login and the plan's usage
   can be switched off; each one it is told costs a turn.
 - These events cost tokens only when one happens; nothing about them is written to disk.
