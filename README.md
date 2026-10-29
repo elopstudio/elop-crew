@@ -131,7 +131,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   moved by its title and resized from its corner, or set to the full window and back by the button beside × or a double
   click on its title: the browsers the agents drive to look at what they build (headless
   Chrome, Edge, Playwright's Chromium), grouped by agent, with the pages open in each, and a live picture of the page
-  picked. A browser started with a DevTools port is watched as it is; one Playwright started over a pipe (its default)
+  picked (ten frames a second at most, and none while the window is out of view). A browser started with a DevTools port is watched as it is; one Playwright started over a pipe (its default)
   cannot be reached from outside, so the panel offers a **Shared browser**: a headless Chrome or Edge of the monitor's
   own, and while it runs every agent is told once, with its next message, to open its pages there (Playwright's
   `connectOverCDP`, Puppeteer's `connect`) instead of in a browser of its own. When an agent has only such a browser, the

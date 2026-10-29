@@ -4585,6 +4585,14 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     browserButton();
   }
   function stopBrowserStream() { if (bState.src) { bState.src.close(); bState.src = null; } }
+  // the window out of view (minimized, behind another): no pictures are taken for nobody; shown again, they come again
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (bState.src) { stopBrowserStream(); bState.paused = true; } return; }
+    if (!bState.paused) return;
+    bState.paused = false;
+    const p = $('bpanel');
+    if (p && !p.hidden && bState.pick && bState.pickPg) pickPage(bState.pick.port, bState.pick.id, bState.pickPg, true);
+  });
   async function loadBrowsers() {
     const p = $('bpanel');
     if (!p || p.hidden) return;
@@ -4795,14 +4803,17 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       im.src = bState.frameUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
     }
   }
-  function pickPage(port, id, pg) {
+  // again (the page shown again): the last picture stays until the next one comes
+  function pickPage(port, id, pg, again) {
     stopBrowserStream();
     bState.pick = { port, id };
-    bState.dim = null;
-    for (const b of document.querySelectorAll('#bpanel .bt')) b.classList.remove('on');
-    showFrame(undefined, { url: pg.url, title: pg.title, live: false });
-    const box = $('bpanel').querySelector('.bi');
-    box.replaceChildren(el('div', 'bempty', t('liveConnecting')));
+    bState.pickPg = pg;
+    if (!again) {
+      bState.dim = null;
+      for (const b of document.querySelectorAll('#bpanel .bt')) b.classList.remove('on');
+      showFrame(undefined, { url: pg.url, title: pg.title, live: false });
+      $('bpanel').querySelector('.bi').replaceChildren(el('div', 'bempty', t('liveConnecting')));
+    }
     const src = new EventSource('/browser/stream?token=' + encodeURIComponent(token) + '&port=' + port + '&id=' + encodeURIComponent(id));
     bState.src = src;
     let url = pg.url;

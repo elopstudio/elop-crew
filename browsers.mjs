@@ -24,6 +24,7 @@ async function getJson(port, what, ms = 1500, method = 'GET') {
   try { const r = await fetch('http://127.0.0.1:' + port + '/json/' + what, { method, signal: c.signal }); return r.ok ? await r.json() : null } catch { return null } finally { clearTimeout(timer) }
 }
 const LOCAL_WS = /^ws:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//
+const FRAME_MS = 100   // the live picture: ten frames a second at most
 // an address the panel may send a page to: the web, or a blank page
 function webUrl(u) {
   const s = String(u || '').trim().slice(0, 4000)
@@ -94,7 +95,7 @@ export function createBrowsers({ processes, roots, mask, clip, dataDir }) {
     if (!target?.webSocketDebuggerUrl || !LOCAL_WS.test(target.webSocketDebuggerUrl)) { res.writeHead(404).end(); return }
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
     const send = (event, data) => { try { res.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n') } catch {} }
-    let ws, seq = 0, closed = false
+    let ws, seq = 0, closed = false, lastAck = 0
     const call = (method, params = {}) => { try { ws.send(JSON.stringify({ id: ++seq, method, params })); return seq } catch { return 0 } }
     const shotId = new Set()
     const end = () => {
@@ -119,9 +120,12 @@ export function createBrowsers({ processes, roots, mask, clip, dataDir }) {
       let m
       try { m = JSON.parse(String(ev.data)) } catch { return }
       if (m.method === 'Page.screencastFrame') {
-        call('Page.screencastFrameAck', { sessionId: m.params.sessionId })
         const md = m.params.metadata || {}
         send('frame', { d: m.params.data, w: md.deviceWidth || 0, h: md.deviceHeight || 0 })
+        // Chrome sends the next frame only once this one is acknowledged: acknowledged at most ten times a second, a
+        // page that keeps moving (an animation, a video, a dev server reloading) does not flood the panel with pictures
+        const wait = Math.max(0, lastAck + FRAME_MS - Date.now())
+        setTimeout(() => { if (!closed) { lastAck = Date.now(); call('Page.screencastFrameAck', { sessionId: m.params.sessionId }) } }, wait)
       } else if (m.id && shotId.has(m.id)) {
         shotId.delete(m.id)
         if (m.result?.data) send('frame', { d: m.result.data, w: 0, h: 0 })
