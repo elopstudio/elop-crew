@@ -74,7 +74,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
 - **The header.** One line: the logo and the wordmark, then the counts in one capsule (on a narrower window only their numbers and symbols, the names on
   hover); beside them the tools are icons with a number — **Processes**, **Browsers**, **Artifacts** and, once allowed,
   notifications — then **☰**. "Live · updated" shows under the wordmark only while the connection is lost.
-- **Counts in the header.** Clicking working, waiting or resting shows only the agents in that state, on every tab
+- **Counts in the header.** Beside working, the subagents running under the agents are counted in brackets
+  ("Working 2 (10)"), only while there are any. Clicking working, waiting or resting shows only the agents in that state, on every tab
   (projects with none of them are left out); clicking it again, the ✕ chip by the counts above the agents, or sessions, shows them all.
   Pointing at (or focusing) a count — projects, sessions, working, waiting, resting —
   lists what it counts: the projects, or the agents with their project, each with its robot's face. A click on an agent opens its dialog, and a click on a
