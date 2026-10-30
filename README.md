@@ -152,7 +152,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   shown sandboxed, on an origin of its own, so nothing in it can reach the monitor's API or its token. Not relayed to
   the phone.
 - **Skins.** Your own pictures in place of the robots, on the cards, the tabs, the org chart and everywhere else a
-  robot stands (the logo stays). **Skins** in the menu (☰) lists them: **Make a skin** opens a new folder with a
+  robot stands, the office too: there the picture stands where the robot would, facing you, and moves as it would (the logo and the subagents by the desks stay robots). **Skins** in the menu (☰) lists them: **Make a skin** opens a new folder with a
   `skin.json` and a `README.txt` on what goes in it — the characters, one with `"leader": true` for the project leaders,
   and a picture for each state (working, waiting, resting, asking; .png .jpg .gif .webp .svg, 5 MB at most; a missing
   state uses another). **Use** picks one, **Robots** goes back; **Who is which character** gives an agent a character

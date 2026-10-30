@@ -5351,6 +5351,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
           name: (s) => nickFor(s) || str(s.short) || str(s.name),
           open: (s, focus, tab) => showDetail(sessionByName(s.name) || s, focus, tab),
           robot: (s, st) => robotNode(s.name, st, !!s.isLeader),
+          skin: (s, st) => (skin ? skinPicture(s.name, st, !!s.isLeader) : ''),
           dur, tokens, projName,
           decide: async (a, answer) => (await fetch('/api/decide', { method: 'POST', headers: { 'content-type': 'application/json', 'x-monitor-token': token }, body: JSON.stringify({ id: a.id, answer }) })).ok,
           newAgent: () => { const q = (last?.projects || []).find((x) => x.key === officeKey); if (q) showNewAgent(q); },

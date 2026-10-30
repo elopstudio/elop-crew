@@ -776,7 +776,7 @@ export function createOffice(api) {
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let hovered = null, drag = null;
   function pick(e) {
     const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
-    for (const h of ray.intersectObjects(people.children, true)) if (h.object.visible && h.object.userData.agent && !h.object.isSprite) return h.object.userData.agent;
+    for (const h of ray.intersectObjects(people.children, true)) if (h.object.visible && h.object.userData.agent && (!h.object.isSprite || h.object.userData.skin)) return h.object.userData.agent;
     return null;
   }
   canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false }; canvas.setPointerCapture(e.pointerId); });
@@ -1287,6 +1287,33 @@ export function createOffice(api) {
     const st = a.s?.state; r.bulbs.forEach((b) => { b.material.emissiveIntensity = st === 'working' ? 0.35 + 0.3 * Math.sin(T * 5.5) : 0.1; });
     const grey = st === 'resting' ? 0.75 : 0; r.mb.color.copy(r.base[0]).lerp(GREY, grey); r.md.color.copy(r.base[1]).lerp(GREY, grey);
     const hot = hovered && hovered.split('#')[0] === a.name ? 0.18 : 0; r.mb.emissive.set('#3a63d8').multiplyScalar(hot); r.md.emissive.set('#3a63d8').multiplyScalar(hot);
+    skinOn(a, r, m === 'ask' ? 'asking' : st || 'working', hot);
+  }
+  // the person's own skin: its picture stands where the robot was, facing the camera; the robot's pose still moves it
+  const skinTex = new Map();
+  function skinTexture(src) {
+    let tx = skinTex.get(src);
+    if (!tx) {
+      if (skinTex.size > 60) { for (const x of skinTex.values()) x.dispose(); skinTex.clear(); }
+      tx = new THREE.TextureLoader().load(src); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = maxAniso;
+      skinTex.set(src, tx);
+    }
+    return tx;
+  }
+  function skinOn(a, r, st, hot) {
+    const src = api.skin?.(a.s, st) || '';
+    if (!src) { if (r.skin) { r.skin.visible = false; r.rig.visible = true; } return; }
+    if (!r.skin) {
+      r.skin = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, alphaTest: 0.05 }));
+      r.skin.center.set(0.5, 0); r.skin.scale.set(1.05, 1.05, 1); r.skin.userData.agent = a.name; r.skin.userData.skin = 1;
+      r.root.add(r.skin);
+      const d = r.dispose; r.dispose = () => { r.skin.material.dispose(); d(); };
+    }
+    const tx = skinTexture(src);
+    if (r.skin.material.map !== tx) { r.skin.material.map = tx; r.skin.material.needsUpdate = true; }
+    r.skin.visible = true; r.rig.visible = false;
+    r.skin.position.y = r.rig.position.y; r.skin.material.rotation = -r.rig.rotation.z;
+    r.skin.material.color.setScalar(st === 'resting' ? 0.55 : 1 + hot);
   }
   // an agent's running subagents: small ones by its desk (in the office, and in its room of the building)
   function minis(a, t, dt) {
