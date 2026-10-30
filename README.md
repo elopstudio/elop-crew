@@ -151,6 +151,16 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   is, with what sits beside it (styles, scripts, pictures) — only web files below its folder, never a dot file — and
   shown sandboxed, on an origin of its own, so nothing in it can reach the monitor's API or its token. Not relayed to
   the phone.
+- **Skins.** Your own pictures in place of the robots, on the cards, the tabs, the org chart and everywhere else a
+  robot stands (the logo stays). **Skins** in the menu (☰) lists them: **Make a skin** opens a new folder with a
+  `skin.json` and a `README.txt` on what goes in it — the characters, one with `"leader": true` for the project leaders,
+  and a picture for each state (working, waiting, resting, asking; .png .jpg .gif .webp .svg, 5 MB at most; a missing
+  state uses another). **Use** picks one, **Robots** goes back; **Who is which character** gives an agent a character
+  (else the leader gets the leader's, the others one picked by name, the same each time). Skins live only on this PC,
+  in `skins/` in the data folder (`~/.claude-agent-monitor` for the installed app, or `MONITOR_HOME`): none comes with the
+  app and none is sent anywhere, so a character someone else owns stays your own use. The pictures are served at
+  `/skin/<folder>/<file>` with the token, only those kinds and only straight from the skin's folder, and never through
+  the phone app's relay. A change to `skin.json` shows within seconds; a picture replaced under the same name, within a minute.
 - **Processes.** **Processes** (⚙) in the header, with a count, opens what the agents have running: each agent
   itself (the claude process) and every shell, dev server, MCP server and background task it started, grouped by agent
   and heaviest first (CPU or memory), with how long each has been running. An agent's totals and its share of the chart

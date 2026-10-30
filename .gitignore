@@ -5,3 +5,4 @@ cloud.json
 boards/*.json
 !boards/example.json
 .runtime/
+skins/

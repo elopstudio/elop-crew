@@ -50,6 +50,7 @@
           "browsers.mjs",
           "claudefiles.mjs",
           "artifacts.mjs",
+          "skins.mjs",
           "package.json",
           "LICENSE",
           "public/**/*",

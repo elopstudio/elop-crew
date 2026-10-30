@@ -28,6 +28,7 @@ import { tokensToday } from './tokens.mjs'
 import { createProcesses } from './processes.mjs'
 import { createClaudeFiles } from './claudefiles.mjs'
 import { createArtifacts } from './artifacts.mjs'
+import { createSkins } from './skins.mjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))   // the code: public/, hooks/
 // the data: config.json, boards/, .runtime/ — the code's own folder unless MONITOR_HOME says otherwise
@@ -41,6 +42,7 @@ const PROJECTS_DIR = path.join(CLAUDE, 'projects')
 const BOARDS_DIR = path.join(DATA, 'boards')
 // pages the agents made for the person to look at (show_artifact), shown in the page as they are saved
 const artifacts = createArtifacts({ dataDir: DATA, notifyPages: () => notifyPages() })
+const skins = createSkins({ dataDir: DATA, loadConfig: () => loadConfig(), editConfig: (c) => editConfig(c), notifyPages: () => notifyPages() })
 const PORT = Number(process.env.PORT) || 4777
 const HOST = '127.0.0.1'
 const TAIL_BYTES = 768 * 1024          // transcripts grow to tens of MB — read only the end
@@ -703,7 +705,7 @@ async function buildState() {
     return { project: hit.project, session: hit.sess.name, short: hit.sess.short, nick: hit.sess.nick, nickKo: hit.sess.nickKo, isLeader: !!hit.sess.isLeader, type: w.type, message: w.message, at: w.at }
   }).sort((a, b) => a.at - b.at)
   const recent = outcomes.map((o) => { const hit = bySession.get(o.sessionId); return { at: o.at, agent: hit ? (hit.sess.nickKo || hit.sess.name) : '(other)', tool: o.tool, how: o.how, ms: o.ms } })
-  return { now, version: VERSION, projects: out, approvals, inEditor, recent, token: TOKEN, artifacts: { n: artifacts.count(), latest: artifacts.latest() }, usage: account.usageNow(), compact: { ...compactConf }, hooks: { ...hookStats, viewerSeenAgo: lastViewAt ? now - lastViewAt : null, openPages: streams.size } }
+  return { now, version: VERSION, projects: out, approvals, inEditor, recent, token: TOKEN, artifacts: { n: artifacts.count(), latest: artifacts.latest() }, skin: skins.sig(), usage: account.usageNow(), compact: { ...compactConf }, hooks: { ...hookStats, viewerSeenAgo: lastViewAt ? now - lastViewAt : null, openPages: streams.size } }
 }
 
 /* ── Hooks: approvals and permission mode ─────── */
@@ -2161,6 +2163,8 @@ const server = http.createServer(async (req, res) => {
         json(code, o)
         return
       }
+      // the person's own skins: chosen, given to agents, made, their folder opened; not under /api/, like the pictures
+      if (url.pathname === '/skins') { const [code, o] = await skins.handle(body); json(code, o); return }
       if (url.pathname === '/api/assistant/start') { json(200, await assistant.start()); return }
       if (url.pathname === '/api/assistant/settings') { json(await assistant.setOptions(body), {}); return }
       if (url.pathname.startsWith('/api/account/')) { const [code, o] = await account.handle(url); json(code, o); return }
@@ -2242,6 +2246,17 @@ const server = http.createServer(async (req, res) => {
     }
     // an artifact and what sits beside it: the random id in the address is what opens it (a page's own files carry no token)
     if (url.pathname.startsWith('/artifact/')) { await artifacts.serve(res, url.pathname.slice(10)); return }
+    // the skins on this PC and their pictures: the person's own, so the token is needed
+    if (url.pathname === '/skins') {
+      if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
+      json(200, await skins.list())
+      return
+    }
+    if (url.pathname.startsWith('/skin/')) {
+      if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
+      await skins.serve(res, url.pathname.slice(6))
+      return
+    }
     if (url.pathname === '/claude/files' || url.pathname === '/claude/file') {
       if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
       const [code, o] = url.pathname === '/claude/files' ? await claudeFiles.list() : await claudeFiles.read(url.searchParams.get('ref') || '')
