@@ -817,6 +817,7 @@ body.docked .detail.max[open],body.docked .detail.pv.max:not(.narrow)[open]{heig
 .composer .ctxpop .cgo:hover{border-color:var(--text)}
 .composer .ctxpop .cgo:disabled{opacity:.6;cursor:default}
 .composer .csend.run{background:var(--run)}
+.composer .csend.stop svg{width:14px;height:14px}
 .composer .csend:disabled{opacity:.45;cursor:default}
 /* the "/" list: Claude Code's slash commands, above the box while the first word is typed */
 .composer{position:relative}
@@ -1492,7 +1493,8 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     clip: '<path d="M10.5 5.5l-4.3 4.3a1.3 1.3 0 0 0 1.8 1.8l4.6-4.6a2.6 2.6 0 0 0-3.7-3.7L4.3 8a3.9 3.9 0 0 0 5.5 5.5l3.2-3.2"/>',
     up: '<path d="M8 13V3.5M3.8 7.6L8 3.4l4.2 4.2"/>', run: '<path d="M5 3.5l7 4.5-7 4.5z" fill="currentColor"/>',
     back: '<path d="M13 8H3.5M7.6 3.8L3.4 8l4.2 4.2"/>', fwd: '<path d="M3 8h9.5M8.4 3.8L12.6 8l-4.2 4.2"/>',
-    reload: '<path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.8v3h-3"/>', plus: '<path d="M8 3.5v9M3.5 8h9"/>' };
+    reload: '<path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.8v3h-3"/>', plus: '<path d="M8 3.5v9M3.5 8h9"/>',
+    stop: '<rect x="4.5" y="4.5" width="7" height="7" rx="1.3" fill="currentColor" stroke="none"/>' };
   function toggleMax(box, key, on = !box.classList.contains('max')) {
     box.classList.toggle('max', on);
     if (key) try { if (on) localStorage.setItem(key, '1'); else localStorage.removeItem(key); } catch (e) {}
@@ -3164,13 +3166,14 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     form.addEventListener('dragleave', () => form.classList.remove('drop'));
     form.addEventListener('drop', (e) => { e.preventDefault(); form.classList.remove('drop'); addFiles([...e.dataTransfer.files]); });
     ta.addEventListener('paste', (e) => { const fl = [...(e.clipboardData?.files || [])]; if (fl.length) { e.preventDefault(); addFiles(fl); } });
-    // the send button is faint while there is nothing to send
-    const ready = () => send.classList.toggle('empty', !ta.value.trim() && !files.length);
+    // the send button is faint while there is nothing to send; a monitor agent at work with nothing typed: it stops it
+    let working = !!s.managed && s.state === 'working', setFace = null;
+    const ready = () => { send.classList.toggle('empty', !ta.value.trim() && !files.length && !working); setFace?.(); };
     ta.addEventListener('input', ready);
     ready();
     const meter = ctxMeter(s);
     meter.set(s);
-    meterNow = { name: s.name, set: (x) => { meter.set(x); ctxWarn(x); } };
+    meterNow = { name: s.name, set: (x) => { meter.set(x); ctxWarn(x); if (s.managed && working !== (x.state === 'working')) { working = x.state === 'working'; ready(); } } };
     const box = composer(ta, chips, [attachBtn, ...(s.managed ? agentSettings(s) : [])], send, [meter.node]);
     box.box.append(meter.pop);
     // a monitor agent runs claude here, so its slash commands work; a VS Code session only gets the text
@@ -3180,12 +3183,23 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     const runOut = el('pre', 'runout');
     runOut.hidden = true;
     const hintText = hint.textContent;
-    let asRun = false;
+    let face = 'up';
     const asCommand = () => {
       const c = ta.value.trimStart().startsWith('!');
-      if (c !== asRun) { asRun = c; const b = roundButton(c ? 'run' : 'up', c ? t('runCmd') : t('send'), 'x'); send.innerHTML = b.innerHTML; send.title = b.title + ' · ' + (c ? t('runHint') : hintText); send.setAttribute('aria-label', b.title); }
-      send.classList.toggle('run', c); hint.textContent = c ? t('runHint') : hintText;
+      const f = c ? 'run' : working && !ta.value.trim() && !files.length ? 'stop' : 'up';
+      if (f !== face) { face = f; const b = roundButton(f, f === 'run' ? t('runCmd') : f === 'stop' ? t('stopAgent') : t('send'), 'x'); send.innerHTML = b.innerHTML; send.title = b.title + (f === 'stop' ? '' : ' · ' + (c ? t('runHint') : hintText)); send.setAttribute('aria-label', b.title); }
+      send.classList.toggle('run', c); send.classList.toggle('stop', f === 'stop'); hint.textContent = c ? t('runHint') : hintText;
     };
+    setFace = asCommand;
+    asCommand();
+    // only a click stops it (Enter in an empty box does nothing, as before)
+    send.addEventListener('click', (e) => {
+      if (face !== 'stop') return;
+      e.preventDefault();
+      if (send.disabled) return;
+      send.disabled = true;
+      agentCall('/api/agents/stop', { id: s.agentId }).finally(() => { send.disabled = false; clearTimeout(timer); tick(); });
+    });
     ta.addEventListener('input', asCommand);
     async function runCmd(command) {
       if (!command) return;
