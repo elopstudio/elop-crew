@@ -429,6 +429,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
           { cwd, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, env: process.env })
       } catch { return end([]) }
       child.on('error', () => end([]))
+      child.stdin.on('error', () => end([]))
       child.on('exit', () => end([]))
       child.stdout.setEncoding('utf8')
       child.stdout.on('data', (chunk) => {
@@ -491,6 +492,9 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     try { child = spawn(claudeExecutable(), args, { cwd: a.cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: a.kind === 'assistant' ? agentEnv() : { ...agentEnv(), CLAUDE_CODE_PLUGIN_DIR_WATCH: '1' } }) }
     catch (e) { emit(a, { kind: 'note', text: 'could not start claude: ' + e.message }); a.proc = null; setState(a, 'stopped'); return }
     a.proc = child
+    // claude gone between a write and its 'exit' (EPIPE): the write failed, and an error with no listener would take the
+    // whole app down; its exit says the rest
+    child.stdin.on('error', (e) => { if (a.proc === child) emit(a, { kind: 'note', text: 'claude closed its input (' + (e.code || e.message) + '): the last message may not have reached it' }) })
     a.ui = { status: {}, panes: null }
     a.modCmds = null
     emit(a, { kind: 'ui', ui: 'reset' }, false)
