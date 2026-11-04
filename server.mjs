@@ -1416,6 +1416,14 @@ async function resumeSession(body) {
   return agents.adopt({ cwd, sessionId, note: 'an earlier conversation of this folder, carried on' })
 }
 
+// the agent a message by another agent's script names as its sender, by any of its names on the page
+async function peerFrom(body) {
+  const want = String(body.from || /^\s*\[([^\]\s·,:]+)/.exec(String(body.text || ''))?.[1] || '').trim()
+  if (!want) return ''
+  const data = await cachedState()
+  for (const p of data.projects) for (const s of p.sessions) if ([s.name, s.short, s.nick, s.nickKo, s.pinNick].includes(want)) return s.name
+  return ''
+}
 async function sendMessage(body) {
   const name = String(body.session || '')
   const files = attachedPaths(body.files)
@@ -2173,6 +2181,9 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/agents/fork') { const [code, o] = await forkSession(body); json(code, o); return }
       if (url.pathname === '/api/agents/past') { const [code, o] = await pastSessions(body); json(code, o); return }
       if (url.pathname === '/api/agents/resume') { const [code, o] = await resumeSession(body); json(code, o); return }
+      // a message not from a page (no browser sends it without Sec-Fetch-Site) nor the phone app: another agent's, by a
+      // script of its own; who, if it says (body.from, or its first word in brackets: "[하은 …] …")
+      if (url.pathname === '/api/agents/send') body.peer = !req.headers['sec-fetch-site'] && req.headers['x-monitor-by'] !== 'person' ? { from: await peerFrom(body) } : null
       if (url.pathname.startsWith('/api/agents/')) { const [code, o] = await agents.handle(url, body); json(code, o); return }
       if (url.pathname === '/hook') { const r = await hookEvent(body, res); if (!res.writableEnded && !res.destroyed) json(200, r); return }
       if (url.pathname === '/hook/wait') { json(200, await waitForMessage(String(body.session_id || ''), !!body.first, res)); return }
@@ -2214,6 +2225,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/connectors') {
       if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
       json(200, await connectors(url.searchParams.get('fresh') === '1'))
+      return
+    }
+    if (url.pathname === '/api/agents/peers') {
+      if (!sameToken(url.searchParams.get('token') || '')) { res.writeHead(403).end(); return }
+      json(200, { list: agents.peerTalk(url.searchParams.get('name') || '') })
       return
     }
     if (url.pathname === '/api/assistant') {

@@ -198,6 +198,14 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   to ten minutes without a line; the agent's dialog has a
   **Subagents** tab listing the recent ones — kind, purpose, last action, tool calls — and opens any of them as its own
   live conversation (masked like the main one).
+- **Agent talk.** What the agents say to each other has a tab of its own in an agent's dialog, **Agent talk** (with a
+  count, shown once there is some): the messages other agents sent it and it sent them, oldest first, each with who to
+  whom and when. A message another agent's own script sends through the monitor (`/api/agents/send` with the token, not
+  from a page or the phone app) is told apart from the person's: the conversation keeps one dashed line for it (💬, the
+  sender and its first words; a click opens the tab) and the tab has it in full. The sender is the agent it names —
+  `"from"` in the request, or its first word in brackets (`[하은 …] …`) — when that is one on the page. Messages sent with
+  SendMessage are there too, as the summary the sender gave. Each such message's fingerprint and sender are kept with the
+  agent (`.runtime/agents.json`, never the words), so they are still told apart after a restart.
 - **Terminal.** Once an agent (a monitor agent or a VS Code session) has run a command in a shell (Bash, PowerShell), its
   dialog has a **Terminal** tab: each command with when it ran and, once done, what it printed (✗ when it failed) — from
   its conversation, masked as the conversation view is (a long output shows its start). It follows as the agent works,

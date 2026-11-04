@@ -232,6 +232,7 @@ export function createCloud({ dataDir, version, notifyPages = () => {}, local = 
       let body
       if (method === 'POST') {
         headers['x-monitor-token'] = local.token()
+        headers['x-monitor-by'] = 'person'   // the person on the phone, not another agent
         if (typeof f.b64 === 'string') { body = Buffer.from(f.b64, 'base64'); headers['content-type'] = 'application/octet-stream' }
         else { body = JSON.stringify(f.body ?? {}); headers['content-type'] = 'application/json' }
       }

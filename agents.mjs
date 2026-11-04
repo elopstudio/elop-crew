@@ -64,7 +64,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // One that was in the middle of a turn when the monitor went away (quit, crash, an update) carries on by itself, and
   // one whose turn had ended just before is asked whether that turn was waiting for this restart (an install it started).
   const FILE = path.join(dataDir || root, '.runtime', 'agents.json')
-  const KEEP = ['id', 'kind', 'cwd', 'key', 'name', 'nick', 'desc', 'avatar', 'mode', 'model', 'effort', 'fast', 'sessionId', 'newSessionId', 'startedAt', 'midTurn', 'turnEndedAt', 'compact', 'loginLost', 'limitHit', 'forkFrom', 'forkedFrom', 'ctxTokens', 'movedTo']
+  const KEEP = ['id', 'kind', 'cwd', 'key', 'name', 'nick', 'desc', 'avatar', 'mode', 'model', 'effort', 'fast', 'sessionId', 'newSessionId', 'startedAt', 'midTurn', 'turnEndedAt', 'compact', 'loginLost', 'limitHit', 'forkFrom', 'forkedFrom', 'ctxTokens', 'movedTo', 'peers']
   const CARRY_ON = 'The agent monitor restarted (an update or a restart of the app) and cut your last turn short. Please carry on where you left off, and keep replying in the language you have been using with the user.'
   const JUST_AFTER = 'The agent monitor restarted (an update or a restart of the app) right after your last turn ended. If that turn started something this restart was part of — installing or updating the app, a restart you asked for — check now that it worked and tell the user what you found. If it had nothing to do with it, just say so in one line.'
   const JUST_AFTER_MS = 2 * 60 * 1000   // how soon after a turn ends a restart counts as "right after"
@@ -142,7 +142,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
         forkedFrom: saved.forkedFrom || saved.forkFrom || '',   // lists saved before forkedFrom: a fork still pending knows it
         sessionId: saved.forkFrom ? '' : saved.sessionId || '', mode: MODES.includes(saved.mode) ? saved.mode : 'default',
         proc: null, state: 'stopped', stateSince: Date.now(), lastAt: 0, events: [], streams: new Set(), msg: null,
-        activity: null, activityAt: 0, turns: 0, stopping: false,
+        activity: null, activityAt: 0, turns: 0, stopping: false, peers: Array.isArray(saved.peers) ? saved.peers.slice(-PEERS_KEPT) : [],
       }
       agents.set(a.id, a)
       // the conversation so far, from its transcript, so the dialog is not empty after a restart
@@ -152,6 +152,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
         if (!a.sessionId && saved.newSessionId) { try { const h = await historyOf(saved.newSessionId); if (h.length) { a.sessionId = saved.newSessionId; a.events = h } } catch {} }
         else if (a.sessionId && a.sessionId === saved.newSessionId && !a.events.length) a.sessionId = ''
       }
+      markPeers(a)
       // asked only if that last turn could have started this restart (it installed, built or restarted the app): any
       // other agent paid a reload of its whole conversation into a cold cache to answer "nothing to do with me" —
       // 14 such checks cost about 10M tokens in a week
@@ -558,7 +559,27 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     return { type: 'user', message: { role: 'user', content }, parent_tool_use_id: null }
   }
 
-  function send(a, text, files) {
+  // Messages another agent sent (a script of its own calling /api/agents/send, not the page or the phone): who sent it,
+  // when it says, and a fingerprint of each, kept with the agent, so they are told apart from the person's own after a
+  // restart too (the transcript has them as plain messages). Never what they said.
+  const PEERS_KEPT = 200
+  const peerKey = (text) => crypto.createHash('sha256').update(String(text || '').replace(/\s+/g, ' ').trim().slice(0, 300)).digest('hex').slice(0, 16)
+  function markPeers(a) {
+    if (!a.peers?.length) return
+    const by = new Map(a.peers.map((p) => [p.k, p.from || '']))
+    for (const e of a.events) if (e.kind === 'user' && !e.peer && by.has(peerKey(e.text))) { e.peer = true; e.from = by.get(peerKey(e.text)) }
+  }
+  // what the agents said to each other through the monitor, for the page's agent-talk tab: to this agent, and from it
+  function peerTalk(name) {
+    const out = []
+    for (const a of agents.values()) for (const e of a.events) {
+      if (e.kind !== 'user' || !e.peer || (a.name !== name && e.from !== name)) continue
+      out.push({ from: e.from || '', to: a.name, text: e.text, at: e.at })
+    }
+    return out.sort((x, y) => x.at - y.at).slice(-200)
+  }
+
+  function send(a, text, files, peer) {
     resumeQ.delete(a.id)   // waiting in line to carry on: anything sent now does that
     // a message sent by hand to an agent waiting for the login: it goes now, in a new process with the login there is
     if (a.loginLost) { a.loginLost = 0; save() }
@@ -578,7 +599,11 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     // the monitor's own words to it: a note (the assistant's chat has its own way of showing them)
     const sys = a.kind === 'assistant' ? '' : systemNote(text)
     if (sys) emit(a, { kind: 'note', sys, text: mask(systemNoteText(text)) })
-    else emit(a, { kind: 'user', text: mask(clip2(text, 4000)), files: files.map((p) => p.split('/').pop().replace(/^[0-9a-z]+-/, '')), refs: files.map((p) => p.split('/').slice(-2).join('/')) })
+    else if (peer) {
+      a.peers = [...(a.peers || []), { k: peerKey(mask(clip2(text, 4000))), from: peer.from || '', at: Date.now() }].slice(-PEERS_KEPT)
+      save()
+      emit(a, { kind: 'user', peer: true, from: peer.from || '', text: mask(clip2(text, 4000)), files: files.map((p) => p.split('/').pop().replace(/^[0-9a-z]+-/, '')), refs: files.map((p) => p.split('/').slice(-2).join('/')) })
+    } else emit(a, { kind: 'user', text: mask(clip2(text, 4000)), files: files.map((p) => p.split('/').pop().replace(/^[0-9a-z]+-/, '')), refs: files.map((p) => p.split('/').slice(-2).join('/')) })
     setState(a, 'working')
     return true
   }
@@ -721,6 +746,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     }
     // the conversation so far, so the dialog shows where it left off
     if (historyOf) { try { a.events = await historyOf(sessionId) } catch {} }
+    markPeers(a)
     a.events.push({ kind: 'note', text: 'taken over from VS Code — the original session is still there; close it in VS Code if you will not use it', at: Date.now() })
     agents.set(id, a)
     save()
@@ -769,7 +795,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     if (url.pathname === '/api/agents/send') {
       const text = clip(body.text, 8000), files = attachedPaths(body.files)
       if (!text && !files.length) return [400, {}]
-      return send(a, text, files) ? [200, {}] : [500, {}]
+      return send(a, text, files, body.peer && typeof body.peer === 'object' ? { from: clip(body.peer.from || '', 120) } : null) ? [200, {}] : [500, {}]
     }
     if (url.pathname === '/api/agents/stop') { stop(a); return [200, {}] }
     // the page and the mods: a drawing asked for, a press, typing, a pick, a pane shown or closed (UI_OPS)
@@ -953,5 +979,5 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // a line in the assistant's chat that is not a message: an alert, or something it did on its own
   const noteTo = (id, ev) => { const a = agents.get(id); if (a) emit(a, ev) }
 
-  return { reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, agentOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, compactChanged, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
+  return { peerTalk, reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable, cwdOf, agentOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, compactChanged, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
 }
