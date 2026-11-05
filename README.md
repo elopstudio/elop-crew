@@ -246,7 +246,7 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   cannot do itself (a permission check blocks it, or a VS Code session whose mode the page cannot change). It runs on
   this PC in the agent's folder, as you, with no permission check: Git Bash on Windows (PowerShell if there is none),
   your login shell on macOS and Linux. It is stopped after 2 minutes and gets no input, so a command that asks for a
-  password fails instead of waiting. The output shows above the box, and the agent gets it as a message —
+  password fails instead of waiting. The output shows above the box (× closes it), and the agent gets it as a message —
   `<bash-input>`, `<bash-stdout>`, `<bash-stderr>`, the way Claude Code hands over a command you ran; very long output
   keeps its start and end. Nothing of it is saved. This works for monitor agents and VS Code sessions alike.
 

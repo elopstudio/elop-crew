@@ -756,7 +756,11 @@ body.docked .detail.max[open],body.docked .detail.pv.max:not(.narrow)[open]{heig
 .detail .composer .chip .x{appearance:none;border:0;background:none;color:var(--muted);font-size:14px;line-height:1;cursor:pointer;padding:0 4px}
 .detail form.msg .runout{margin:0;max-height:260px;overflow:auto;font:11.5px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--text)}
 .detail form.msg .runout.err{border-color:var(--block)}
-.detail form.msg .runout[hidden]{display:none}
+.detail form.msg .runbox{position:relative}
+.detail form.msg .runbox[hidden]{display:none}
+.detail form.msg .runbox .runx{position:absolute;top:6px;right:14px;width:26px;height:26px;display:grid;place-items:center;padding:0;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--muted);cursor:pointer}
+.detail form.msg .runbox .runx svg{width:13px;height:13px}
+.detail form.msg .runbox .runx:hover{color:var(--text);border-color:var(--accent)}
 /* the composer: a rounded box that grows with the text, its buttons on a row inside */
 .composer{border:1px solid var(--line-strong);border-radius:18px;background:var(--surface-2);padding:8px 10px 8px 12px;display:grid;gap:6px;cursor:text;transition:border-color .15s,box-shadow .15s}
 .composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
@@ -3260,8 +3264,12 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
     if (s.managed) { slashMenu(ta, form, s.agentId, box.box); ta.placeholder += t('slashHint'); }
     send.title = t('send') + ' · ' + hint.textContent;
     // "!command": run it here, in the agent's folder, as the person at this PC; the agent gets what it printed
-    const runOut = el('pre', 'runout');
-    runOut.hidden = true;
+    // what it printed, under the conversation until × closes it (the agent has it already)
+    const runOut = el('pre', 'runout'), runBox = el('div', 'runbox'), runX = iconButton('close', t('close'));
+    runX.classList.add('runx');
+    runX.addEventListener('click', () => { runBox.hidden = true; ta.focus(); });
+    runBox.append(runOut, runX);
+    runBox.hidden = true;
     const hintText = hint.textContent;
     let face = 'up';
     const asCommand = () => {
@@ -3291,7 +3299,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       send.disabled = false;
       if (!r) { status.textContent = t('runFailed'); status.className = 'status bad'; return; }
       ta.value = ''; keepDraft(); asCommand(); box.grow(); ready();
-      runOut.hidden = false;
+      runBox.hidden = false;
       runOut.classList.toggle('err', !!r.error || r.timedOut || r.code !== 0);
       runOut.textContent = '$ ' + command + '\n' + (r.error ? r.error : r.stdout + (r.stderr ? (r.stdout && !r.stdout.endsWith('\n') ? '\n' : '') + r.stderr : ''));
       const how = r.error ? t('runNoStart') : r.timedOut ? t('runTimeout') : t('runExit', { n: r.code });
@@ -3300,7 +3308,7 @@ form.inline .fbtn{font:13px var(--sans);background:var(--surface);border-radius:
       clearTimeout(timer); tick();
     }
     box.box.prepend(status);   // only a problem shows, inside the box; where the message goes is on the send button
-    form.append(picker, runOut, box.box);
+    form.append(picker, runBox, box.box);
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const text = ta.value.trim();
