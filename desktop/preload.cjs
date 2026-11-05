@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('monitorApp', {
   // the terminal panel under the page: shown or hidden
   terminal: () => call('terminal'),
   account: () => call('account'),
+  // the system's folder dialog for a new agent's folder: the folder picked, or '' when cancelled
+  pickFolder: (from) => ipcRenderer.invoke('monitor-pick-folder', String(from || '')),
   // the page's browsers panel, from the strip's button; and the page telling the app whether it is open (and how many)
   browsers: () => call('browsers'),
   panel: (name, on, n) => call('panel:' + name + ':' + (on ? 1 : 0) + ':' + (Number(n) | 0)),

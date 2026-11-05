@@ -1905,18 +1905,20 @@ async function listDirs(p) {
     if (process.platform === 'win32') {
       const drives = []
       for (const c of 'CDEFGHIJKLMNOPQRSTUVWXYZ') if (fs.existsSync(c + ':\\')) drives.push(c + ':/')
-      return { path: '', parent: null, dirs: drives.map((d) => ({ name: d, path: d })) }
+      return { path: '', parent: null, home: slash(os.homedir()), win: true, dirs: drives.map((d) => ({ name: d, path: d })) }
     }
     p = os.homedir()
   }
   const dir = path.resolve(p)
   let entries = []
-  try { entries = await fsp.readdir(dir, { withFileTypes: true }) } catch { return { path: slash(dir), parent: null, dirs: [], error: 'cannot open' } }
+  // the home folder (and on Windows the drives) as shortcuts in the picker
+  const where = { home: slash(os.homedir()), win: process.platform === 'win32' }
+  try { entries = await fsp.readdir(dir, { withFileTypes: true }) } catch { return { path: slash(dir), parent: null, dirs: [], error: 'cannot open', ...where } }
   const dirs = entries.filter((e) => e.isDirectory() && !/^[.$]/.test(e.name) && !/^(node_modules|System Volume Information)$/i.test(e.name))
     .map((e) => e.name).sort((a, b) => a.localeCompare(b)).slice(0, 500)
     .map((name) => ({ name, path: slash(path.join(dir, name)) }))
   const up = path.dirname(dir)
-  return { path: slash(dir), parent: up === dir ? '' : slash(up), dirs }
+  return { path: slash(dir), parent: up === dir ? '' : slash(up), dirs, ...where }
 }
 
 // a session's conversation from its transcript, in the agent view's own shapes (masked like the live view)

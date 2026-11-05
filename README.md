@@ -435,6 +435,11 @@ VS Code extension does it: the monitor runs the installed `claude` program in he
 (`claude -p --input-format stream-json --output-format stream-json --include-partial-messages`) in the folder you pick,
 on your own Claude Code login. Its dialog's conversation tab is the full chat:
 
+- **Folder**: a project on the page or a recent folder, or **Other folder…**. In the desktop app that (and **Browse**)
+  opens the system's own folder dialog. On a page it opens a browser, one level at a time: shortcuts for home, the
+  folders the projects sit in (`C:/dev` and the like) and the drives; the path in parts, each one a click away; a box
+  that narrows a long list (Enter goes into the first one left); a double click takes a folder without going in. A
+  path typed in the field and Enter shows what is in it.
 - **Name** and **Look** in the dialog are optional. The name has a field per language, Korean and English: both empty
   gives an automatic name (a matched pair, so it follows the page's language), one filled gives that name in both, and
   two give one per language. The same fields are on every agent's info tab, which shows only names you picked, so
@@ -490,13 +495,16 @@ on your own Claude Code login. Its dialog's conversation tab is the full chat:
   transcript stays in `~/.claude/projects`. The archive (`.runtime/archive.json`, up to 100) keeps who it was (name, look,
   what it does, folder, mode, model, effort) and which conversation it had, never what was said. Keeping it asks for a
   name and a note of your own (both optional, say "login bug, half done" and where it left off), so it is easy to find later;
-- **Carry on an earlier conversation…** in the New agent dialog lists the archive and the chosen folder's earlier
-  conversations: the newest 30 with anything said in them, each with Claude's own title or the first thing asked (masked),
-  read from the folder's transcripts and not kept. These can be VS Code's or a terminal's too. Picking one starts an
-  agent on that conversation. One from the archive comes back under its old name and look, as itself, and leaves the
+- **Earlier conversations and archive** has its own dialog: **↺ Earlier** beside **+ New agent** (in a project's
+  header, in the all-agents tab and in the office), in the menu, and **Carry on an earlier conversation…** in the New
+  agent dialog (opened at its folder). It has two lists, **Earlier conversations** and **Archive**, each with its count, for
+  all projects or the one picked, newest first under Today / Yesterday / This week / Older. Earlier conversations are each
+  project's newest 30 with anything said in them, each with Claude's own title or the first thing asked (masked), read
+  from the folder's transcripts and not kept. These can be VS Code's or a terminal's too. Picking one starts an agent on
+  that conversation. One from the archive comes back under its old name and look, as itself, and leaves the
   archive (× takes one out without bringing it back). One still open in VS Code is copied, as **Take over** does, so
-  the two never write to one transcript. One already open in the monitor cannot be picked. A search box above the lists
-  finds one by its name, note, agent, folder or title;
+  the two never write to one transcript. One already open in the monitor cannot be picked. The search box at the top
+  finds one by its name, note, agent, project or title;
 
 The list of these agents survives a restart. `.runtime/agents.json` keeps who each one is (folder, name, what it does, look,
 permission mode, model, session id) and never what was said. When the server starts again they come back stopped,

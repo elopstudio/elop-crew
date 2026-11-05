@@ -219,6 +219,12 @@ function appAction(action) {
   }
   setTimeout(report, 50)
 }
+// the page's Browse for a new agent's folder: the system's own dialog, over the window; only the path picked goes back
+ipcMain.handle('monitor-pick-folder', async (_e, from) => {
+  const start = typeof from === 'string' && from && fs.existsSync(from) ? from : undefined
+  const r = await dialog.showOpenDialog(win, { defaultPath: start, properties: ['openDirectory', 'createDirectory'] })
+  return r.canceled || !r.filePaths[0] ? '' : r.filePaths[0].replace(/\\/g, '/')
+})
 ipcMain.handle('monitor-app', (_e, action) => {
   if (action === 'settings') { showSettings(); return pageState() }
   if (action === 'terminal') { toggleTerminal(); return pageState() }
