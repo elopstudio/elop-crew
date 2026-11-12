@@ -10,6 +10,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 
 const CSS = `
 .office{display:grid;grid-template-columns:minmax(0,1fr) 300px;height:clamp(480px,calc(100vh - 214px),1400px);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface-2)}
@@ -493,12 +494,12 @@ export function createOffice(api) {
     wallPanel(S(8.0), S(9.0), 1.0, 1.42, (g, w, h) => { g.fillStyle = '#e3f5ea'; g.fillRect(0, 0, w, h); g.fillStyle = '#7cc79a'; rr(g, w * 0.1, h * 0.25, w * 0.7, h * 0.16, 6); g.fill(); rr(g, w * 0.1, h * 0.55, w * 0.5, h * 0.16, 6); g.fill(); }, { side: 'x' });
     // library: four bookcases on the side wall, books on each shelf
     const spines = ['#8fb4ff', '#ff9fb8', '#ffd166', '#86dcb0', '#c7a8ff', '#ffb37a', '#79d6e3', '#f4f1ea'];
-    const books = []; seed = 5;
+    const books = []; seed = 5; libParts = [];
     LIB.forEach(([, sy]) => {
       const y = sy - 0.6, d = 1.22, x = 0.04, w = 0.5, h = 2.25, sh = M('shelf');
-      pbox(W, x, y, 0, 0.06, d, h, sh, 0.02); pbox(W, x, y, 0, w, 0.05, h, sh, 0.02); pbox(W, x, y + d - 0.05, 0, w, 0.05, h, sh, 0.02); pbox(W, x, y, h - 0.05, w + 0.02, d, 0.06, sh, 0.025);
+      libParts.push(pbox(W, x, y, 0, 0.06, d, h, sh, 0.02), pbox(W, x, y, 0, w, 0.05, h, sh, 0.02), pbox(W, x, y + d - 0.05, 0, w, 0.05, h, sh, 0.02), pbox(W, x, y, h - 0.05, w + 0.02, d, 0.06, sh, 0.025));
       for (let lv = 0; lv < 5; lv++) {
-        const z = 0.05 + lv * 0.44; pbox(W, x, y, z, w, d, 0.04, sh, 0.015);
+        const z = 0.05 + lv * 0.44; libParts.push(pbox(W, x, y, z, w, d, 0.04, sh, 0.015));
         if (lv === 4) continue; let yy = y + 0.07;
         while (yy < y + d - 0.12) { const bw = 0.05 + rnd() * 0.04, bh = 0.26 + rnd() * 0.1; books.push({ x: x + 0.08 + rnd() * 0.06, y: yy, z: z + 0.04, w: 0.3, d: bw, h: bh, c: spines[Math.floor(rnd() * spines.length)], lean: rnd() < 0.08 }); yy += bw + 0.008; if (rnd() < 0.06) yy += 0.1; }
       }
@@ -506,7 +507,7 @@ export function createOffice(api) {
     {
       const im = new THREE.InstancedMesh(rbox(1, 1, 1, 0.06), keep(new THREE.MeshPhysicalMaterial({ roughness: 0.55, clearcoat: 0.2 })), books.length), o = new THREE.Object3D(), col = new THREE.Color();
       books.forEach((b, i) => { o.position.set(b.x + b.w / 2, b.z + b.h / 2, b.y + b.d / 2); o.rotation.set(b.lean ? 0.18 : 0, 0, 0); o.scale.set(b.w, b.h, b.d); o.updateMatrix(); im.setMatrixAt(i, o.matrix); im.setColorAt(i, col.set(b.c)); });
-      im.castShadow = im.receiveShadow = true; W.add(im); trash.push({ dispose: () => im.dispose() });
+      im.castShadow = im.receiveShadow = true; W.add(im); libParts.push(im); trash.push({ dispose: () => im.dispose() });
     }
     // the bookcases as one thing to click: the project's folder, to look through
     if (api.files) {
@@ -598,6 +599,7 @@ export function createOffice(api) {
   }
   // a desk: a top on two clay panels, a screen turned to the seat, a keyboard, a mug or a little plant; find: who works at it
   function desk(W, d, i, find) {
+    const n0 = W.children.length;
     const { x, y, w, d: dd } = d.top, leg = M('deskLeg'), top = M('desk', { roughness: 0.45, clearcoat: 0.35 });
     pbox(W, x + 0.04, y + 0.05, 0, 0.07, dd - 0.1, DESK_H - 0.04, leg, 0.03); pbox(W, x + w - 0.11, y + 0.05, 0, 0.07, dd - 0.1, DESK_H - 0.04, leg, 0.03); pbox(W, x + 0.06, y + 0.08, 0.25, w - 0.12, 0.04, 0.25, leg, 0.015);
     pbox(W, x, y, DESK_H - 0.05, w, dd, 0.06, top, 0.025);
@@ -620,7 +622,9 @@ export function createOffice(api) {
     if (i < 0 || i % 2 === 0) pcyl(W, x + w - 0.18, y + 0.18, DESK_H + 0.01, 0.05, 0.1, mugMat);
     else { pcyl(W, x + w - 0.18, y + 0.18, DESK_H + 0.01, 0.06, 0.09, M('pot')); const l = mesh(W, sphG(0.09), M('leaf'), x + w - 0.18, DESK_H + 0.17, y + 0.18); l.scale.set(1, 1.2, 1); }
     if (i < 0) pbox(W, x + 0.5, y + 1.1, DESK_H + 0.01, 0.3, 0.22, 0.03, M('#ffd166'), 0.01);
-    deskScreens.push({ i, find, scrMat, glowMat, ledMat, mugMat });
+    const sc = { i, find, scrMat, glowMat, ledMat, mugMat, parts: W.children.slice(n0).filter((o) => o !== glow) };   // parts: what the pointer outlines
+    for (const o of sc.parts) o.traverse((c) => { c.userData.desk = sc; });
+    deskScreens.push(sc);
   }
   // a chair: seat, back, a stem on a star of wheels; front faces dir
   function chair(W, x, y, dir, col) {
@@ -764,7 +768,15 @@ export function createOffice(api) {
   ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, rings: 2, samples: 16 });
   ao.blendIntensity = 0.85;
   { const base = ao._overrideVisibility.bind(ao); ao._overrideVisibility = function () { base(); this.scene.traverse((o) => { if ((o.userData.noAO || o.isSprite) && o.visible) { o.visible = false; this._visibilityCache.push(o); } }); }; }
-  composer.addPass(ao); composer.addPass(new OutputPass());
+  composer.addPass(ao);
+  // the outline round what the pointer is over, when a click there does something
+  const outline = new OutlinePass(new THREE.Vector2(1, 1), scene, camera);
+  outline.edgeStrength = 6; outline.edgeThickness = 1; outline.edgeGlow = 0;
+  outline.visibleEdgeColor.set('#3a63d8'); outline.hiddenEdgeColor.set('#a9b9ec');   // hidden: the part behind something
+  // laid over the room rather than added to it, so the line stays blue on a light floor too
+  { const m = outline.overlayMaterial; m.fragmentShader = m.fragmentShader.replace('gl_FragColor = finalColor;', 'float a = clamp(finalColor.a, 0.0, 1.0); gl_FragColor = finalColor.a > 0.0001 ? vec4(finalColor.rgb / finalColor.a * a, a) : vec4(0.0);');
+    m.blending = THREE.CustomBlending; m.blendSrc = THREE.OneFactor; m.blendDst = THREE.OneMinusSrcAlphaFactor; m.needsUpdate = true; }
+  composer.addPass(outline); composer.addPass(new OutputPass());
   function resize() {
     const r = stage.getBoundingClientRect(); if (!r.width || !r.height) return;
     VW = r.width; VH = r.height;
@@ -773,36 +785,59 @@ export function createOffice(api) {
   new ResizeObserver(resize).observe(stage);
 
   /* ── pointer: drag to move the view, click a robot to open the agent ── */
-  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let hovered = null, drag = null;
-  function pick(e) {
-    const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
-    for (const h of ray.intersectObjects(people.children, true)) if (h.object.visible && h.object.userData.agent && (!h.object.isSprite || h.object.userData.skin)) return h.object.userData.agent;
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let hovered = null, drag = null, hot = null;
+  const aim = (e) => { const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera); };
+  // the robot under the pointer: its id, and the whole robot (for the outline)
+  function pickBot(e) {
+    aim(e);
+    for (const h of ray.intersectObjects(people.children, true)) if (h.object.visible && h.object.userData.agent && (!h.object.isSprite || h.object.userData.skin)) { let o = h.object; while (o.parent && o.parent !== people) o = o.parent; return { id: h.object.userData.agent, root: o }; }
     return null;
+  }
+  const pick = (e) => pickBot(e)?.id ?? null;
+  // what a click under the pointer would do, and what to outline for it: a robot, the way out, the bookcases, a desk
+  // with someone at it (or the free seat, for a new agent)
+  function target(e) {
+    const b = pickBot(e), a = b && agents.get(b.id.split('#')[0]);
+    if (a) return { kind: 'bot', id: b.id, objs: [b.root], act: () => (a.sec ? api.openAssistant?.() : talk(a)) };
+    if (b) return { kind: 'bot', id: b.id, objs: [], act: null };
+    if (pickExit(e)) return { kind: 'exit', objs: exitHits, act: () => api.leave?.() };
+    if (pickLib(e)) return { kind: 'lib', objs: libParts, act: () => api.files?.() };
+    if (!deskScreens.length) return null;
+    aim(e);
+    const hit = ray.intersectObjects(deskScreens.flatMap((sc) => sc.parts), true)[0]; if (!hit) return null;
+    const sc = hit.object.userData.desk, who = sc?.find?.(); if (!sc) return null;
+    if (who) return { kind: 'desk', objs: sc.parts, act: () => (who.sec ? api.openAssistant?.() : talk(who)) };
+    if (MODE === 'room' && sc.i >= 0 && sc.i === newSeat && api.newAgent) return { kind: 'desk', objs: sc.parts, act: () => api.newAgent() };
+    return null;
+  }
+  function setHot(h) {
+    hot = h; hovered = h?.kind === 'bot' ? h.id : null;
+    outline.selectedObjects = h?.objs || [];
+    canvas.classList.toggle('hot', !!h?.act);
+    const out = h?.kind === 'exit';
+    if (out !== hoverExit) { hoverExit = out; for (const m of exitMats) m.emissive.set(out ? '#3a63d8' : '#000000').multiplyScalar(out ? 0.25 : 0); }
   }
   canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false }; canvas.setPointerCapture(e.pointerId); });
   canvas.addEventListener('pointermove', (e) => {
     if (drag) {
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.hypot(dx, dy) > 4) { drag.moved = true; canvas.classList.add('drag'); }
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.hypot(dx, dy) > 4) { drag.moved = true; canvas.classList.add('drag'); if (hot) setHot(null); }
       if (drag.moved) { pan.x = drag.px - dx / VW * fit.fw / zoom; pan.y = drag.py + dy / VH * fit.fh / zoom; applyCamera(); }
       return;
     }
-    hovered = pick(e); const out = !hovered && pickExit(e), lib = !hovered && !out && pickLib(e); canvas.classList.toggle('hot', !!hovered || out || lib);
-    if (out !== hoverExit) { hoverExit = out; for (const m of exitMats) m.emissive.set(out ? '#3a63d8' : '#000000').multiplyScalar(out ? 0.25 : 0); }
+    setHot(target(e));
   });
   function lightRoom(room) { if (room === hoverRoom) return; hoverRoom = room; for (const [k, m] of BL.rugs) m.emissive.set(k === room ? '#3a63d8' : '#000000').multiplyScalar(k === room ? 0.14 : 0); }
-  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) { const id = pick(e); const a = id && agents.get(id.split('#')[0]); if (a?.sec) api.openAssistant?.(); else if (a) talk(a); else if (pickExit(e)) api.leave?.(); else if (pickLib(e)) api.files?.(); } });
-  canvas.addEventListener('pointerleave', () => { hovered = null; });
+  canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; canvas.classList.remove('drag'); if (d && !d.moved) target(e)?.act?.(); else setHot(target(e)); });
+  canvas.addEventListener('pointerleave', () => setHot(null));
   // the room of the building whose sign is under the pointer
-  let hoverRoom = null, exitHits = [], exitMats = [], hoverExit = false, libHits = [];
+  let hoverRoom = null, exitHits = [], exitMats = [], hoverExit = false, libHits = [], libParts = [];
   function pickLib(e) {
     if (MODE !== 'room' || !libHits.length) return false;
-    const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
-    return ray.intersectObjects(libHits, false).length > 0;
+    aim(e); return ray.intersectObjects(libHits, false).length > 0;
   }
   function pickExit(e) {
     if (MODE !== 'room' || !exitHits.length) return false;
-    const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
-    return ray.intersectObjects(exitHits, false).length > 0;
+    aim(e); return ray.intersectObjects(exitHits, false).length > 0;
   }
   stage.addEventListener('wheel', (e) => { e.preventDefault(); const r = canvas.getBoundingClientRect(); setZoom(zoom * Math.exp(-e.deltaY * 0.0012), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
 

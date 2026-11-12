@@ -97,6 +97,8 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   the background), and the wait for the pantry counts from when they are done. One whose session is gone from the list packs a box where it is and carries it out of the door (in the building,
   down the corridor and out through the lobby) before it disappears; a new one comes in at the door with its box,
   walks to where it is to be and unpacks there. Each place is one robot's at a time, and an office opened afresh shows each where it already is. The rows of desks grow with the crew, always with one **+ New seat** free (a click starts a new agent).
+  What a click does something to gets a blue outline under the pointer: a robot, a desk with someone at it (a click opens
+  its conversation) or the free seat's, the bookcases, the way out; an empty desk does not.
   The panel shows the agent picked — what it is doing, where it is, uptime, today's tokens, how full its context is, with
   Allow / Deny for a request, and **Conversation** (with the message box ready) — then what just happened (moves, requests, state changes,
   subagents). Drag to move, the wheel or − + to zoom (the percentage fits it again); a
