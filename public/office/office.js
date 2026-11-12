@@ -772,9 +772,9 @@ export function createOffice(api) {
   // the outline round what the pointer is over, when a click there does something
   const outline = new OutlinePass(new THREE.Vector2(1, 1), scene, camera);
   outline.edgeStrength = 6; outline.edgeThickness = 1; outline.edgeGlow = 0;
-  outline.visibleEdgeColor.set('#3a63d8'); outline.hiddenEdgeColor.set('#a9b9ec');   // hidden: the part behind something
+  outline.visibleEdgeColor.set('#7b9cff'); outline.hiddenEdgeColor.set('#c3d0f7');   // hidden: the part behind something
   // laid over the room rather than added to it, so the line stays blue on a light floor too
-  { const m = outline.overlayMaterial; m.fragmentShader = m.fragmentShader.replace('gl_FragColor = finalColor;', 'float a = clamp(finalColor.a, 0.0, 1.0); gl_FragColor = finalColor.a > 0.0001 ? vec4(finalColor.rgb / finalColor.a * a, a) : vec4(0.0);');
+  { const m = outline.overlayMaterial; m.fragmentShader = m.fragmentShader.replace('gl_FragColor = finalColor;', 'float a = clamp(finalColor.a, 0.0, 0.75); gl_FragColor = finalColor.a > 0.0001 ? vec4(finalColor.rgb / finalColor.a * a, a) : vec4(0.0);');
     m.blending = THREE.CustomBlending; m.blendSrc = THREE.OneFactor; m.blendDst = THREE.OneMinusSrcAlphaFactor; m.needsUpdate = true; }
   composer.addPass(outline); composer.addPass(new OutputPass());
   function resize() {
