@@ -509,7 +509,12 @@ on your own Claude Code login. Its dialog's conversation tab is the full chat:
   finds one by its name, note, agent, project or title;
 
 The list of these agents survives a restart. `.runtime/agents.json` keeps who each one is (folder, name, what it does, look,
-permission mode, model, session id) and never what was said. When the server starts again they come back stopped,
+permission mode, model, session id) and never what was said. It and the other state files (`names.json`, `archive.json`,
+the boards, the app's `settings.json` and `terminals.json`) are written to a file beside them, flushed to the disk and
+then renamed in, with the last good copy kept as `.bak`: a PC that resets in the middle of a write cannot leave one
+filled with NUL bytes. A file found broken anyway is set aside as `<file>.broken-<time>` and its `.bak` read instead, never an
+empty list. A transcript that ends in NUL bytes or a cut-off line (Claude Code's, after a reset) has them taken out
+before the agent carries on, the file as it was kept beside it as `.nul-<time>`. When the server starts again they come back stopped,
 their conversation read back from the transcript, and the next message resumes the same session. One that was in the
 middle of a turn when the monitor went away — quit, crash or an app update — carries on by itself: it is told the monitor
 restarted and asked to pick up where it left off, in the language it was using with you. One whose turn had ended less
@@ -649,7 +654,12 @@ itself. So a new PC needs only **Claude Code**, installed and signed in.
   pastes. Hiding the panel keeps the shells running. A shell cannot outlive the app: when it starts again (an update, a
   restart), the panel comes back — under a `── ↻ 10:45 ──` line with the time — with the same tabs and panes — shell, name, and the folder each was last in (the shells
   say it at every prompt) — and their earlier output, a new shell under it. Each pane keeps its own command history
-  (**↑**; a new pane starts with the last of the shared one), across restarts too, instead of the one every PowerShell shares (PowerShell and Git Bash; Command Prompt keeps none). Desktop app only — the page in a
+  (**↑**; a new pane starts with the last of the shared one), across restarts too, instead of the one every PowerShell shares (PowerShell and Git Bash; Command Prompt keeps none).
+  A pane where `claude` was running carries it on: the app notes each pane's Claude Code session (and its model,
+  permission mode and effort), and when the pane comes back it types `claude --resume <id> …` at the first prompt —
+  unless that session is already open somewhere else. The tabs are kept as `terminals.json` written the safe way above;
+  a pane whose tab was lost all the same (a file broken before this) comes back from its history file, as a PowerShell or
+  Git Bash tab in your home folder with its **↑** history, its old output gone. Desktop app only — the page in a
   browser never reaches a shell.
 - **A shortcut from anywhere** (**Ctrl + Alt + J** by default) brings the window up with the keys on the page, so the number
   keys answer the first request at once; pressing it again hides the window. If another program has it, the app takes

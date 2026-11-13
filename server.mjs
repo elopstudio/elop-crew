@@ -29,6 +29,7 @@ import { createProcesses } from './processes.mjs'
 import { createClaudeFiles } from './claudefiles.mjs'
 import { createArtifacts } from './artifacts.mjs'
 import { createSkins } from './skins.mjs'
+import { writeDurable, readJson } from './durable.cjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))   // the code: public/, hooks/
 // the data: config.json, boards/, .runtime/ — the code's own folder unless MONITOR_HOME says otherwise
@@ -78,15 +79,24 @@ function descFor(config, key, name, short) {
   return descOf(d[short] || d[name])
 }
 // writes the name and look into config.json, keeping everything else in it as it was
+// A JSON file people (and agents) edit by hand too — config.json, a board, Claude Code's settings: {} when it is not
+// there, null when it does not parse (left alone: it may be half-way through an edit). One a reset filled with NULs is
+// set aside and its last good copy (.bak) read instead (durable.cjs).
+function readEdited(file) {
+  const v = readJson(file, { nulOnly: true })
+  if (v !== undefined) return v
+  return fs.existsSync(file) ? null : {}
+}
+// written whole or not at all, flushed to the disk before it replaces the file, the one before kept as .bak
+const writeEdited = (file, value) => writeDurable(file, JSON.stringify(value, null, 2) + '\n')
+
 // config.json changes from the page: read it, change it, write it back in one step
 async function editConfig(change) {
   const file = path.join(DATA, 'config.json')
-  let config = {}
-  try { config = JSON.parse(await fsp.readFile(file, 'utf8')) } catch (e) { if (e.code !== 'ENOENT') return 409 }
+  const config = readEdited(file)
+  if (!config || typeof config !== 'object') return 409
   change(config)
-  const tmp = file + '.' + process.pid + '.tmp'
-  await fsp.writeFile(tmp, JSON.stringify(config, null, 2) + '\n')
-  await fsp.rename(tmp, file)
+  try { writeEdited(file, config) } catch { return 500 }
   notifyPages()
   return 200
 }
@@ -153,12 +163,11 @@ async function saveCompact(body) {
   const vscode = body.vscode === undefined ? compactConf.vscode : !!body.vscode
   const was = compactConf
   if (vscode || was.vscode) {
-    let s = {}
-    try { s = JSON.parse(await fsp.readFile(CLAUDE_SETTINGS, 'utf8')) } catch (e) { if (e.code !== 'ENOENT') return 409 }
+    const s = readEdited(CLAUDE_SETTINGS)
+    if (!s || typeof s !== 'object') return 409
     if (vscode) s.autoCompactWindow = window
     else if (s.autoCompactWindow === was.window) delete s.autoCompactWindow
-    const tmp = CLAUDE_SETTINGS + '.' + process.pid + '.tmp'
-    try { await fsp.mkdir(CLAUDE, { recursive: true }); await fsp.writeFile(tmp, JSON.stringify(s, null, 2) + '\n'); await fsp.rename(tmp, CLAUDE_SETTINGS) } catch { return 500 }
+    try { writeEdited(CLAUDE_SETTINGS, s) } catch { return 500 }
   }
   const code = await editConfig((config) => { config.compact = { window, vscode } })
   if (code !== 200) return code
@@ -178,7 +187,8 @@ async function saveProjectName(body) {
 }
 
 function loadConfig() {
-  try { return JSON.parse(fs.readFileSync(path.join(DATA, 'config.json'), 'utf8')) } catch { return {} }
+  const c = readEdited(path.join(DATA, 'config.json'))
+  return c && typeof c === 'object' ? c : {}
 }
 
 /* ── Session registry ─────────────────────────── */
@@ -416,10 +426,10 @@ function nameHash(s) { let h = 2166136261; for (const ch of s) h = Math.imul(h ^
 // them renamed. Now only a picked name that is the very same moves an automatic one.
 const NAMES_FILE = path.join(DATA, '.runtime', 'names.json')
 const NAMES_KEEP_MS = 30 * 24 * 3600e3
-let given = (() => { try { const g = JSON.parse(fs.readFileSync(NAMES_FILE, 'utf8')); return g && typeof g === 'object' ? g : {} } catch { return {} } })()   // fullId → { n: [en, ko], at }
+let given = (() => { const g = readJson(NAMES_FILE); return g && typeof g === 'object' ? g : {} })()   // fullId → { n: [en, ko], at }
 function keepGiven(now) {
   for (const [id, g] of Object.entries(given)) if (!(now - (g?.at || 0) < NAMES_KEEP_MS)) delete given[id]
-  try { fs.mkdirSync(path.dirname(NAMES_FILE), { recursive: true }); fs.writeFileSync(NAMES_FILE, JSON.stringify(given)) } catch {}
+  try { writeDurable(NAMES_FILE, JSON.stringify(given)) } catch {}
 }
 function assignNicks(sessions, fixedFor) {
   const taken = new Set(sessions.map(fixedFor).filter(Boolean).flatMap((f) => [f.en, f.ko]).map((n) => n.toLowerCase()))
@@ -546,7 +556,8 @@ function displayState(s, now) {
 }
 
 async function readBoard(key) {
-  try { return JSON.parse(await fsp.readFile(path.join(BOARDS_DIR, key + '.json'), 'utf8')) } catch { return null }
+  const b = readJson(path.join(BOARDS_DIR, key + '.json'), { nulOnly: true })
+  return b && typeof b === 'object' ? b : null
 }
 
 async function buildState() {
@@ -1538,10 +1549,7 @@ function withBoard(key, fn) {
 async function writeBoard(key, b) {
   const file = path.join(BOARDS_DIR, key + '.json')
   b.updatedAt = new Date().toISOString()
-  fs.mkdirSync(BOARDS_DIR, { recursive: true })
-  const tmp = file + '.' + process.pid + '.tmp'
-  await fsp.writeFile(tmp, JSON.stringify(b, null, 2) + '\n')
-  await fsp.rename(tmp, file)
+  writeEdited(file, b)
   notifyPages()
 }
 const editBoard = (body) => withBoard(String(body.project || '').toLowerCase(), () => editBoardNow(body))
@@ -1549,9 +1557,10 @@ async function editBoardNow(body) {
   const key = String(body.project || '').toLowerCase()
   if (!BOARD_KEY.test(key)) return 400
   const file = path.join(BOARDS_DIR, key + '.json')
-  let b
-  try { b = JSON.parse(await fsp.readFile(file, 'utf8')) } catch (e) {
-    if (e.code !== 'ENOENT' || (body.op !== 'add' && body.op !== 'auto')) return e.code === 'ENOENT' ? 404 : 409
+  let b = readJson(file, { nulOnly: true })
+  if (!b || typeof b !== 'object') {
+    const there = fs.existsSync(file)
+    if (there || (body.op !== 'add' && body.op !== 'auto')) return there ? 409 : 404
     b = { tasks: [], decisions: [] }
   }
   if (!Array.isArray(b.tasks)) b.tasks = []

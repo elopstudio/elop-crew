@@ -88,7 +88,11 @@ function installHooks() {
     const kept = (cfg.hooks[event] || []).map((m) => ({ ...m, hooks: (m.hooks || []).filter((h) => !ours(h)) })).filter((m) => m.hooks.length)
     cfg.hooks[event] = [...kept, ...entries]
   }
-  fs.writeFileSync(CLAUDE_SETTINGS, JSON.stringify(cfg, null, 2) + '\n')
+  // to a file beside it, flushed to the disk, then renamed over it: a power cut cannot leave Claude Code's settings as NULs
+  const tmp = CLAUDE_SETTINGS + '.' + process.pid + '.tmp'
+  const fd = fs.openSync(tmp, 'w')
+  try { fs.writeSync(fd, JSON.stringify(cfg, null, 2) + '\n'); fs.fsyncSync(fd) } finally { fs.closeSync(fd) }
+  fs.renameSync(tmp, CLAUDE_SETTINGS)
 }
   return { hookState, installHooks, findNode, CLAUDE_SETTINGS }
 }

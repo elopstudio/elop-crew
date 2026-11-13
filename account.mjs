@@ -14,6 +14,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { spawn, execFile } from 'node:child_process'
 import crypto from 'node:crypto'
+import { writeDurable } from './durable.cjs'
 
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
 const USAGE_TTL = 60 * 1000             // the page may ask every few seconds; the files are read at most once a minute
@@ -38,7 +39,7 @@ export function createAccount({ claudeExecutable, dataDir }) {
       fs.mkdirSync(path.dirname(KEEP_FILE), { recursive: true })
       if (!lastLive) { fs.rmSync(KEEP_FILE, { force: true }); return }
       const { source, at, limits, extra } = lastLive.value
-      fs.writeFileSync(KEEP_FILE, JSON.stringify({ key: lastLive.key, value: { source, at, limits, extra } }))
+      writeDurable(KEEP_FILE, JSON.stringify({ key: lastLive.key, value: { source, at, limits, extra } }), { backup: false })
     } catch {}
   }
   let refreshing = null, triedAt = 0

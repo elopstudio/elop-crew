@@ -13,6 +13,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { writeJson, readJson, mendTranscript } from './durable.cjs'
 // what only the assistant's own tools server is given (an agent knows the monitor's token, never this): its calls are its
 const ASSISTANT_KEY = crypto.randomBytes(16).toString('hex')
 import { spawn, execFileSync } from 'node:child_process'
@@ -113,8 +114,8 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   let shuttingDown = false   // stopping everything on the way out is not the end of their turns
   function save() {
     try {
-      fs.mkdirSync(path.dirname(FILE), { recursive: true })
-      fs.writeFileSync(FILE, JSON.stringify([...agents.values()].map((a) => Object.fromEntries(KEEP.map((k) => [k, a[k]]))), null, 1))
+      // flushed to the disk and renamed in, the last one kept as .bak (durable.cjs): a reset no longer leaves NULs
+      writeJson(FILE, [...agents.values()].map((a) => Object.fromEntries(KEEP.map((k) => [k, a[k]]))))
     } catch {}
   }
   // Agents put away as they were ended (End agent → keep in the archive): who each was and which conversation, never
@@ -123,14 +124,17 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   const ARCHIVE_KEEP = ['cwd', 'key', 'nick', 'desc', 'avatar', 'mode', 'model', 'effort', 'sessionId']
   const isSessionId = (v) => /^[0-9a-f-]{36}$/i.test(String(v || ''))
   function archived() {
-    try { const l = JSON.parse(fs.readFileSync(ARCHIVE, 'utf8')); return Array.isArray(l) ? l.filter((x) => x && x.id && isSessionId(x.sessionId)) : [] } catch { return [] }
+    const l = readJson(ARCHIVE)
+    return Array.isArray(l) ? l.filter((x) => x && x.id && isSessionId(x.sessionId)) : []
   }
   function saveArchive(list) {
-    try { fs.mkdirSync(path.dirname(ARCHIVE), { recursive: true }); fs.writeFileSync(ARCHIVE, JSON.stringify(list.slice(0, 100), null, 1)) } catch {}
+    try { writeJson(ARCHIVE, list.slice(0, 100)) } catch {}
   }
   async function load() {
     let list = []
-    try { list = JSON.parse(fs.readFileSync(FILE, 'utf8')) } catch { return }
+    // a broken file (NULs after a reset) is set aside and its last good copy read instead, never taken for no agents
+    list = readJson(FILE)
+    if (list === undefined) return
     for (const saved of Array.isArray(list) ? list : []) {
       if (!saved?.id || agents.has(saved.id) || !fs.existsSync(String(saved.cwd || ''))) continue
       const a = {
@@ -482,6 +486,14 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     if (a.fast) args.push('--strict-mcp-config')
     // the mods (not for the assistant, whose chat draws none of it)
     if (a.kind !== 'assistant') args.push(...modArgs())
+    // a conversation carried on whose transcript a reset left with NULs at its end: mended first (kept as it was beside it)
+    const resumed = a.sessionId || a.forkFrom
+    if (resumed) {
+      try {
+        const cut = mendTranscript(path.join(CONFIG_DIR, 'projects', String(a.cwd).replace(/[^a-zA-Z0-9]/g, '-'), resumed + '.jsonl'))
+        if (cut) emit(a, { kind: 'note', text: 'Its conversation file ended in ' + cut + ' broken bytes (a reset of the PC); they were taken out before carrying on, and the file as it was kept beside it (.nul-…)' })
+      } catch {}
+    }
     if (a.sessionId) args.push('--resume', a.sessionId)
     // taken over from a VS Code session: a copy of that conversation with an id of its own, so the original can
     // stay open in VS Code without the two writing to one transcript; claude tells the new id on its first turn

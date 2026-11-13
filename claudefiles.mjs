@@ -17,6 +17,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import crypto from 'node:crypto'
+import { writeDurable } from './durable.cjs'
 
 const MAX_FILE = 1024 * 1024
 const MAX_LISTED = 300
@@ -221,10 +222,8 @@ export function createClaudeFiles({ claude, projects }) {
   }
 
   async function writeAtomic(file, text) {
-    await fsp.mkdir(path.dirname(file), { recursive: true })
-    const tmp = file + '.' + process.pid + '.tmp'
-    await fsp.writeFile(tmp, text)
-    await fsp.rename(tmp, file)
+    // flushed to the disk before it replaces the file (durable.cjs); no .bak beside it, where Claude Code might read it
+    writeDurable(file, text, { backup: false })
   }
 
   // { ref, text, version } saves (version '' = a new file, refused if one is there by now); { ref, remove, version } removes

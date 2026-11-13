@@ -2,7 +2,8 @@
 // main process. The panel (terminal.html) draws them; a shell outlives the panel being hidden and the view reloading,
 // with the end of its output kept to show again. A shell cannot outlive the app, so the tabs are kept in a file
 // (their split panes, each one's shell, folder, name and the end of its output) and started again, fresh, in the
-// folder each was last in, the next time the app opens the panel.
+// folder each was last in, the next time the app opens the panel. A pane that was running Claude Code carries that
+// conversation on (claude --resume <its session>) once its shell is back.
 // Desktop app only — the page in a browser never reaches a shell.
 const path = require('node:path')
 const fs = require('node:fs')
@@ -99,7 +100,99 @@ function probeDirs() {
   })))
 }
 
-const terms = new Map()   // id → { p, id, hid, shell, name, title, cwd (started in), dir (in now), buf }
+const terms = new Map()   // id → { p, id, hid, shell, name, title, cwd (started in), dir (in now), buf, claude }
+
+/* ── Claude Code run in a pane: which conversation, so a restart can carry it on ── */
+// Claude Code writes ~/.claude/sessions/<pid>.json for each one running (its session id, folder, how it was started).
+// One started from a terminal (entrypoint cli) is matched to the pane whose shell it runs under, by its parent
+// processes (one system query, only when a claude appears that has not been placed yet). Only its session id, folder
+// and a few of its flags are kept — nothing it said.
+const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+const SESSIONS_DIR = path.join(CLAUDE_DIR, 'sessions')
+const isSession = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''))
+const alive = (pid) => { try { process.kill(pid, 0); return true } catch (e) { return e.code === 'EPERM' } }
+function liveClaudes(all) {
+  let files = []
+  try { files = fs.readdirSync(SESSIONS_DIR).filter((f) => /^\d+\.json$/.test(f)) } catch { return [] }
+  const out = []
+  for (const f of files) {
+    try {
+      const o = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'))
+      if (o && o.pid && isSession(o.sessionId) && (all || o.entrypoint === 'cli') && alive(o.pid)) out.push(o)
+    } catch {}
+  }
+  return out
+}
+// every process with its parent (and, for those asked about, its command line)
+function processTable(want) {
+  return new Promise((resolve) => {
+    if (WIN) {
+      const ids = [...want].map(Number).filter((n) => n > 0).join(',')
+      const ps = "$w = @(" + ids + "); Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CommandLine | ForEach-Object { '' + $_.ProcessId + [char]9 + $_.ParentProcessId + [char]9 + $(if ($w -contains $_.ProcessId) { $_.CommandLine } else { '' }) }"
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 20000, maxBuffer: 32 * 1024 * 1024 }, (err, out) => resolve(err ? null : parseTable(out)))
+    } else {
+      execFile('ps', ['-A', '-o', 'pid=,ppid=,args='], { timeout: 20000, maxBuffer: 32 * 1024 * 1024 }, (err, out) => resolve(err ? null : parseTable(String(out).split('\n').map((l) => l.trim().replace(/^(\d+)\s+(\d+)\s*/, '$1\t$2\t')).join('\n'))))
+    }
+  })
+}
+function parseTable(out) {
+  const m = new Map()
+  for (const l of String(out).split(/\r?\n/)) { const [pid, ppid, ...cmd] = l.split('\t'); if (+pid) m.set(+pid, { ppid: +ppid, cmd: cmd.join('\t') }) }
+  return m
+}
+// the flags worth starting it with again; only plain values, since they are typed into a shell
+const SAFE = /^[\w.:\[\]-]{1,60}$/
+function flagsOf(cmd) {
+  const out = []
+  const words = String(cmd || '').match(/"[^"]*"|\S+/g) || []
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i].replace(/^"|"$/g, '')
+    if (/^--(dangerously-skip-permissions|allow-dangerously-skip-permissions|verbose)$/.test(w)) out.push(w)
+    const kv = w.match(/^--(model|permission-mode|effort|agent)(?:=(.*))?$/)
+    if (kv) { const v = kv[2] ?? (words[i + 1] || '').replace(/^"|"$/g, ''); if (kv[2] === undefined) i++; if (SAFE.test(v)) out.push('--' + kv[1], v) }
+  }
+  return out
+}
+const placed = new Map()   // claude pid → the terminal id it runs under (0: none of ours), its flags
+async function probeClaude() {
+  if (!terms.size) return
+  const live = liveClaudes()
+  const fresh = live.filter((s) => !placed.has(s.pid))
+  if (fresh.length) {
+    const table = await processTable(fresh.map((s) => s.pid))
+    if (table) {
+      const shellOf = new Map([...terms.values()].map((t) => [t.p.pid, t.id]))
+      for (const s of fresh) {
+        let pid = s.pid, hit = 0
+        for (let i = 0; i < 16 && pid; i++) { const r = table.get(pid); if (!r) break; if (shellOf.has(r.ppid)) { hit = shellOf.get(r.ppid); break } pid = r.ppid }
+        placed.set(s.pid, { id: hit, args: flagsOf(table.get(s.pid)?.cmd) })
+      }
+    }
+  }
+  const now = new Map()
+  for (const s of live) { const p = placed.get(s.pid); if (p && p.id && terms.has(p.id)) now.set(p.id, { id: s.sessionId, cwd: String(s.cwd || ''), args: p.args }) }
+  // a pane with a claude not placed yet (the query failed) keeps what it had
+  const unplaced = live.some((s) => !placed.has(s.pid))
+  for (const t of terms.values()) t.claude = now.get(t.id) || (unplaced ? t.claude : null)
+  for (const pid of placed.keys()) if (!live.some((s) => s.pid === pid)) placed.delete(pid)
+}
+// a saved pane's conversation, carried on in its shell as soon as the shell shows its prompt
+const toResume = new Map()   // hid → { id, cwd, args }
+function resumeIn(t, c) {
+  let sent = false
+  const go = () => {
+    t.onPrompt = null
+    if (sent || t.ended) return
+    sent = true
+    // open somewhere else already (VS Code, another pane, the monitor): not a second claude on one transcript
+    if (liveClaudes(true).some((s) => s.sessionId === c.id)) return
+    // its transcript left with NULs by a reset: mended first, as the monitor does for its agents
+    try { if (durable && c.cwd) durable.mendTranscript(path.join(CLAUDE_DIR, 'projects', c.cwd.replace(/[^a-zA-Z0-9]/g, '-'), c.id + '.jsonl')) } catch {}
+    t.p.write(['claude', '--resume', c.id, ...(c.args || []).filter((a) => SAFE.test(a))].join(' ') + '\r')
+  }
+  t.onPrompt = go
+  setTimeout(go, 6000)   // a shell that never says its folder (a prompt of its own): typed anyway
+}
 
 /* ── each pane's own command history (↑), kept across restarts: PowerShell and Git Bash; cmd keeps none ── */
 let histDir = null
@@ -163,36 +256,66 @@ function groupsNow() {
 }
 
 /* ── kept across restarts ── */
+// On 13 Nov a PC that reset by itself (a power cut) lost every tab: terminals.json is written every 15 s while a shell
+// prints, and the reset left it unreadable (most likely NULs, as agents.json was); the next start read it as no tabs
+// and wrote the new ones over it. Now it is flushed to the disk before it replaces the file, the one before kept as
+// .bak; a broken file is set aside and the .bak read instead (durable.cjs, the monitor's own); and the last run's tabs
+// are read at once and written back with every save until the panel has taken them, so nothing started before
+// that (a shell an agent opened) can write them away.
 let keepFile = null       // set by the app, in its settings folder
+let durable = null        // durable.cjs, from the monitor's code (set with the file)
 let stopping = false      // the app quitting: its shells' ends are not tabs closed
-let restored = false
+let pendingTabs = null    // the last run's tabs, until the panel takes them (null: taken, or not read yet)
 const SAVED = 64 * 1024   // the end of each one's output kept in the file
 let saveTimer = null
 function save() {
   clearTimeout(saveTimer); saveTimer = null
-  // not before the last run's tabs were handed out: a run that never opened the panel would write them over with none
-  if (!keepFile || !restored) return
+  if (!keepFile) return
   const tabs = groupsNow().map((g) => ({
     dir: g.dir, sizes: g.sizes, pinned: g.pinned,
-    panes: g.ids.map((id) => terms.get(id)).map(({ hid, shell, title, cwd, dir, buf }) => ({ hid, shell, title, cwd: dir || cwd, buf: buf.slice(-SAVED) })),
+    panes: g.ids.map((id) => terms.get(id)).map(({ hid, shell, title, cwd, dir, buf, claude }) => ({ hid, shell, title, cwd: dir || cwd, buf: buf.slice(-SAVED), ...(claude ? { claude } : {}) })),
   }))
-  // whole or not at all: an app killed while it writes keeps the last good file
-  try { fs.mkdirSync(path.dirname(keepFile), { recursive: true }); fs.writeFileSync(keepFile + '.tmp', JSON.stringify({ v: 2, tabs })); fs.renameSync(keepFile + '.tmp', keepFile) } catch {}
+  // the last run's tabs the panel has not taken yet go with them
+  if (pendingTabs) tabs.push(...pendingTabs)
+  const text = JSON.stringify({ v: 2, tabs })
+  try {
+    if (durable) durable.writeDurable(keepFile, text)
+    else { fs.mkdirSync(path.dirname(keepFile), { recursive: true }); fs.writeFileSync(keepFile + '.tmp', text); fs.renameSync(keepFile + '.tmp', keepFile) }
+  } catch {}
 }
 // output only says the file is due: written every 15 s (the app quitting writes it too), so an app killed loses little and a busy shell does not have
-// hundreds of KB written out every few seconds
-const saveSoon = () => { if (!saveTimer) saveTimer = setTimeout(() => probeDirs().then(save), 15000) }
-// The tabs of the last run, handed out once (the first time the panel asks, with nothing running): the panel draws
-// each pane's old output and starts its shell again under it (open with inherit). Nothing to hand out after a shell
-// has been started. A file from before the split panes held one shell per tab.
-function saved() {
-  if (restored) return []
-  restored = true
-  let kept = null
-  try { kept = JSON.parse(fs.readFileSync(keepFile, 'utf8')) } catch {}
+// hundreds of KB written out every few seconds; which claude runs in which pane is looked at then too
+const saveSoon = () => { if (!saveTimer) saveTimer = setTimeout(() => probeDirs().then(probeClaude).catch(() => {}).then(save), 15000) }
+// the file's tabs (a file from before the split panes held one shell per tab), checked; a broken file is set aside and
+// its last good copy read (durable.cjs)
+function readTabs() {
+  let kept
+  if (durable) kept = durable.readDurable(keepFile, { log: (m) => console.warn('[terminals] ' + m) })
+  else { try { kept = JSON.parse(fs.readFileSync(keepFile, 'utf8')) } catch {} }
   const tabs = Array.isArray(kept) ? kept.map((x) => ({ pinned: !!x?.pinned, dir: 'row', panes: [x] })) : Array.isArray(kept?.tabs) ? kept.tabs : []
-  return tabs.filter((g) => g && Array.isArray(g.panes) && g.panes.length).slice(0, 12)
-    .map((g) => ({ ...g, panes: g.panes.filter((p) => p && typeof p === 'object').slice(0, 4) }))
+  const out = tabs.filter((g) => g && Array.isArray(g.panes) && g.panes.length).slice(0, 12)
+    .map((g) => ({ dir: g.dir === 'column' ? 'column' : 'row', sizes: Array.isArray(g.sizes) ? g.sizes : [], pinned: !!g.pinned, panes: g.panes.filter((p) => p && typeof p === 'object').slice(0, 4) }))
+    .filter((g) => g.panes.length)
+  // A pane's history file goes when its pane is closed, so one left with no pane in the file is a tab that was lost
+  // (the file broken by a reset): brought back as a tab of its own, its ↑ history with it — its output is gone
+  const have = new Set(out.flatMap((g) => g.panes.map((p) => p.hid)))
+  let left = []
+  try { left = fs.readdirSync(histDir).map((f) => f.match(/^([a-f0-9]{8,32})\.(txt|bash)$/)).filter((m) => m && !have.has(m[1])) } catch {}
+  for (const m of left) {
+    if (out.length >= 12) break
+    const shell = m[2] === 'bash' ? 'gitbash' : shells().some((s) => s.id === 'pwsh') ? 'pwsh' : 'powershell'
+    out.push({ dir: 'row', sizes: [], pinned: false, panes: [{ hid: m[1], shell, title: '', cwd: os.homedir(), buf: '' }] })
+  }
+  return out
+}
+// The tabs of the last run, handed out once, the first time the panel asks (shells started before that, an agent's,
+// do not stop it): the panel draws each pane's old output and starts its shell again under it (open with inherit).
+// A pane that ran claude gets it carried on (open looks its hid up).
+function saved() {
+  const tabs = pendingTabs || []
+  pendingTabs = null
+  for (const g of tabs) for (const p of g.panes) if (p.claude && isSession(p.claude.id) && typeof p.hid === 'string') toResume.set(p.hid, { id: p.claude.id, cwd: String(p.claude.cwd || p.cwd || ''), args: Array.isArray(p.claude.args) ? p.claude.args.map(String) : [] })
+  return tabs
 }
 
 // inherit: the shell starts where the panel's cursor is, under the old output drawn there, instead of on a cleared
@@ -203,8 +326,10 @@ function open({ shell, cwd, cols, rows, title, inherit, hid, prior } = {}) {
   const all = shells()
   const sh = all.find((s) => s.id === shell) || all[0]
   if (!sh) throw new Error('No shell found')
+  const again = typeof hid === 'string' && toResume.get(hid)
+  if (again) toResume.delete(hid)
   let dir = os.homedir()
-  try { if (cwd && fs.statSync(cwd).isDirectory()) dir = cwd } catch {}
+  for (const c of [again && again.cwd, cwd]) { try { if (c && fs.statSync(c).isDirectory()) { dir = c; break } } catch {} }
   // a pane started again keeps its history; a new one starts its own
   if (typeof hid !== 'string' || !/^[a-f0-9]{8,32}$/.test(hid)) hid = crypto.randomBytes(8).toString('hex')
   const hist = histFile(hid, sh.id)
@@ -222,6 +347,7 @@ function open({ shell, cwd, cols, rows, title, inherit, hid, prior } = {}) {
     t.buf = prior.slice(-SAVED) + '\x1b[0m\r\n\x1b[2m── ↻ ' + hm + ' ──\x1b[0m\r\n'
   }
   terms.set(id, t)
+  if (again) { t.claude = again; resumeIn(t, again) }
   p.onData((d) => {
     t.buf += d.replace(/\x1b\[6n/g, '')
     t.lastAt = Date.now()
@@ -230,6 +356,7 @@ function open({ shell, cwd, cols, rows, title, inherit, hid, prior } = {}) {
     pending.set(id, (pending.get(id) || '') + d)
     const now = d.includes('\x1b]') && dirIn(d)
     if (now && now !== t.dir) { t.dir = now; send('cwd', id, now) }
+    if (now && t.onPrompt) setTimeout(() => t.onPrompt?.(), 300)
     saveSoon()
   })
   // Closed in the panel, or ended by itself (exit): its tab goes now, and its history with it. Killed from outside (an
@@ -245,7 +372,6 @@ function open({ shell, cwd, cols, rows, title, inherit, hid, prior } = {}) {
     }
     if (t.closing || exitCode === 0) gone(); else setTimeout(gone, 4000)
   })
-  restored = true   // a shell started before any was restored: the old ones are not brought back over it
   return { id, shell: t.shell, name: t.name, title: t.title, cwd: t.cwd, buf: t.buf }
 }
 const list = () => [...terms.values()].map(({ id, shell, name, title, cwd, dir, buf }) => ({ id, shell, name, title, cwd: dir || cwd, buf }))
@@ -280,5 +406,7 @@ function closeAll() { if (stopping) return; save(); stopping = true; for (const 
 
 module.exports = {
   shells, open, list, write, resize, rename, clearBuf, close, closeAll, saved, setLayout, placeBeside, layout: groupsNow, info, tail, has: (id) => terms.has(id), count: () => terms.size,
-  onSend: (fn) => { send = fn }, keepIn: (file) => { keepFile = file; histDir = path.join(path.dirname(file), 'terminal-history') },
+  onSend: (fn) => { send = fn },
+  // the file, and durable.cjs to write and read it with; the last run's tabs are read now
+  keepIn: (file, d) => { keepFile = file; durable = d || null; histDir = path.join(path.dirname(file), 'terminal-history'); try { pendingTabs = readTabs() } catch { pendingTabs = [] } },
 }

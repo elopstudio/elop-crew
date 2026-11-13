@@ -12,6 +12,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { writeJson, readJson } from './durable.cjs'
 
 const MAX = 100
 const MAX_FILE = 20 * 1024 * 1024
@@ -34,11 +35,12 @@ export function createArtifacts({ dataDir, notifyPages = () => {} }) {
   let list = load()   // newest first: { id, path, title, by, session, project, at }
 
   function load() {
-    try { const a = JSON.parse(fs.readFileSync(file, 'utf8')); return Array.isArray(a) ? a.filter((x) => x && /^[0-9a-f]{24}$/.test(x.id) && typeof x.path === 'string') : [] } catch { return [] }
+    const a = readJson(file)
+    return Array.isArray(a) ? a.filter((x) => x && /^[0-9a-f]{24}$/.test(x.id) && typeof x.path === 'string') : []
   }
   function save() {
-    const tmp = file + '.' + process.pid + '.tmp'
-    try { fs.mkdirSync(dataDir, { recursive: true }); fs.writeFileSync(tmp, JSON.stringify(list, null, 2) + '\n'); fs.renameSync(tmp, file) } catch {}
+    // flushed and renamed in, the last one kept as .bak (durable.cjs)
+    try { writeJson(file, list, { indent: 2 }) } catch {}
   }
 
   // put one up (again): the same file keeps its id and comes first. [code, entry | { error }]

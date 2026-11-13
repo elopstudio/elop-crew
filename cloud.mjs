@@ -14,6 +14,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { writeDurable, readJson } from './durable.cjs'
 
 const CAM_URL = (process.env.CAM_URL || 'https://crew.elopstudio.com').replace(/\/+$/, '')
 const CHECK_EVERY = 60 * 1000          // the page may ask every few seconds; the server is asked at most once a minute
@@ -45,20 +46,19 @@ export function createCloud({ dataDir, version, notifyPages = () => {}, local = 
 
   function load() {
     try {
-      const o = JSON.parse(fs.readFileSync(file, 'utf8'))
-      if (o.server && o.device_id && o.key) return { server: o.server, deviceId: o.device_id, key: crypto.createPrivateKey(o.key), linkedAt: o.linked_at }
+      const o = readJson(file)
+      if (o?.server && o.device_id && o.key) return { server: o.server, deviceId: o.device_id, key: crypto.createPrivateKey(o.key), linkedAt: o.linked_at }
     } catch {}
     return null
   }
   function save(s) {
-    const tmp = file + '.' + process.pid + '.tmp'
     const key = s.key.export({ format: 'pem', type: 'pkcs8' })
-    fs.mkdirSync(dataDir, { recursive: true })
     s.linkedAt = s.linkedAt || new Date().toISOString()
-    fs.writeFileSync(tmp, JSON.stringify({ server: s.server, device_id: s.deviceId, key, linked_at: s.linkedAt }, null, 2) + '\n', { mode: 0o600 })
-    fs.renameSync(tmp, file)
+    // flushed before it is renamed in (a reset must not leave NULs where the key was); the one before kept as .bak
+    writeDurable(file, JSON.stringify({ server: s.server, device_id: s.deviceId, key, linked_at: s.linkedAt }, null, 2) + '\n', { mode: 0o600 })
   }
-  function forget() { saved = null; status = null; relayStop(); try { fs.unlinkSync(file) } catch {} }
+  // unlinked: its last copy goes too, or the next start would put the link back from it
+  function forget() { saved = null; status = null; relayStop(); for (const f of [file, file + '.bak']) { try { fs.unlinkSync(f) } catch {} } }
 
   const sign = (s, method, p, raw = '') => {
     const time = String(Math.floor(Date.now() / 1000))

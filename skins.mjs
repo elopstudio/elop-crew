@@ -16,6 +16,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
+import { writeDurable } from './durable.cjs'
 
 const PICTURE = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' }
 const STATES = ['working', 'waiting', 'resting', 'asking']
@@ -118,7 +119,7 @@ export function createSkins({ dataDir, loadConfig, editConfig, notifyPages = () 
       try { o = JSON.parse(await fsp.readFile(file, 'utf8')) } catch { return [409, {}] }
       o.agents = o.agents && typeof o.agents === 'object' ? o.agents : {}
       if (id) o.agents[agent] = id; else delete o.agents[agent]
-      await fsp.writeFile(file, JSON.stringify(o, null, 2) + '\n')
+      writeDurable(file, JSON.stringify(o, null, 2) + '\n', { backup: false })
     }
     if (body.create !== undefined) {
       const name = clean(body.create, 60) || 'My skin'

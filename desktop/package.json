@@ -51,6 +51,7 @@
           "claudefiles.mjs",
           "artifacts.mjs",
           "skins.mjs",
+          "durable.cjs",
           "package.json",
           "LICENSE",
           "public/**/*",

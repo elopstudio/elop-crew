@@ -15,6 +15,10 @@ const MAC = process.platform === 'darwin'
 const RELEASES = 'https://github.com/elopstudio/elop-crew/releases/latest'
 // the terminal panel's shells; loaded before the server sets its PORT and MONITOR_HOME, which the shells must not get
 const terminals = require('./terminal.cjs')
+// state files written so a power cut cannot leave them as NULs (flushed, renamed in, the last good copy kept as .bak),
+// shared with the monitor's code; an older code folder without it falls back to plain writes
+let durable = null
+try { durable = require(path.join(CODE, 'durable.cjs')) } catch {}
 
 /* ── settings: where the monitor keeps config.json, boards/ and its agent list ── */
 // read before startServer sets it for the server
@@ -30,8 +34,16 @@ const OLD_NAME = 'Agent Monitor'
 if (!app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.join(app.getPath('appData'), OLD_NAME))
 if (process.platform === 'win32') app.setAppUserModelId('electron.app.' + OLD_NAME)
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json')
-function readSettings() { try { return JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) } catch { return {} } }
-function writeSettings(s) { fs.mkdirSync(path.dirname(settingsFile()), { recursive: true }); fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2)) }
+// settings.json holds where the data folder is: lost to a reset, the app would start on an empty folder. A broken one is
+// set aside and its last good copy (.bak) read instead
+function readSettings() {
+  if (durable) { const s = durable.readDurable(settingsFile()); return s && typeof s === 'object' ? s : {} }
+  try { return JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) } catch { return {} }
+}
+function writeSettings(s) {
+  if (durable) { durable.writeDurable(settingsFile(), JSON.stringify(s, null, 2)); return }
+  fs.mkdirSync(path.dirname(settingsFile()), { recursive: true }); fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2))
+}
 function dataDir() {
   // a MONITOR_HOME given to the app wins, as it does for npm start (and keeps a test run away from the real folder)
   if (GIVEN_HOME) return GIVEN_HOME
@@ -305,7 +317,7 @@ function memoryCheck() {
 let termOpen = false, termH = 0, termKeep = null
 const termHeight = () => { const h = Number(readSettings().termHeight); return h >= 140 ? h : 300 }
 terminals.onSend((event, ...a) => { if (term) term.webContents.send('monitor-term-' + event, ...a) })
-terminals.keepIn(path.join(app.getPath('userData'), 'terminals.json'))
+terminals.keepIn(path.join(app.getPath('userData'), 'terminals.json'), durable)
 function toggleTerminal(show = !termOpen) {
   if (!win && !show) return
   if (show) showWindow()
@@ -418,8 +430,9 @@ globalThis.agentMonitorTerminals = {
 const fromTerm = (e) => !!term && e.sender === term.webContents
 ipcMain.handle('monitor-term', async (e, action, ...a) => {
   if (!fromTerm(e)) return null
-  // the shells running; with none, the tabs of the app's last run, to start again
-  if (action === 'list') return { running: terminals.list(), layout: terminals.layout(), saved: terminals.count() ? [] : terminals.saved() }
+  // the shells running, and the tabs of the app's last run to start again (once; with shells running too — one an
+  // agent opened before the panel asked used to make them be dropped)
+  if (action === 'list') return { running: terminals.list(), layout: terminals.layout(), saved: terminals.saved() }
   if (action === 'open') {
     const o = a[0] || {}
     return terminals.open({ cols: o.cols, rows: o.rows, title: o.title, inherit: !!o.inherit, hid: o.hid, prior: typeof o.prior === 'string' ? o.prior.slice(-64 * 1024) : '', shell: o.shell || readSettings().termShell, cwd: o.cwd || (await termFolders()).cur })
