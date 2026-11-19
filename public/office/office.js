@@ -1209,6 +1209,7 @@ export function createOffice(api) {
     sideKey = key;
     const tool = ask && !ask.questions && !ask.plan;
     const rows = [[t('dNow'), now, !!ask], [t('officeWhere'), where]];
+    if (s.body?.cm) rows.push([t('officeBody'), s.body.cm + ' cm · ' + s.body.kg + ' kg']);
     if (s.model) rows.push([t('modelLabel'), s.model, true]);
     if (s.startedAt) rows.push([t('dUp'), api.dur(s.startedAt)]);
     if (s.today?.total) rows.push([t('dToday'), api.tokens(s.today.total)]);
@@ -1286,6 +1287,21 @@ export function createOffice(api) {
       }
       a.prev = now;
   }
+
+  // its height and build, as the server gives each session (bodyOf): a robot that tall, and that broad for its height —
+  // a little more than to scale, so a tall or a heavy one shows. [height, breadth], each times the robot's size
+  function shapeOf(a) {
+    const b = a.s?.body, key = b ? b.cm + '/' + b.kg : '';
+    if (a.shapeKey === key) return a.shape;
+    let h = 1, w = 1;
+    if (b && b.cm > 0 && b.kg > 0) {
+      h = 1 + (b.cm - 172) / 172 * 1.3;                          // 152 cm → 0.85, 192 → 1.15
+      w = h * Math.pow(b.kg / (b.cm / 100) ** 2 / 22, 0.6);      // BMI 18 → 0.89 of that, 30 → 1.2
+    }
+    a.shapeKey = key; a.shape = [h, w];
+    return a.shape;
+  }
+  function scaleRobot(a, v) { const [h, w] = shapeOf(a), k = a.size * Math.max(0.001, v); a.r.root.scale.set(k * w, k * h, k * w); }
 
   /* ── posing, each frame ── */
   function pose(a, m, t, dt) {
@@ -1425,7 +1441,7 @@ export function createOffice(api) {
     };
     for (const a of [...agents.values(), ...leavers]) {
       if (a.chip.classList.contains('hide') || a.vis < 0.5) continue;
-      const top = a.lift + (0.86 + (a.look.acc === 'crown' || a.look.acc === 'twin' ? 0.08 : 0)) * a.size;
+      const top = a.lift + (0.86 + (a.look.acc === 'crown' || a.look.acc === 'twin' ? 0.08 : 0)) * a.size * shapeOf(a)[0];
       const [sx, sy] = toScreen(a.pos[0], top + 0.06, a.pos[1]);
       const ask = a.chip.className === 'askb';
       add(a.chip, sx, sy - (ask ? 12 : 2), ask ? 'askb' : 'bottom', ask ? 0 : 2, 'up');
@@ -1534,7 +1550,7 @@ export function createOffice(api) {
       walk(a, dt);
       a.lift += (a.liftTo - a.lift) * Math.min(1, dt * 9);
       a.vis += ((a.entering && a.path.length ? pastDoor(a) : 1) - a.vis) * Math.min(1, dt * 6);
-      const R = a.r.root; R.position.set(a.pos[0], a.lift, a.pos[1]); R.rotation.y = a.ang; R.scale.setScalar(a.size * Math.max(0.001, a.vis));
+      const R = a.r.root; R.position.set(a.pos[0], a.lift, a.pos[1]); R.rotation.y = a.ang; scaleRobot(a, a.vis);
       const m = modeAt(a); a.mode = m;
       pose(a, m, t, dt); minis(a, t, dt);
       if (a.entering && !a.path.length) {
@@ -1552,12 +1568,12 @@ export function createOffice(api) {
       const to = !a.leaving.door ? (packing ? 1 : 0) : a.path.length ? pastDoor(a) : 0;
       a.vis += (to - a.vis) * Math.min(1, dt * 6);
       a.leaving.box.scale.setScalar(Math.max(0.001, Math.min(1, (age - 300) / 500)));
-      const R = a.r.root; R.position.set(a.pos[0], a.lift, a.pos[1]); R.rotation.y = a.ang; R.scale.setScalar(a.size * Math.max(0.001, a.vis));
+      const R = a.r.root; R.position.set(a.pos[0], a.lift, a.pos[1]); R.rotation.y = a.ang; scaleRobot(a, a.vis);
       pose(a, packing ? 'pack' : a.path.length ? 'carry' : 'idle', t, dt);
       if ((!packing && a.vis < 0.02) || age > 30000) { dropAgent(a); leavers.splice(i, 1); }
     }
     const sel = (hovered && agents.get(hovered.split('#')[0])) || (selected && agents.get(selected));
-    ring.visible = !!sel; if (sel) { ring.position.set(sel.pos[0], 0.05, sel.pos[1]); ring.scale.setScalar(sel.size * (1 + 0.06 * Math.sin(t * 4))); ring.material.opacity = 0.55 + 0.25 * Math.sin(t * 4); }
+    ring.visible = !!sel; if (sel) { ring.position.set(sel.pos[0], 0.05, sel.pos[1]); ring.scale.setScalar(sel.size * shapeOf(sel)[1] * (1 + 0.06 * Math.sin(t * 4))); ring.material.opacity = 0.55 + 0.25 * Math.sin(t * 4); }
     if (dirtyPlates || now - lastPlates > 500) { dirtyPlates = false; lastPlates = now; secSync(); plates(); screens(); sideCard(); }
     composer.render(dt);
     layoutChips();

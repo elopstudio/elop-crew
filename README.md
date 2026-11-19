@@ -181,7 +181,11 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   browser and on every poll, and no two agents share one. Once given, an automatic name is kept
   (`.runtime/names.json`, by session id, names only, for a month after it was last seen): a restart, an agent coming or
   going, or a name picked for another agent leaves it alone. Only a name picked for another agent that is the very same
-  moves it to a new one. Pin a name with `names` in `config.json`.
+  moves it to a new one. Pin a name with `names` in `config.json`. There are 156 pairs, none a letter away from another
+  (Mia and Mila, Ray and Rae are not both there).
+- **Height and weight.** Each agent also gets a height and a weight, from its session id like its name (152–192 cm,
+  most near the middle, and a weight for that height): the office's robot is that tall and that broad — a little more
+  than to scale, so it shows — and the selected agent's card says them. Nothing is stored.
 - **Board** (optional). The project's tasks in progress, queued (numbered), done, and decisions waiting on a human.
   **Auto-run** (the switch on the board) makes it the team's queue: an agent that finishes a turn is handed its next
   queued task, and ends it with `TASK DONE`, or with `TASK BLOCKED: <question>`, which puts the question under the

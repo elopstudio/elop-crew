@@ -416,8 +416,36 @@ const NAMES = [
   ['Cleo', '민재'], ['Gus', '가은'], ['Hana', '도현'], ['Otto', '서아'], ['Vera', '재윤'], ['Rex', '아린'],
   ['Lucy', '윤호'], ['Ray', '지원'], ['Nina', '시현'], ['Paul', '은서'], ['Sara', '태민'], ['Ted', '하영'],
   ['Alma', '준호'], ['Joel', '미나'], ['Kate', '성민'], ['Milo', '보라'], ['Tara', '정우'], ['Ian', '혜진'],
+  // more, so the agents on one machine seldom run out (none a letter away from another: Mia and Mila, Ray and Rae)
+  ['Abe', '서준'], ['Ada', '하준'], ['Alex', '지민'], ['Amy', '지유'], ['Andy', '윤서'], ['Ari', '민서'],
+  ['Bella', '예은'], ['Bo', '수민'], ['Cal', '지훈'], ['Chloe', '동현'], ['Cody', '민호'], ['Drew', '유진'],
+  ['Eden', '서현'], ['Eva', '지윤'], ['Evan', '은우'], ['Faye', '시윤'], ['Felix', '예서'], ['Gemma', '도하'],
+  ['Grace', '한결'], ['Heidi', '이안'], ['Ines', '로운'], ['Jade', '소연'], ['Kit', '다인'], ['Lars', '채윤'],
+  ['Liam', '지성'], ['Lola', '태윤'], ['Lou', '준혁'], ['Luke', '승우'], ['Mona', '유찬'], ['Neil', '민성'],
+  ['Nico', '현서'], ['Olga', '가윤'], ['Olive', '나연'], ['Opal', '다연'], ['Oscar', '세아'], ['Pete', '소민'],
+  ['Quinn', '수현'], ['Remy', '연서'], ['Rhea', '예나'], ['Rio', '유하'], ['Rita', '윤아'], ['Ruth', '은채'],
+  ['Ryan', '지아'], ['Sage', '채은'], ['Seth', '하늘'], ['Skye', '해인'], ['Sofia', '혜원'], ['Tess', '효주'],
+  ['Toby', '건호'], ['Troy', '경민'], ['Uma', '기현'], ['Vic', '동건'], ['Walt', '민규'], ['Wren', '범준'],
+  ['Yuri', '상훈'], ['Arlo', '석진'], ['Boris', '성훈'], ['Carl', '세준'], ['Coco', '승현'], ['Dean', '영민'],
+  ['Enzo', '용준'], ['Erik', '우현'], ['Fern', '재민'], ['Gabe', '재현'], ['Hope', '정민'], ['Igor', '종현'],
+  ['Joy', '준영'], ['Kurt', '지환'], ['Levi', '진우'], ['Mabel', '찬영'], ['Matt', '태현'], ['Omar', '한별'],
+  ['Petra', '현준'], ['Reed', '형준'], ['Vince', '가람'], ['Wanda', '나래'], ['Yves', '다솜'], ['Archie', '라온'],
+  ['Basil', '마루'], ['Bruno', '바다'], ['Clara', '새봄'], ['Daisy', '솔비'], ['Edgar', '아름'], ['Elliot', '여름'],
+  ['Flora', '온유'], ['Frank', '이든'], ['Hazel', '재희'], ['Isaac', '주아'], ['Jasper', '채아'], ['Kevin', '초롱'],
+  ['Lionel', '태리'], ['Martha', '하람'], ['Nolan', '해솔'], ['Oliver', '희수'], ['Penny', '경아'], ['Rufus', '다미'],
+  ['Simon', '미소'], ['Stella', '별하'], ['Victor', '서진'], ['Hector', '선영'], ['Bianca', '소희'], ['Fiona', '수정'],
+  ['Greta', '슬기'], ['Holly', '아영'], ['Ingrid', '연희'], ['Lloyd', '유리'], ['Moira', '은지'], ['Nadia', '인영'],
 ]
 function nameHash(s) { let h = 2166136261; for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h }
+// A height and a weight for each session, from its id as its name is: the same on every page, nothing stored. The
+// office draws its robot that tall and that broad. Most near the middle (an average of three draws), 152–192 cm, and
+// a weight for that height (BMI 18–30)
+function bodyOf(id) {
+  const draw = (k) => { const h = nameHash(id + ':' + k); return ((h & 1023) + ((h >>> 10) & 1023) + ((h >>> 20) & 1023)) / 3 / 1023 }
+  const cm = Math.round(152 + 40 * draw('cm'))
+  const bmi = 18 + 12 * draw('kg')
+  return { cm, kg: Math.round(bmi * (cm / 100) ** 2) }
+}
 // Runs over every session on the machine at once, so no two agents share a name even across projects
 // (the page shows them side by side on the "all agents" tab). fixedFor(s) returns a name pinned in config.json.
 // An automatic name, once given, is kept (.runtime/names.json, by session id; names only). It used to be worked out
@@ -665,7 +693,8 @@ async function buildState() {
     for (const s of p.sessions) {
       // a board may address a session by its short name, full name or nickname
       s.role = String(roles[s.short] || roles[s.name] || roles[s.nick] || roles[s.nickKo] || '')
-      delete s.fullId   // used only to pick the nickname — the full id stays on the server
+      if (s.fullId) s.body = bodyOf(s.fullId)
+      delete s.fullId   // used only to pick the nickname and the body — the full id stays on the server
     }
     for (const m of p.messages) { const f = nickOf.get(m.from), t = nickOf.get(m.to); m.fromNick = f?.nick || ''; m.fromNickKo = f?.nickKo || ''; m.toNick = t?.nick || ''; m.toNickKo = t?.nickKo || '' }
     // leader: config first, otherwise the session that sent the most messages (at least 3)
