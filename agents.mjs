@@ -22,6 +22,11 @@ const HISTORY = 600                 // normalised events kept per agent for a di
 const IMAGE_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' }
 // Claude Code tells a session run without a terminal which claude.ai connectors still want signing in to, and to tell
 // the user so; agents added it to the end of their answers, turn after turn. The monitor's Connectors panel shows them
+// The others find an agent by the name the person calls it: its claude goes by the page's names (--name), which
+// ListAgents and SendMessage show instead of one claude makes up from the folder ("works-17")
+const NAMES_RULE = 'Agent monitor: each of the monitor\'s agents goes by the names the user knows it by — in ListAgents and SendMessage ' +
+  'its session name is its name in the user\'s language and its other name joined by a dash (say 하영-Ted; one name when it has only one). When the user ' +
+  'names an agent, by either name, find it there.'
 const CONNECTORS_RULE = 'Agent monitor: connectors that still need authentication are listed in the monitor\'s Connectors panel, so the user already knows. ' +
   'Do not tell the user about them (nor about authorizing them) unless they asked for something that needs one of those connectors.'
 const MODES = ['default', 'acceptEdits', 'plan', 'auto', 'dontAsk', 'bypassPermissions']
@@ -52,7 +57,7 @@ export const systemNote = (text) => SYSTEM_NOTES.find(([re]) => re.test(String(t
 export const systemNoteText = (text) => { for (const [re] of SYSTEM_NOTES) { const m = String(text || '').match(re); if (m) return (m[1] || '').replace(/\n\n\(Write to the user in [A-Za-z]+\.\)\s*$/, '').trim().slice(0, 1000) } return '' }
 const assistantLookOf = (v) => (v && v.acc === 'crown' && Number.isInteger(v.c) && v.c >= 0 && v.c < 8 ? { c: v.c, acc: 'crown' } : avatarOf(v))
 
-export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd, langRule, replyIn, panelsRule, modDirs, compactDefault }) {
+export function createAgents({ root, dataDir, mask, clip, clip2, describe, notifyPages, projectRoot, projectKey, askPage, attachedPaths, configPath, historyOf, onTurnEnd, langRule, replyIn, panelsRule, modDirs, compactDefault, nameFor, namesReady }) {
   // what the agent is for, one line written by the user (shown under its name)
   const descOf = (v) => clip(String(v || '').replace(/[\x00-\x1f<>]/g, ' ').replace(/\s+/g, ' ').trim(), 80)
   // its name: one for both languages (a string) or one per language ({ en, ko }); the server reads both shapes
@@ -477,8 +482,12 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     if (a.kind === 'assistant' && a.system) args.push('--append-system-prompt', a.system + '\n\n' + CONNECTORS_RULE)
     // the person's language, and the monitor's panels it may use, where every step sees them (a line in the conversation
     // drifts out of view, or a compaction drops it)
-    else if (a.kind !== 'assistant') { const sys = [langRule?.(), panelsRule?.(), CONNECTORS_RULE].filter(Boolean).join('\n\n'); if (sys) args.push('--append-system-prompt', sys) }
+    else if (a.kind !== 'assistant') { const sys = [langRule?.(), panelsRule?.(), NAMES_RULE, CONNECTORS_RULE].filter(Boolean).join('\n\n'); if (sys) args.push('--append-system-prompt', sys) }
     a.procHasRole = a.kind === 'assistant' && !!a.system
+    // the name the others see it by (a new one once the page has given it one: the next claude it starts takes it)
+    const label = a.kind === 'assistant' ? '' : nameFor?.(a) || ''
+    if (label) args.push('--name', label)
+    a.procName = label
     if (a.model) args.push('--model', a.model)
     if (a.effort) args.push('--effort', a.effort)
     args.push('--settings', JSON.stringify({ autoCompactWindow: windowOf(a) }))
@@ -697,8 +706,12 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     // a moment later: the others found in the same look join the line first, and the smallest goes first
     setTimeout(resumeNext, 1000)
   }
-  function resumeNext() {
+  // the first after a restart waits for the page's names, so its claude starts with them (see spawnAgent)
+  let namesFirst = null
+  async function resumeNext() {
     if (shuttingDown || !resumeQ.size || Date.now() - resumedAt < RESUME_GAP_MS) return
+    await (namesFirst ||= named())
+    if (shuttingDown || Date.now() - resumedAt < RESUME_GAP_MS) return
     const line = [...resumeQ].map(([id, q]) => ({ id, q, a: agents.get(id) }))
       .sort((x, y) => (x.a?.kind === 'assistant') - (y.a?.kind === 'assistant') || (x.a?.ctxTokens || 0) - (y.a?.ctxTokens || 0))
     for (const { id, q, a } of line) {
@@ -721,6 +734,10 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     if (!quiet) emit(a, { kind: 'note', text: 'stopped' })
   }
 
+  // the page's names for an agent just added, before its claude starts with them (building the state takes a couple of
+  // seconds with many sessions; 10 at most)
+  const named = () => Promise.race([Promise.resolve(namesReady?.()).catch(() => {}), new Promise((r) => setTimeout(r, 10000))])
+
   /* ── API ── */
   async function start(body) {
     const cwd = path.resolve(String(body.cwd || ''))
@@ -738,9 +755,15 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     save()
     const text = clip(body.text, 8000)
     const files = attachedPaths(body.files)
-    // claude takes a while to start; start it now, so it is ready by the time the first message is typed
-    if (text || files.length) send(a, text, files)
-    else spawnAgent(a)
+    // claude takes a while to start; start it now, so it is ready by the time the first message is typed — once the
+    // page's state has given it its names (a couple of seconds), without keeping the new-agent dialog waiting for that.
+    // A message sent to it meanwhile starts it at once, under claude's own name
+    named().then(() => {
+      if (a.proc || !agents.has(id)) return
+      if (text || files.length) send(a, text, files)
+      else spawnAgent(a)
+      notifyPages()
+    })
     notifyPages()
     return [200, { id, name: a.name }]
   }
@@ -762,6 +785,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     a.events.push({ kind: 'note', text: 'taken over from VS Code — the original session is still there; close it in VS Code if you will not use it', at: Date.now() })
     agents.set(id, a)
     save()
+    await named()
     spawnAgent(a)
     notifyPages()
     return [200, { id, name: a.name }]
@@ -785,6 +809,7 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     a.events.push({ kind: 'note', text: note || 'an earlier conversation, carried on', at: Date.now() })
     agents.set(id, a)
     save()
+    await named()
     // carried on: it is no longer put away
     saveArchive(archived().filter((x) => x.sessionId !== sessionId))
     spawnAgent(a)

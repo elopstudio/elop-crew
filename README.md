@@ -274,10 +274,16 @@ A project is the folder name of the git root above a session's working directory
 named in `config.json`; without one, it is the session that sent the most messages (at least 3).
 
 The leader is told who its team is. When it gets a prompt, the `UserPromptSubmit` hook adds the project's other
-sessions to it — the name to message each one with (what `ListAgents` and `SendMessage` use, which is not the name on
-the page for a monitor agent), its names on the page, whether it is a monitor agent or a VS Code session, its state,
-role and last action. It is added only when the team or a role changed since the leader was last told, and never to
-any other session.
+sessions to it — the name to message each one with (what `ListAgents` and `SendMessage` use), its names on the page,
+whether it is a monitor agent or a VS Code session, its state, role and last action. It is added only when the team or
+a role changed since the leader was last told, and never to any other session.
+
+Every agent can find a monitor agent by the name you call it. Its claude is started with its names on the page
+(`claude --name 하영-Ted`: the name in the page's language, a dash, the other one; one name when both are the same), so
+`ListAgents` and `SendMessage` show that instead of a name Claude Code makes up from the folder (`works-17`), and
+each agent is told so — "ask 하영" or "ask Ted" finds it. A new agent's claude starts once the page has given it its
+names (a couple of seconds); an agent renamed while its claude runs goes by the new name from its next start (a
+restart, a change of mode or model). VS Code sessions keep Claude Code's names.
 
 ## What it never reads, and what it shows
 

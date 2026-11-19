@@ -560,6 +560,16 @@ async function readBoard(key) {
   return b && typeof b === 'object' ? b : null
 }
 
+// A monitor agent's claude goes by the names the person calls it (claude --name), so ListAgents and SendMessage show
+// "하영-Ted" rather than a name claude makes up from the folder ("works-17"): the page's language first, then the
+// other; one when both are the same. Letters, digits and _ . - only (claude keeps a name up to its first space)
+const agentLabels = new Map()   // agent id → its label, as the state last gave it
+function sessionLabel(s) {
+  const clean = (v) => String(v || '').trim().replace(/\s+/g, '_').replace(/[^\p{L}\p{N}_.-]/gu, '').slice(0, 24)
+  const ko = clean(s.nickKo), en = clean(s.nick)
+  const [x, y] = pageLang === 'en' ? [en, ko] : [ko, en]
+  return !x ? y : !y || x.toLowerCase() === y.toLowerCase() ? x : x + '-' + y
+}
 async function buildState() {
   const now = Date.now()
   const config = loadConfig()
@@ -645,6 +655,7 @@ async function buildState() {
   const allSessions = [...projects.values()].flatMap((p) => p.sessions.map((s) => ({ s, names: config.projects?.[p.key]?.names || {} })))
   const pinned = new Map(allSessions.map(({ s, names }) => [s, pinOf(names[s.name] || names[s.short]) || pinOf(s.pinNick)]))
   assignNicks(allSessions.map((x) => x.s), (s) => pinned.get(s))
+  for (const { s } of allSessions) if (s.managed && s.agentId) agentLabels.set(s.agentId, sessionLabel(s))
 
   const out = []
   for (const p of projects.values()) {
@@ -2008,6 +2019,9 @@ const agents = createAgents({
   panelsRule,
   modDirs: () => modsFound().filter((m) => m.on).map((m) => m.dir),
   compactDefault: () => compactConf.window,
+  // the names its claude goes by, and a fresh state for an agent just added (its names are given there)
+  nameFor: (a) => agentLabels.get(a.id) || '',
+  namesReady: () => { stateCache = null; return cachedState() },
 })
 // the app's settings window sets the default too (main.cjs)
 globalThis.agentMonitorCompact = { get: () => ({ ...compactConf }), set: (body) => saveCompact(body || {}) }
