@@ -289,6 +289,12 @@ each agent is told so — "ask 하영" or "ask Ted" finds it. A new agent's clau
 names (a couple of seconds); an agent renamed while its claude runs goes by the new name from its next start (a
 restart, a change of mode or model). VS Code sessions keep Claude Code's names.
 
+A message one session sends a monitor agent (`SendMessage`) reaches it whatever their permission modes. Claude Code
+holds a message between sessions in different modes (say one on All OK and one that asks first) for the receiver's
+user to approve, and a monitor agent's claude has no way to ask, so such messages used to expire undelivered. Its
+claude is started with `crossSessionInbound: "accept"`; a repository's or the organization's `"hold"` still wins. A
+message to a VS Code session in another mode is still held there for you to approve.
+
 ## What it never reads, and what it shows
 
 - `~/.claude/sessions/*.key` are never opened. Settings files are opened only for what the table above says.

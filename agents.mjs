@@ -490,7 +490,11 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     a.procName = label
     if (a.model) args.push('--model', a.model)
     if (a.effort) args.push('--effort', a.effort)
-    args.push('--settings', JSON.stringify({ autoCompactWindow: windowOf(a) }))
+    // crossSessionInbound "accept": a message another session sends it (SendMessage) is delivered even when the two run
+    // in different permission modes. Claude Code holds those for its user's approval, which a claude run like this has
+    // no way to ask, so they expired undelivered ("not approved before expiry") between, say, an agent on All OK and
+    // one asking first. The senders are the person's own sessions on this PC; a repo's or the organization's "hold" still wins
+    args.push('--settings', JSON.stringify({ autoCompactWindow: windowOf(a), crossSessionInbound: 'accept' }))
     // quick start: only the monitor's own tool, none of the user's MCP servers and connectors
     if (a.fast) args.push('--strict-mcp-config')
     // the mods (not for the assistant, whose chat draws none of it)
