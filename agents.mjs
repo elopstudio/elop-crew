@@ -645,9 +645,39 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
       if (a.state === 'working') a.restartAfterTurn = true; else { a.respawn = true; stop(a) }
     }
   }
+  // the assistant's conversations (the page's and the phone's "earlier conversations"): a new one (no sessionId), or an
+  // earlier one of its folder carried on. Its claude starts again on it; the chats open on it get the new history (init).
+  async function assistantSession(sessionId) {
+    const a = agents.get('assistant')
+    if (!a) return [404, {}]
+    if (sessionId && !isSessionId(sessionId)) return [400, {}]
+    if (a.state === 'working') return [409, { error: 'working' }]
+    if (sessionId && sessionId === (a.sessionId || a.newSessionId)) return [200, { sessionId }]
+    if (sessionId && byAgentSession(sessionId)) return [409, { error: 'already open' }]
+    if (a.proc) {
+      a.respawn = false; a.restartAfterTurn = false
+      stop(a, true)
+      for (let i = 0; i < 100 && a.proc; i++) await new Promise((r) => setTimeout(r, 100))
+      if (a.proc) return [409, { error: 'busy' }]
+    }
+    a.midTurn = false; a.ctxWindow = 0; a.limitHit = null
+    delete a.forkFrom; delete a.resumeWith
+    let events = []
+    if (sessionId) {
+      if (historyOf) { try { events = await historyOf(sessionId) } catch {} }
+      a.sessionId = sessionId
+    } else { a.sessionId = ''; a.newSessionId = crypto.randomUUID() }
+    a.events = events
+    save()
+    const init = 'event: init\ndata: ' + JSON.stringify({ events: a.events, state: 'idle', ui: a.ui || null }) + '\n\n'
+    for (const res of a.streams) { try { res.write(init) } catch {} }
+    spawnAgent(a); setState(a, 'idle')
+    notifyPages()
+    return [200, { sessionId: a.sessionId || a.newSessionId }]
+  }
   const assistantState = () => { const a = agents.get('assistant'); return a ? { state: a.state, turnEndedAt: a.turnEndedAt || 0, running: !!a.proc, mode: a.mode, model: a.model, effort: a.effort || '', compact: a.compact || '', sessionId: a.sessionId, avatar: a.avatar || null, limitHit: a.limitHit || null } : null }
   // a line in the assistant's chat that is not a message: an alert, or something it did on its own
   const noteTo = (id, ev) => { const a = agents.get(id); if (a) emit(a, ev) }
 
-  return { peerTalk, reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable: claude.executable, cwdOf, agentOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, compactChanged, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
+  return { peerTalk, reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable: claude.executable, cwdOf, agentOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, assistantSession, compactChanged, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
 }

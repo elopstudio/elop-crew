@@ -2229,6 +2229,14 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/skins') { const [code, o] = await skins.handle(body); json(code, o); return }
       if (url.pathname === '/api/assistant/start') { json(200, await assistant.start()); return }
       if (url.pathname === '/api/assistant/settings') { json(await assistant.setOptions(body), {}); return }
+      // the assistant's earlier conversations (its folder's transcripts, the one it is on marked) and moving between them
+      if (url.pathname === '/api/assistant/past') {
+        const [code, o] = await pastSessions({ cwd: assistant.cwd })
+        const now = agents.assistantState()?.sessionId || ''
+        json(code, { list: (o.list || []).map((x) => ({ sessionId: x.sessionId, at: x.at, title: x.title, current: x.sessionId === now })) })
+        return
+      }
+      if (url.pathname === '/api/assistant/session') { const [code, o] = await agents.assistantSession(String(body.sessionId || '')); json(code, o); return }
       if (url.pathname.startsWith('/api/account/')) { const [code, o] = await account.handle(url); json(code, o); return }
       if (url.pathname.startsWith('/api/cloud/')) { const [code, o] = await cloud.handle(url); json(code, o); return }
       if (url.pathname === '/api/mods') { const [code, o] = await modsApi(body); json(code, o); return }

@@ -479,5 +479,5 @@ export function createAssistant({ agents, dataDir, state, decide, sendTo, reques
   const timer = setInterval(() => { watch().catch(() => {}) }, TICK_MS)
   timer.unref?.()
 
-  return { start, tool, agentTool, setOptions, info: () => { const s = agents.assistantState(); return s ? { ...s, options: opts() } : null } }
+  return { start, tool, agentTool, setOptions, cwd, info: () => { const s = agents.assistantState(); return s ? { ...s, options: opts() } : null } }
 }
