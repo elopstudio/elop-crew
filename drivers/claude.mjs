@@ -30,7 +30,12 @@ const IMAGE_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image
 const NAMES_RULE = 'Agent monitor: each of the monitor\'s agents goes by the names the user knows it by — in ListAgents and SendMessage ' +
   'its session name is its name in the user\'s language and its other name joined by a dash (say 하영-Ted; one name when it has only one). When the user ' +
   'names an agent, by either name, find it there.'
-const CONNECTORS_RULE = 'Agent monitor: connectors that still need authentication are listed in the monitor\'s Connectors panel, so the user already knows. ' +
+// the Crew's message bus (bus.mjs, hooks/crew-mcp.mjs): one way for every agent, whatever model runs it, that the
+// person sees in the agent-talk tab; claude's own SendMessage reaches only claude sessions, and the monitor never sees it
+const CREW_RULE = 'Agent monitor: to message another of the monitor\'s agents, use mcp__crew__send (mcp__crew__agents lists them): it reaches every ' +
+  'agent of the monitor, whatever model it runs on, and the user sees it in the agent-talk tab. A message that came to you that way says who sent it; ' +
+  'answer it with mcp__crew__send too. Keep SendMessage for Claude sessions outside the monitor.'
+const CONNECTORS_RULE ='Agent monitor: connectors that still need authentication are listed in the monitor\'s Connectors panel, so the user already knows. ' +
   'Do not tell the user about them (nor about authorizing them) unless they asked for something that needs one of those connectors.'
 // Claude Code logged out under a running agent (a login that ran out, a switch to another account): its turn fails with
 // "Not logged in". agents.mjs stops it and starts it afresh once Claude Code is logged in again
@@ -310,6 +315,8 @@ export function createClaudeDriver({ root, configPath, modDirs, langRule, panels
     // the assistant (see assistant.mjs) also gets the monitor's own tools: look at every agent, message, answer, alert
     // the desktop app's terminal panel for the others: open a tab for a dev server, read one, type into one (each asks the person)
     if (a.kind !== 'assistant') servers.terminal = { command: process.execPath, args: [path.join(root, 'hooks', 'terminal-mcp.mjs')], env: nodeEnv }
+    // the Crew's message bus (bus.mjs): the other agents, and a message to one of them through the monitor
+    if (a.kind !== 'assistant') servers.crew = { command: process.execPath, args: [path.join(root, 'hooks', 'crew-mcp.mjs')], env: nodeEnv }
     if (a.kind === 'assistant') servers.assistant = { command: process.execPath, args: [path.join(root, 'hooks', 'assistant-mcp.mjs')], env: { ...nodeEnv, MONITOR_ASSISTANT_KEY: assistantKey } }
     const mcp = JSON.stringify({ mcpServers: servers })
     const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--include-partial-messages', '--verbose',
@@ -319,12 +326,13 @@ export function createClaudeDriver({ root, configPath, modDirs, langRule, panels
     // the assistant: its role, and its monitor tools used without a prompt (anything else still asks the person)
     // its own tools never ask, with or without its role; the role itself once the assistant module has given it
     if (a.kind === 'assistant') args.push('--allowedTools', 'mcp__assistant')
-    // the terminal tools ask the person themselves (opening, typing), so Claude Code does not ask again
-    else args.push('--allowedTools', 'mcp__terminal')
+    // the terminal tools ask the person themselves (opening, typing), so Claude Code does not ask again; the crew tools
+    // only reach the person's own agents, through the monitor, which shows what was said
+    else args.push('--allowedTools', 'mcp__terminal,mcp__crew')
     if (a.kind === 'assistant' && a.system) args.push('--append-system-prompt', a.system + '\n\n' + CONNECTORS_RULE)
     // the person's language, and the monitor's panels it may use, where every step sees them (a line in the conversation
     // drifts out of view, or a compaction drops it)
-    else if (a.kind !== 'assistant') { const sys = [langRule?.(), panelsRule?.(), NAMES_RULE, CONNECTORS_RULE].filter(Boolean).join('\n\n'); if (sys) args.push('--append-system-prompt', sys) }
+    else if (a.kind !== 'assistant') { const sys = [langRule?.(), panelsRule?.(), NAMES_RULE, CREW_RULE, CONNECTORS_RULE].filter(Boolean).join('\n\n'); if (sys) args.push('--append-system-prompt', sys) }
     a.procHasRole = a.kind === 'assistant' && !!a.system
     // the name the others see it by (a new one once the page has given it one: the next claude it starts takes it)
     const label = a.kind === 'assistant' ? '' : nameFor?.(a) || ''

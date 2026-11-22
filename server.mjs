@@ -24,6 +24,7 @@ import { createBrowsers } from './browsers.mjs'
 import { createAccount } from './account.mjs'
 import { createCloud } from './cloud.mjs'
 import { createAssistant } from './assistant.mjs'
+import { createBus } from './bus.mjs'
 import { tokensToday } from './tokens.mjs'
 import { createProcesses } from './processes.mjs'
 import { createClaudeFiles } from './claudefiles.mjs'
@@ -2054,6 +2055,8 @@ const agents = createAgents({
 })
 // the app's settings window sets the default too (main.cjs)
 globalThis.agentMonitorCompact = { get: () => ({ ...compactConf }), set: (body) => saveCompact(body || {}) }
+// the Crew's message bus (bus.mjs): the agents' crew tools, a message from one to another through the monitor
+const bus = createBus({ agents, state: () => cachedState(), labelOf: (id) => agentLabels.get(id) || '', clip })
 // the monitor's assistant behind the floating chat button (assistant.mjs)
 const assistant = createAssistant({
   agents, dataDir: DATA, state: () => cachedState(), notifyPages,
@@ -2216,6 +2219,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/claude/file') { const [code, o] = await claudeFiles.write(await readBody(req, 2 * 1024 * 1024)); json(code, o); return }
       const body = await readBody(req)
       if (url.pathname === '/hook/prompt') { json(200, await agents.prompt(body)); return }
+      if (url.pathname === '/hook/crew') { json(200, { text: await bus.tool(body) }); return }
       if (url.pathname === '/hook/assistant') { json(200, { text: await assistant.tool(body) }); return }
       if (url.pathname === '/hook/terminal') { json(200, { text: body.tool === 'shared_browser' ? await sharedBrowserTool(body) : body.tool === 'show_artifact' ? await artifactTool(body) : await assistant.agentTool(body) }); return }
       // the page opening a file as an artifact by its path, or taking one off the list; not under /api/, like the files

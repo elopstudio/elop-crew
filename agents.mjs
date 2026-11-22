@@ -16,6 +16,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { writeJson, readJson } from './durable.cjs'
 import { createClaudeDriver, CONFIG_DIR, LIMIT_HIT } from './drivers/claude.mjs'
+import { BUS_HEADER } from './bus.mjs'
 // what only the assistant's own tools server is given (an agent knows the monitor's token, never this): its calls are its
 const ASSISTANT_KEY = crypto.randomBytes(16).toString('hex')
 import { execFileSync } from 'node:child_process'
@@ -238,7 +239,8 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   function markPeers(a) {
     if (!a.peers?.length) return
     const by = new Map(a.peers.map((p) => [p.k, p.from || '']))
-    for (const e of a.events) if (e.kind === 'user' && !e.peer && by.has(peerKey(e.text))) { e.peer = true; e.from = by.get(peerKey(e.text)) }
+    // one through the crew tools starts with the line saying who it is from, which the page shows its own way
+    for (const e of a.events) if (e.kind === 'user' && !e.peer && by.has(peerKey(e.text))) { e.peer = true; e.from = by.get(peerKey(e.text)); e.text = String(e.text).replace(BUS_HEADER, '') }
   }
   // what the agents said to each other through the monitor, for the page's agent-talk tab: to this agent, and from it
   function peerTalk(name) {
@@ -263,14 +265,16 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
     // just moved to another project: the conversation so far says the old folder (asked, it still named that one), so
     // the first message after says the new one
     const moved = a.movedTo ? '\n\n(The monitor moved you to another project: your working directory is now ' + a.movedTo + '. Work there; folders named earlier in this conversation are the old one.)' : ''
-    if (!driverOf(a).send(a, (own ? text + '\n\n' + replyIn() : text) + moved, files)) return false
+    // one through the crew tools (bus.mjs) is told who it is from and how to answer, in a line of its own before it
+    const said = peer?.header ? peer.header + '\n' + text : text
+    if (!driverOf(a).send(a, (own ? said + '\n\n' + replyIn() : said) + moved, files)) return false
     if (a.movedTo) { a.movedTo = ''; save() }
     // the files' names for the chips, and their place in the uploads folder ("<dir>/<stored name>") for the preview
     // the monitor's own words to it: a note (the assistant's chat has its own way of showing them)
     const sys = a.kind === 'assistant' ? '' : systemNote(text)
     if (sys) emit(a, { kind: 'note', sys, text: mask(systemNoteText(text)) })
     else if (peer) {
-      a.peers = [...(a.peers || []), { k: peerKey(mask(clip2(text, 4000))), from: peer.from || '', at: Date.now() }].slice(-PEERS_KEPT)
+      a.peers = [...(a.peers || []), { k: peerKey(mask(clip2(said, 4000))), from: peer.from || '', at: Date.now() }].slice(-PEERS_KEPT)
       save()
       emit(a, { kind: 'user', peer: true, from: peer.from || '', text: mask(clip2(text, 4000)), files: files.map((p) => p.split('/').pop().replace(/^[0-9a-z]+-/, '')), refs: files.map((p) => p.split('/').slice(-2).join('/')) })
     } else emit(a, { kind: 'user', text: mask(clip2(text, 4000)), files: files.map((p) => p.split('/').pop().replace(/^[0-9a-z]+-/, '')), refs: files.map((p) => p.split('/').slice(-2).join('/')) })
@@ -608,6 +612,8 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   const cwdOf = (id) => agents.get(String(id))?.cwd || null
   const agentOf = (id) => { const a = agents.get(String(id)); return a && a.kind !== 'assistant' ? { sessionId: a.sessionId || a.newSessionId, cwd: a.cwd } : null }
   const sendText = (id, text) => { const a = agents.get(String(id)); return !!a && send(a, text, []) }
+  // another agent's message through the crew tools (bus.mjs): from its name on the page, with the line it is told first
+  const sendPeer = (id, text, { from, header }) => { const a = agents.get(String(id)); return !!a && a.kind !== 'assistant' && send(a, text, [], { from, header }) }
 
   const loaded = load()   // the saved list is read before anything asks for an agent by id
   // the monitor's own assistant: one fixed agent, kept in the list like the others, never shown with a project
@@ -679,5 +685,5 @@ export function createAgents({ root, dataDir, mask, clip, clip2, describe, notif
   // a line in the assistant's chat that is not a message: an alert, or something it did on its own
   const noteTo = (id, ev) => { const a = agents.get(id); if (a) emit(a, ev) }
 
-  return { peerTalk, reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable: claude.executable, cwdOf, agentOf, sendText, freshSession, fork, adopt, ensureAssistant, assistantState, assistantSession, compactChanged, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
+  return { peerTalk, reloadMods, handle, stream, prompt, sessions, byAgentSession, shutdown, claudeExecutable: claude.executable, cwdOf, agentOf, sendText, sendPeer, freshSession, fork, adopt, ensureAssistant, assistantState, assistantSession, compactChanged, noteTo, loaded, assistantKey: () => ASSISTANT_KEY }
 }

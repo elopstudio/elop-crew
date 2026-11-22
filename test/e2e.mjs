@@ -4,6 +4,8 @@
 //   name       its claude goes by the page's names (ListAgents / SendMessage), not one made up from the folder
 //   approval   a tool it must ask for (Write) shows as a request; allowed there, it runs
 //   peer       a message one agent sends another by name (SendMessage) reaches it, their permission modes differing
+//   bus        a message through the crew tools (bus.mjs) reaches the other agent, shown as from the sender, without an
+//              approval, and it answers the same way; both are in the agent-talk list
 //   args       the arguments its claude is started with, against test/args.baseline.txt (--save-args writes it)
 //   commands   the "/" list for its folder (claude's own commands among them)
 //   live       a new mode and effort taken by its running claude without a restart, and the mods' drawing requests answered
@@ -208,6 +210,22 @@ async function main() {
       await until(() => (events.get(B) || []).some((e) => /E2E-PEER-9/.test(String(e.text || ''))) || /E2E-PEER-9/.test(said(B)), 90000, 'the message to reach ' + label)
     } finally { stop = true }
     return 'to ' + label
+  })
+
+  await check('bus', async () => {
+    if (!B) throw new Error('the second agent did not start')
+    const a = (await sessionOf(A)).s, b = (await sessionOf(B)).s
+    const n = (events.get(B) || []).length
+    await ask(A, 'Use the mcp__crew__send tool to send the agent named ' + labelOf(b) + ' this message: "E2E-BUS-5 — please answer me with the word ACK." Then reply with one line saying what the tool result said.')
+    if ((await state()).approvals?.some((q) => /crew/i.test(String(q.tool || '')))) throw new Error('the crew tool asked for approval')
+    const got = await until(() => (events.get(B) || []).slice(n).find((e) => e.kind === 'user' && e.peer && /E2E-BUS-5/.test(String(e.text || ''))), 60000, 'the message to reach ' + labelOf(b))
+    if (got.from !== a.name) throw new Error('from ' + JSON.stringify(got.from) + ', not ' + JSON.stringify(a.name))
+    if (/through the agent monitor/.test(got.text)) throw new Error('the page shows the header line')
+    // it knows who sent it and answers through the bus too
+    await until(() => (events.get(A) || []).some((e) => e.kind === 'user' && e.peer && e.from === b.name), 120000, 'an answer from ' + labelOf(b))
+    const talk = await (await fetch(BASE + '/api/agents/peers?token=' + token + '&name=' + encodeURIComponent(b.name))).json()
+    if (!talk.list?.some((m) => /E2E-BUS-5/.test(m.text))) throw new Error('not in the agent-talk list')
+    return labelOf(a) + ' → ' + labelOf(b) + ' and back'
   })
 
   await check('args', async () => {

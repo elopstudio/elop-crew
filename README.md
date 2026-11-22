@@ -296,6 +296,16 @@ user to approve, and a monitor agent's claude has no way to ask, so such message
 claude is started with `crossSessionInbound: "accept"`; a repository's or the organization's `"hold"` still wins. A
 message to a VS Code session in another mode is still held there for you to approve.
 
+The monitor's agents also talk through the monitor itself, with the **crew tools** every one of them has
+(`hooks/crew-mcp.mjs`, answered by `bus.mjs`): `agents` lists the Crew as the page shows it (each agent's names, project,
+state and what it is on), and `send` hands one of them a message by any of its names. The recipient is told in a line
+before it who sent it and how to answer, and the message is in both agents' **Agent talk** tab, from its sender. It works
+whatever program runs the agent, so it is the one way for agents on other models too, and each agent is told to use it
+for the monitor's agents (SendMessage stays for Claude sessions outside it). The tools need no approval, as they only
+reach your own agents. A pair of agents can send each other 20 messages an hour each way; an agent stopped at the usage
+limit or waiting for the login is not woken by one; VS Code sessions are listed but not reached (they have no crew tools
+to answer with).
+
 ## What it never reads, and what it shows
 
 - `~/.claude/sessions/*.key` are never opened. Settings files are opened only for what the table above says.
@@ -808,7 +818,7 @@ See `boards/example.json`.
 folder, link file and port) and real claude processes on haiku in throwaway folders under the temp folder — a few cents
 a run, a minute or so. It checks that an agent answers its first message; that its claude goes by the page's names;
 that a tool it must ask for (Write) shows as a request and runs once allowed; that a message one agent sends another
-by name reaches it though their permission modes differ; that the arguments its claude starts with match
+by name reaches it though their permission modes differ; that one sent with the crew tools reaches it as from the sender, without an approval, and is answered the same way; that the arguments its claude starts with match
 `test/args.baseline.txt`; that the "/" list comes back for its folder; that a new mode and effort are taken by its running
 claude without a restart, and the mods' drawing requests are answered; that, the server killed hard and started again, the
 agents are back and carry on the same conversation; and that with auto-run on an agent is handed its queued task and TASK

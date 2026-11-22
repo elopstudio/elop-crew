@@ -52,6 +52,7 @@
           "artifacts.mjs",
           "skins.mjs",
           "durable.cjs",
+          "bus.mjs",
           "drivers/**/*",
           "package.json",
           "LICENSE",
