@@ -809,10 +809,18 @@ folder, link file and port) and real claude processes on haiku in throwaway fold
 a run, a minute or so. It checks that an agent answers its first message; that its claude goes by the page's names;
 that a tool it must ask for (Write) shows as a request and runs once allowed; that a message one agent sends another
 by name reaches it though their permission modes differ; that the arguments its claude starts with match
-`test/args.baseline.txt`; that, the server killed hard and started again, the agents are back and carry on the same
-conversation; and that with auto-run on an agent is handed its queued task and TASK DONE marks it done. `--keep` leaves
+`test/args.baseline.txt`; that the "/" list comes back for its folder; that a new mode and effort are taken by its running
+claude without a restart, and the mods' drawing requests are answered; that, the server killed hard and started again, the
+agents are back and carry on the same conversation; and that with auto-run on an agent is handed its queued task and TASK
+DONE marks it done. `--keep` leaves
 the folders (and `server.log`) to look at, `--only=start,name,…` runs some of the checks, and `--save-args` writes the
 baseline anew — only when the arguments were meant to change. Run it before and after a change to how agents run.
+
+How an agent is run is its driver's: `drivers/claude.mjs` starts the installed claude, writes its messages, sends it
+control requests and turns what it prints into the page's events, and says when a turn ended and when its process is
+gone. `agents.mjs` keeps what every agent has whatever runs it — the list, events and state, carrying agents on after a
+restart, a login back or a usage limit, the API. Every agent runs on the Claude driver for now; another model's CLI
+would be a driver of its own beside it.
 
 ## Made by ELOP Studio
 

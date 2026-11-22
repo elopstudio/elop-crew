@@ -5,6 +5,8 @@
 //   approval   a tool it must ask for (Write) shows as a request; allowed there, it runs
 //   peer       a message one agent sends another by name (SendMessage) reaches it, their permission modes differing
 //   args       the arguments its claude is started with, against test/args.baseline.txt (--save-args writes it)
+//   commands   the "/" list for its folder (claude's own commands among them)
+//   live       a new mode and effort taken by its running claude without a restart, and the mods' drawing requests answered
 //   resume     the server killed hard and started again: the agents are back, and the next message carries on the
 //              same conversation
 //   board      with auto-run on, an agent that ends a turn is handed its queued task, and TASK DONE marks it done
@@ -221,11 +223,36 @@ async function main() {
     const file = path.join(REPO, 'test', 'args.baseline.txt')
     if (SAVE_ARGS) { fs.writeFileSync(file, line + '\n'); return 'saved to test/args.baseline.txt' }
     if (!fs.existsSync(file)) throw new Error('no baseline yet: run with --save-args on code you trust')
-    const base = fs.readFileSync(file, 'utf8').trim()
+    // a checkout with core.autocrlf turns the line breaks inside it (the system prompt's) into CRLF
+    const base = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').trim()
     if (base !== line) {
       fs.writeFileSync(path.join(ROOT, 'args.now.txt'), line + '\n')
       throw new Error('differs from the baseline (now: ' + path.join(ROOT, 'args.now.txt') + ')')
     }
+  })
+
+  await check('commands', async () => {
+    const r = await api('/api/agents/commands', { id: A })
+    const names = (r.body?.commands || []).map((c) => c.name)
+    if (r.status !== 200 || !names.includes('compact')) throw new Error('answered ' + r.status + ' with ' + names.length + ' commands')
+    return names.length + ' commands'
+  })
+
+  await check('live', async () => {
+    const pid = registry().find((o) => mine(o) && path.resolve(o.cwd).toLowerCase() === ALPHA.toLowerCase())?.pid
+    const notes = () => (events.get(A) || []).filter((e) => e.kind === 'note' && / — now$/.test(String(e.text || ''))).length
+    const n = notes()
+    // a mode and an effort for the running claude, taken without a restart
+    const r = await api('/api/agents/settings', { id: A, mode: 'acceptEdits', effort: 'low' })
+    if (r.status !== 200) throw new Error('settings answered ' + r.status)
+    await until(() => notes() > n, 15000, 'the note that they took effect now')
+    const again = registry().find((o) => mine(o) && path.resolve(o.cwd).toLowerCase() === ALPHA.toLowerCase())?.pid
+    if (!pid || again !== pid) throw new Error('its claude was restarted (' + pid + ' → ' + again + ')')
+    await api('/api/agents/settings', { id: A, mode: 'default', effort: '' })
+    await until(() => notes() > n + 1, 15000, 'the settings back')
+    // the mods' drawings: asked of its claude and answered (with no mod loaded, whatever it says)
+    const ui = await api('/api/agents/ui', { id: A, op: 'panes', request: {} })
+    if (ui.status !== 200 || typeof ui.body?.ok !== 'boolean') throw new Error('ui answered ' + ui.status + ' ' + JSON.stringify(ui.body))
   })
 
   await check('resume', async () => {
