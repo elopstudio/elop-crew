@@ -6,7 +6,8 @@
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "test:e2e": "node test/e2e.mjs"
   },
   "engines": {
     "node": ">=18"

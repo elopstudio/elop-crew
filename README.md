@@ -802,6 +802,18 @@ See `boards/example.json`.
 - `session` and the keys of `roles` may be a short name (`-0f`), a full session name or a nickname (`Tom`, `민준`).
 - `boards/*.json` and `config.json` are local state and are not committed.
 
+## Testing
+
+`npm run test:e2e` (`node test/e2e.mjs`) runs the monitor's agents end to end: a server of its own (its own data
+folder, link file and port) and real claude processes on haiku in throwaway folders under the temp folder — a few cents
+a run, a minute or so. It checks that an agent answers its first message; that its claude goes by the page's names;
+that a tool it must ask for (Write) shows as a request and runs once allowed; that a message one agent sends another
+by name reaches it though their permission modes differ; that the arguments its claude starts with match
+`test/args.baseline.txt`; that, the server killed hard and started again, the agents are back and carry on the same
+conversation; and that with auto-run on an agent is handed its queued task and TASK DONE marks it done. `--keep` leaves
+the folders (and `server.log`) to look at, `--only=start,name,…` runs some of the checks, and `--save-args` writes the
+baseline anew — only when the arguments were meant to change. Run it before and after a change to how agents run.
+
 ## Made by ELOP Studio
 
 <a href="https://elopstudio.com">
