@@ -218,15 +218,23 @@ app, the app's own (show or hide the window, zoom, reload, back and forward).
   its conversation, masked as the conversation view is (a long output shows its start). It follows as the agent works,
   with ⏳ on the tab while one runs. These are commands, not terminals left open: each one ends when it is done; what
   keeps running (a dev server, a background job) is in **Processes**.
-- **Minimise.** **_** (Minimise) at the top right of an agent's dialog, next to **✕** (Close), folds it into a bar along
-  the bottom of the page — one chip per agent,
-  with its robot, name and state (`!` while it waits for you). A click on a chip opens that agent again on the same tab,
-  with the message you had started still in the box; a click on the open one folds it away. Switching from one chip to
-  another puts the agent you leave on the bar too. **Ctrl + 1 … 9** does the same as a click on the chip with that number,
-  even while you are typing (the approval keys use Alt, so the two never clash). **×** takes an agent off the bar,
-  **✕** in its dialog does the same, and an agent whose session ends drops off by itself. **Drag a chip** to change the
-  order (or **Ctrl + Shift + ← / →** on a focused chip); the numbers follow, and the order is kept in the browser. The
-  bar lists session names only; unsent messages stay in the page and are never saved.
+- **Windows, side by side.** Each agent opens in a window of its own that floats over the page, so you can talk to
+  several at once: up to four are open together (a fifth folds away the one used longest ago). Drag a window by its
+  header, size it by its bottom-right corner, and a click anywhere in it brings it to the front (it gets a coloured
+  edge); a double click on the header fills the screen and a second one brings it back. The page itself stays usable
+  underneath — robot cards, tabs and requests still work. Clicking a robot whose window is open brings that window
+  forward instead of opening another. On a phone-sized screen a window fills the screen and only one is open at a time.
+- **The bar of chips.** Every agent window has a chip in a bar along the bottom of the page, showing its robot, name and
+  state (`!` while it waits for you). **_** (Minimise) at the top right of a window, or **Esc** inside it, folds it into
+  its chip. A folded window keeps following its conversation: replies that arrive meanwhile show as a number on the chip.
+  A click on a chip opens a folded window on the same tab with your unfinished message still in the box, brings an open
+  one to the front, or folds the front one. With two or more open, **▦ Side by side** at the end of the bar lays them
+  out: two in halves, three as one half and two quarters, four in quarters. **Ctrl + 1 … 9** does the same as a click on
+  the chip with that number, even while you are typing (the approval keys use Alt, so the two never clash). **×** on a
+  chip, or **✕** in the window, closes it; an agent whose session ends drops off by itself. **Drag a chip** to change
+  the order (or **Ctrl + Shift + ← / →** on a focused chip); the numbers follow. The browser keeps the order, where each
+  window was and how big, and which were open, and opens those again the next time the page loads. It stores session
+  names and window sizes only; unsent messages stay in the page and are never saved.
 - **Drafts.** A message started to an agent stays in its box when the dialog closes or shows another agent, on the bar
   or not: open that agent again and it is there, the cursor at its end, with the files attached to it. Sending it (or
   emptying the box) ends the draft.
